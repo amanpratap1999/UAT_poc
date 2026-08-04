@@ -1,0 +1,11 @@
+[
+  {
+    "learning_id": "form_rules:form.mandatory",
+    "category": "form_rules",
+    "topic": "form.mandatory",
+    "insight": "Mandatory fields on New Record Form: Short Description, Caller",
+    "confidence": 1.0,
+    "times_observed": 17,
+    "last_updated": "2026-07-27T13:44:27.994459"
+  }
+]

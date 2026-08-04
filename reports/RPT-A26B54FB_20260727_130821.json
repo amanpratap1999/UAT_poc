@@ -1,0 +1,276 @@
+{
+  "report_id": "RPT-A26B54FB",
+  "goal": "Open any existing Incident in New state and validate the complete Incident flow.",
+  "status": "completed",
+  "started_at": "2026-07-27T13:08:21.602128",
+  "completed_at": "2026-07-27T13:11:57.083194",
+  "duration_seconds": 215.481066,
+  "timeline": [
+    {
+      "step_index": 0,
+      "timestamp": "2026-07-27T13:08:31.644639",
+      "action": "Navigate to ServiceNow",
+      "result": "started",
+      "duration_ms": 0.0,
+      "screenshot_path": null,
+      "details": {}
+    },
+    {
+      "step_index": 0,
+      "timestamp": "2026-07-27T13:08:41.398400",
+      "action": "Plan created with 2 steps",
+      "result": "success",
+      "duration_ms": 0.0,
+      "screenshot_path": null,
+      "details": {}
+    },
+    {
+      "step_index": 0,
+      "timestamp": "2026-07-27T13:09:02.109140",
+      "action": "click: text:Show Password",
+      "result": "failed: Cannot click element: text:Show Password — Locator.click: Timeout 10000ms exceeded.\nCall log:\n  - waiting for get_by_text(\"Show Password\")\n",
+      "duration_ms": 10051.555800000642,
+      "screenshot_path": "screenshots\\error_click_29137.png",
+      "details": {}
+    },
+    {
+      "step_index": 1,
+      "timestamp": "2026-07-27T13:09:10.082221",
+      "action": "wait: page_load",
+      "result": "success",
+      "duration_ms": 531.1241000017617,
+      "screenshot_path": null,
+      "details": {}
+    },
+    {
+      "step_index": 2,
+      "timestamp": "2026-07-27T13:09:32.556101",
+      "action": "fill: User name",
+      "result": "success",
+      "duration_ms": 13348.996900000202,
+      "screenshot_path": null,
+      "details": {}
+    },
+    {
+      "step_index": 3,
+      "timestamp": "2026-07-27T13:10:06.143975",
+      "action": "fill: Password",
+      "result": "success",
+      "duration_ms": 19112.73639999854,
+      "screenshot_path": "screenshots\\recovered_29200.png",
+      "details": {}
+    },
+    {
+      "step_index": 4,
+      "timestamp": "2026-07-27T13:10:33.090007",
+      "action": "click: text:Show Password",
+      "result": "failed: Cannot click element: text:Show Password — Locator.click: Timeout 10000ms exceeded.\nCall log:\n  - waiting for get_by_text(\"Show Password\")\n",
+      "duration_ms": 10017.104700000345,
+      "screenshot_path": "screenshots\\error_click_29224.png",
+      "details": {}
+    },
+    {
+      "step_index": 5,
+      "timestamp": "2026-07-27T13:10:47.507812",
+      "action": "click: text:Log in",
+      "result": "failed: Cannot click element: text:Log in — Locator.click: Error: strict mode violation: get_by_text(\"Log in\") resolved to 2 elements:\n    1) <h1 class=\"sr-only row\">Log in</h1> aka get_by_role(\"heading\", name=\"Log in\")\n    2) <button type=\"submit\" id=\"sysverb_login\" name=\"not_important\" class=\"btn btn-primary\" onclick=\"loginPage.sys_action.value=this.id;\">Log in</button> aka get_by_role(\"button\", name=\"Log in\")\n\nCall log:\n  - waiting for get_by_text(\"Log in\")\n",
+      "duration_ms": 202.10900000165566,
+      "screenshot_path": "screenshots\\error_click_29242.png",
+      "details": {}
+    },
+    {
+      "step_index": 6,
+      "timestamp": "2026-07-27T13:11:01.607765",
+      "action": "click: id:sysverb_login",
+      "result": "failed: Element not found: id:sysverb_login",
+      "duration_ms": 92.81199999895762,
+      "screenshot_path": "screenshots\\error_click_29256.png",
+      "details": {}
+    },
+    {
+      "step_index": 7,
+      "timestamp": "2026-07-27T13:11:41.781320",
+      "action": "click: text:Show Password",
+      "result": "failed: Cannot click element: text:Show Password — Locator.click: Timeout 10000ms exceeded.\nCall log:\n  - waiting for get_by_text(\"Show Password\")\n",
+      "duration_ms": 10013.041899997916,
+      "screenshot_path": "screenshots\\error_click_29296.png",
+      "details": {}
+    }
+  ],
+  "total_validations": 8,
+  "passed_validations": 2,
+  "failed_validations": 6,
+  "validation_details": [
+    {
+      "action": "click: text:Show Password",
+      "passed": false,
+      "checks": 5,
+      "failed_checks": [
+        "action_execution",
+        "no_js_errors"
+      ]
+    },
+    {
+      "action": "wait: page_load",
+      "passed": true,
+      "checks": 4,
+      "failed_checks": []
+    },
+    {
+      "action": "fill: User name",
+      "passed": false,
+      "checks": 5,
+      "failed_checks": [
+        "field_update"
+      ]
+    },
+    {
+      "action": "fill: Password",
+      "passed": true,
+      "checks": 5,
+      "failed_checks": []
+    },
+    {
+      "action": "click: text:Show Password",
+      "passed": false,
+      "checks": 5,
+      "failed_checks": [
+        "action_execution",
+        "page_responded"
+      ]
+    },
+    {
+      "action": "click: text:Log in",
+      "passed": false,
+      "checks": 5,
+      "failed_checks": [
+        "action_execution",
+        "page_responded"
+      ]
+    },
+    {
+      "action": "click: id:sysverb_login",
+      "passed": false,
+      "checks": 5,
+      "failed_checks": [
+        "action_execution",
+        "page_responded"
+      ]
+    },
+    {
+      "action": "click: text:Show Password",
+      "passed": false,
+      "checks": 5,
+      "failed_checks": [
+        "action_execution",
+        "page_responded"
+      ]
+    }
+  ],
+  "defects": [
+    {
+      "defect_id": "DEF-001",
+      "severity": "critical",
+      "title": "Validation failure: action_execution, no_js_errors",
+      "description": "action_execution: expected=success, actual=failed: Cannot click element: text:Show Password — Locator.click: Timeout 10000ms exceeded.\nCall log:\n  - waiting for get_by_text(\"Show Password\")\n; no_js_errors: expected=no JS errors, actual=5 JS errors",
+      "steps_to_reproduce": [],
+      "expected_behavior": "success; no JS errors",
+      "actual_behavior": "failed: Cannot click element: text:Show Password — Locator.click: Timeout 10000ms exceeded.\nCall log:\n  - waiting for get_by_text(\"Show Password\")\n; 5 JS errors",
+      "evidence": [
+        "screenshots\\error_click_29137.png"
+      ],
+      "root_cause_hypothesis": "",
+      "related_step_index": 0
+    },
+    {
+      "defect_id": "DEF-002",
+      "severity": "high",
+      "title": "Validation failure: field_update",
+      "description": "field_update: expected=admin, actual=",
+      "steps_to_reproduce": [],
+      "expected_behavior": "admin",
+      "actual_behavior": "",
+      "evidence": [],
+      "root_cause_hypothesis": "",
+      "related_step_index": 2
+    },
+    {
+      "defect_id": "DEF-003",
+      "severity": "critical",
+      "title": "Validation failure: action_execution, page_responded",
+      "description": "action_execution: expected=success, actual=failed: Cannot click element: text:Show Password — Locator.click: Timeout 10000ms exceeded.\nCall log:\n  - waiting for get_by_text(\"Show Password\")\n; page_responded: expected=page changed or updated, actual=no visible change",
+      "steps_to_reproduce": [],
+      "expected_behavior": "success; page changed or updated",
+      "actual_behavior": "failed: Cannot click element: text:Show Password — Locator.click: Timeout 10000ms exceeded.\nCall log:\n  - waiting for get_by_text(\"Show Password\")\n; no visible change",
+      "evidence": [
+        "screenshots\\error_click_29224.png"
+      ],
+      "root_cause_hypothesis": "",
+      "related_step_index": 4
+    },
+    {
+      "defect_id": "DEF-004",
+      "severity": "critical",
+      "title": "Validation failure: action_execution, page_responded",
+      "description": "action_execution: expected=success, actual=failed: Cannot click element: text:Log in — Locator.click: Error: strict mode violation: get_by_text(\"Log in\") resolved to 2 elements:\n    1) <h1 class=\"sr-only row\">Log in</h1> aka get_by_role(\"heading\", name=\"Log in\")\n    2) <button type=\"submit\" id=\"sysverb_login\" name=\"not_important\" class=\"btn btn-primary\" onclick=\"loginPage.sys_action.value=this.id;\">Log in</button> aka get_by_role(\"button\", name=\"Log in\")\n\nCall log:\n  - waiting for get_by_text(\"Log in\")\n; page_responded: expected=page changed or updated, actual=no visible change",
+      "steps_to_reproduce": [],
+      "expected_behavior": "success; page changed or updated",
+      "actual_behavior": "failed: Cannot click element: text:Log in — Locator.click: Error: strict mode violation: get_by_text(\"Log in\") resolved to 2 elements:\n    1) <h1 class=\"sr-only row\">Log in</h1> aka get_by_role(\"heading\", name=\"Log in\")\n    2) <button type=\"submit\" id=\"sysverb_login\" name=\"not_important\" class=\"btn btn-primary\" onclick=\"loginPage.sys_action.value=this.id;\">Log in</button> aka get_by_role(\"button\", name=\"Log in\")\n\nCall log:\n  - waiting for get_by_text(\"Log in\")\n; no visible change",
+      "evidence": [
+        "screenshots\\error_click_29242.png"
+      ],
+      "root_cause_hypothesis": "",
+      "related_step_index": 5
+    },
+    {
+      "defect_id": "DEF-005",
+      "severity": "critical",
+      "title": "Validation failure: action_execution, page_responded",
+      "description": "action_execution: expected=success, actual=failed: Element not found: id:sysverb_login; page_responded: expected=page changed or updated, actual=no visible change",
+      "steps_to_reproduce": [],
+      "expected_behavior": "success; page changed or updated",
+      "actual_behavior": "failed: Element not found: id:sysverb_login; no visible change",
+      "evidence": [
+        "screenshots\\error_click_29256.png"
+      ],
+      "root_cause_hypothesis": "",
+      "related_step_index": 6
+    },
+    {
+      "defect_id": "DEF-006",
+      "severity": "critical",
+      "title": "Validation failure: action_execution, page_responded",
+      "description": "action_execution: expected=success, actual=failed: Cannot click element: text:Show Password — Locator.click: Timeout 10000ms exceeded.\nCall log:\n  - waiting for get_by_text(\"Show Password\")\n; page_responded: expected=page changed or updated, actual=no visible change",
+      "steps_to_reproduce": [],
+      "expected_behavior": "success; page changed or updated",
+      "actual_behavior": "failed: Cannot click element: text:Show Password — Locator.click: Timeout 10000ms exceeded.\nCall log:\n  - waiting for get_by_text(\"Show Password\")\n; no visible change",
+      "evidence": [
+        "screenshots\\error_click_29296.png"
+      ],
+      "root_cause_hypothesis": "",
+      "related_step_index": 7
+    }
+  ],
+  "browser_logs": [],
+  "console_errors": [],
+  "summary": "The test aimed to open an existing Incident in the New state and validate the full Incident lifecycle. Execution halted at the login stage due to element interaction failures: the \"Show Password\" control could not be located within the timeout period, and the \"Log in\" button matched multiple elements, causing a strict‑mode violation. Consequently, the test could not access the Incident Management module, and the intended incident flow validation was not performed. No application defects were identified; the failures stem from test script locator and synchronization issues. Overall, the test did not meet its objective and is marked as failed.",
+  "recommendations": [
+    "Refine element locators to use unique identifiers (e.g., data‑test‑id) rather than generic text",
+    "Implement explicit waits or retry logic for dynamic elements like \"Show Password\"",
+    "Disambiguate the \"Log in\" button selector by targeting the button role instead of generic text",
+    "Review the login page UI to confirm element visibility and accessibility",
+    "Update the test script to handle multiple matching elements and enforce robust error handling"
+  ],
+  "environment": {
+    "session_id": "bcf44435-2b6f-4143-a3e8-a50ebe92a542",
+    "url": "https://dev211561.service-now.com/"
+  },
+  "screenshots": [
+    "screenshots\\error_click_29137.png",
+    "screenshots\\recovered_29200.png",
+    "screenshots\\error_click_29224.png",
+    "screenshots\\error_click_29242.png",
+    "screenshots\\error_click_29256.png",
+    "screenshots\\error_click_29296.png"
+  ]
+}

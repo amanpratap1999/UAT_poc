@@ -1,0 +1,130 @@
+# ServiceNow QA Agent — Autonomous AI-Powered Testing Runtime
+
+An AI-first autonomous QA agent for ServiceNow Incident Management. Users provide business-level goals; the agent autonomously plans, browses, validates, recovers, and reports.
+
+## Architecture
+
+```
+User Goal → Planner (LLM) → Execution Controller → Playwright Browser
+                  ↑                                        |
+                  └──── Session Memory ←── Observation Engine
+```
+
+**Primary Principle:** The LLM never directly manipulates Playwright. The Planner emits structured action dictionaries. The Execution Controller translates those into browser operations.
+
+### Component Overview
+
+| Component | Purpose | Location |
+|-----------|---------|----------|
+| **Planner** | LLM-based reasoning: plan creation, action decisions, validation assessment | `src/agent/planner/` |
+| **Session Memory** | Stateful context: goal, plan, observations, failures, timeline | `src/agent/memory/` |
+| **Execution Controller** | Translates structured actions → browser operations | `src/agent/execution/` |
+| **Browser Manager** | Playwright lifecycle, screenshots, accessibility tree | `src/agent/browser/` |
+| **Observation Engine** | Converts browser pages → structured JSON observations | `src/agent/observation/` |
+| **Validation Engine** | Post-action verification (field updates, errors, JS) | `src/agent/validation/` |
+| **Recovery Engine** | Automated error recovery: wait, scroll, dismiss, refresh | `src/agent/recovery/` |
+| **Reporting Engine** | QA report generation (Markdown, JSON) with defect analysis | `src/agent/reporting/` |
+| **Knowledge Store** | ServiceNow documentation retrieval for planner context | `src/agent/knowledge/` |
+
+### Reasoning Loop
+
+```
+Goal → Observe → Reason → Execute → Observe → Validate → Continue/Report
+```
+
+## Quick Start
+
+### 1. Install Dependencies
+
+```bash
+pip install -e ".[dev]"
+playwright install chromium
+```
+
+### 2. Configure Environment
+
+```bash
+cp .env.example .env
+# Edit .env with your LLM API key and ServiceNow instance details
+```
+
+### 3. Run the API Server
+
+```bash
+uvicorn agent.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### 4. Start an Agent Run
+
+```bash
+curl -X POST http://localhost:8000/api/v1/agent/run \
+  -H "Content-Type: application/json" \
+  -d '{"goal": "Test the complete Incident lifecycle"}'
+```
+
+### 5. Check Status
+
+```bash
+curl http://localhost:8000/api/v1/agent/status/{session_id}
+```
+
+### 6. Get Report
+
+```bash
+curl http://localhost:8000/api/v1/agent/report/{session_id}
+```
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/health` | Health check |
+| `POST` | `/api/v1/agent/run` | Start an agent run |
+| `GET` | `/api/v1/agent/status/{id}` | Get agent status |
+| `GET` | `/api/v1/agent/report/{id}` | Get test report |
+| `POST` | `/api/v1/agent/stop/{id}` | Stop a running agent |
+
+## Running Tests
+
+```bash
+# All tests
+pytest tests/ -v
+
+# Unit tests only
+pytest tests/unit/ -v
+
+# Integration tests only
+pytest tests/integration/ -v
+```
+
+## Project Structure
+
+```
+UAT_poc/
+├── src/agent/           # Main application
+│   ├── core/            # Config, types, exceptions, logging
+│   ├── domain/          # Pure domain models
+│   ├── planner/         # LLM reasoning engine
+│   ├── memory/          # Session state management
+│   ├── execution/       # Action → browser translation
+│   ├── browser/         # Playwright integration
+│   ├── observation/     # Page → structured JSON
+│   ├── validation/      # Post-action verification
+│   ├── recovery/        # Error recovery strategies
+│   ├── reporting/       # Report generation
+│   ├── knowledge/       # ServiceNow doc retrieval
+│   └── api/v1/          # FastAPI endpoints
+├── servicenow_docs/     # Reference documentation
+├── tests/               # Test suite
+├── reports/             # Generated reports
+└── screenshots/         # Captured screenshots
+```
+
+## Design Principles
+
+- **Modular Architecture** — Each engine is independent and testable
+- **SOLID Principles** — Single responsibility, open for extension
+- **Dependency Injection** — All engines are injected, never hard-coded
+- **Strong Typing** — Pydantic models throughout, mypy-strict compatible
+- **Async First** — All I/O operations are async
+- **Clean Logging** — Structured logs with session context binding
