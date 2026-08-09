@@ -21,7 +21,7 @@ from agent.planner.planner import Planner
 from agent.recovery.engine import RecoveryEngine
 from agent.reflection.engine import ReflectionEngine
 from agent.reporting.engine import ReportingEngine
-from agent.skills.incident_skill import IncidentSkill
+from agent.skills.incident.skill import IncidentSkill
 from agent.skills.registry import SkillRegistry
 from agent.tools.browser_tools import register_default_tools
 from agent.tools.registry import ToolRegistry

@@ -91,7 +91,7 @@ from agent.decision.engine import DecisionEngine
 from agent.intent.manager import IntentManager
 from agent.memory.long_term import KnowledgeMemory
 from agent.reflection.engine import ReflectionEngine
-from agent.skills.incident_skill import IncidentSkill
+from agent.skills.incident.skill import IncidentSkill
 from agent.skills.registry import SkillRegistry
 from agent.tools.browser_tools import register_default_tools
 from agent.tools.registry import ToolRegistry

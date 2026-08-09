@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from agent.domain.intent import StructuredIntent
-from agent.skills.incident_skill import IncidentSkill
+from agent.skills.incident.skill import IncidentSkill
 from agent.skills.registry import SkillRegistry
 
 
