@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, ClassVar
 
 from openai import AsyncOpenAI
 
@@ -71,7 +71,7 @@ class OpenAILLMClient(BaseLLMClient):
     """
 
     # Base URLs for known providers
-    _PROVIDER_URLS: dict[str, str] = {
+    _PROVIDER_URLS: ClassVar[dict[str, str]] = {
         "openai": "https://api.openai.com/v1",
         "groq": "https://api.groq.com/openai/v1",
         "anthropic": "https://api.anthropic.com/v1",
@@ -81,7 +81,9 @@ class OpenAILLMClient(BaseLLMClient):
         self._config = config
         self._total_tokens_used = 0
 
-        base_url = self._PROVIDER_URLS.get(config.provider, self._PROVIDER_URLS["openai"])
+        base_url = self._config.base_url or self._PROVIDER_URLS.get(
+            config.provider, self._PROVIDER_URLS["openai"]
+        )
 
         self._client = AsyncOpenAI(
             api_key=config.api_key,
@@ -147,9 +149,7 @@ class OpenAILLMClient(BaseLLMClient):
             return result
 
         except json.JSONDecodeError as e:
-            raise LLMResponseParseError(
-                f"Failed to parse tool call arguments: {e}"
-            ) from e
+            raise LLMResponseParseError(f"Failed to parse tool call arguments: {e}") from e
         except Exception as e:
             raise LLMConnectionError(
                 f"LLM request failed: {e}",
@@ -170,9 +170,9 @@ class OpenAILLMClient(BaseLLMClient):
             Parsed JSON dictionary.
         """
         try:
-            response = await self._client.chat.completions.create(
+            response = await self._client.chat.completions.create(  # type: ignore[call-overload]
                 model=self._config.model,
-                messages=messages,  # type: ignore[arg-type]
+                messages=messages,
                 temperature=temperature or self._config.temperature,
                 max_tokens=max_tokens or self._config.max_tokens,
                 response_format={"type": "json_object"},
@@ -182,12 +182,10 @@ class OpenAILLMClient(BaseLLMClient):
                 self._total_tokens_used += response.usage.total_tokens
 
             content = response.choices[0].message.content or "{}"
-            return json.loads(content)
+            return json.loads(content)  # type: ignore[no-any-return]
 
         except json.JSONDecodeError as e:
-            raise LLMResponseParseError(
-                f"LLM response is not valid JSON: {e}"
-            ) from e
+            raise LLMResponseParseError(f"LLM response is not valid JSON: {e}") from e
         except Exception as e:
             if isinstance(e, LLMResponseParseError):
                 raise

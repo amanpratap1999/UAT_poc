@@ -18,7 +18,7 @@ class StructuredIntent(BaseModel):
     raw_prompt: str = Field(default="", description="Original user prompt")
     priority: str = Field(default="Normal", description="Normal, High, Low")
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
-    target_module: str = Field(default="incident", description="Target ServiceNow module")
+    target_module: str = Field(description="Target ServiceNow module")
     extracted_entities: dict[str, Any] = Field(default_factory=dict)
     is_ambiguous: bool = False
     clarification_needed: str | None = None

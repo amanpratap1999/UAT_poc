@@ -10,7 +10,7 @@ from __future__ import annotations
 class AgentError(Exception):
     """Base exception for all agent errors."""
 
-    def __init__(self, message: str, details: dict | None = None) -> None:
+    def __init__(self, message: str, details: dict | None = None) -> None:  # type: ignore[type-arg]
         super().__init__(message)
         self.message = message
         self.details = details or {}
@@ -19,6 +19,7 @@ class AgentError(Exception):
 # ---------------------------------------------------------------------------
 # Planner errors
 # ---------------------------------------------------------------------------
+
 
 class PlannerError(AgentError):
     """Raised when the planner (LLM) fails to produce a valid response."""
@@ -35,6 +36,7 @@ class LLMResponseParseError(PlannerError):
 # ---------------------------------------------------------------------------
 # Execution errors
 # ---------------------------------------------------------------------------
+
 
 class ExecutionError(AgentError):
     """Base class for errors during browser action execution."""
@@ -60,6 +62,7 @@ class ElementNotInteractableError(ExecutionError):
 # Validation errors
 # ---------------------------------------------------------------------------
 
+
 class ValidationFailedError(AgentError):
     """Raised when a post-action validation check fails."""
 
@@ -67,6 +70,7 @@ class ValidationFailedError(AgentError):
 # ---------------------------------------------------------------------------
 # Recovery errors
 # ---------------------------------------------------------------------------
+
 
 class RecoveryExhaustedError(AgentError):
     """Raised when all recovery strategies have been exhausted."""
@@ -76,7 +80,7 @@ class RecoveryExhaustedError(AgentError):
         message: str,
         original_error: Exception | None = None,
         attempts: int = 0,
-        details: dict | None = None,
+        details: dict | None = None,  # type: ignore[type-arg]
     ) -> None:
         super().__init__(message, details)
         self.original_error = original_error
@@ -86,6 +90,7 @@ class RecoveryExhaustedError(AgentError):
 # ---------------------------------------------------------------------------
 # Browser errors
 # ---------------------------------------------------------------------------
+
 
 class BrowserError(AgentError):
     """Base class for browser-level errors."""
@@ -102,6 +107,7 @@ class BrowserCrashedError(BrowserError):
 # ---------------------------------------------------------------------------
 # Agent lifecycle errors
 # ---------------------------------------------------------------------------
+
 
 class AgentMaxStepsExceededError(AgentError):
     """Raised when the agent exceeds the maximum allowed steps."""

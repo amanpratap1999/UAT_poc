@@ -13,17 +13,15 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 from agent.core.types import AgentState
 from agent.domain.actions import ActionResult, AgentAction
+from agent.domain.intent import StructuredIntent
 from agent.domain.observation import PageObservation
 from agent.domain.plan import ExecutionPlan
 from agent.domain.report import TimelineEntry
 from agent.domain.validation import ValidationResult
-
-
-from agent.domain.intent import StructuredIntent
 from agent.reasoning.trace import ReasoningTrace
 
 
@@ -82,12 +80,16 @@ class SessionMemory(BaseModel):
     plan: ExecutionPlan | None = None
     reasoning_trace: ReasoningTrace = Field(default_factory=ReasoningTrace)
 
+    @field_serializer("reasoning_trace")
+    def serialize_reasoning_trace(self, trace: ReasoningTrace, _info: Any) -> list[dict[str, Any]]:
+        return trace.get_summary_dict()
+
     # Current state
     state: AgentState = AgentState.IDLE
     current_step_index: int = 0
     current_url: str = ""
     current_page_type: str = ""
-    current_incident: dict[str, Any] | None = None
+    current_record: dict[str, Any] | None = None
 
     # History (rolling window for observations)
     completed_steps: list[CompletedStep] = Field(default_factory=list)
@@ -115,17 +117,18 @@ class SessionMemory(BaseModel):
         self.current_url = observation.url
         self.current_page_type = observation.page_type.value
 
-        # Update incident tracking
-        if observation.incident_number:
-            if self.current_incident is None:
-                self.current_incident = {}
-            self.current_incident["number"] = observation.incident_number
-        if observation.current_state and self.current_incident:
-            self.current_incident["state"] = observation.current_state
+        # Update record tracking
+        if observation.record_number:
+            if self.current_record is None:
+                self.current_record = {}
+            self.current_record["number"] = observation.record_number
+
+        if observation.current_state and self.current_record:
+            self.current_record["state"] = observation.current_state
 
         # Trim to rolling window
         if len(self.observations) > self.observation_window:
-            self.observations = self.observations[-self.observation_window:]
+            self.observations = self.observations[-self.observation_window :]
 
     def add_completed_step(
         self,
@@ -216,10 +219,7 @@ class SessionMemory(BaseModel):
     @property
     def recent_failures(self) -> list[FailureRecord]:
         """Failures from the last 5 steps."""
-        return [
-            f for f in self.failures
-            if f.step_index >= self.current_step_index - 5
-        ]
+        return [f for f in self.failures if f.step_index >= self.current_step_index - 5]
 
     def get_context_for_llm(self) -> str:
         """Serialize the session into a token-efficient summary for LLM prompts.
@@ -230,7 +230,7 @@ class SessionMemory(BaseModel):
         - Current page observation
         - Recent action history (last 5)
         - Recent failures
-        - Current incident state
+        - Current record state
         """
         sections: list[str] = []
 
@@ -243,16 +243,12 @@ class SessionMemory(BaseModel):
 
         # Current page
         if self.latest_observation:
-            sections.append(
-                f"## Current Page\n{self.latest_observation.to_compact_summary()}"
-            )
+            sections.append(f"## Current Page\n{self.latest_observation.to_compact_summary()}")
 
-        # Current incident
-        if self.current_incident:
-            incident_str = "\n".join(
-                f"  {k}: {v}" for k, v in self.current_incident.items()
-            )
-            sections.append(f"## Current Incident\n{incident_str}")
+        # Current record
+        if self.current_record:
+            record_str = "\n".join(f"  {k}: {v}" for k, v in self.current_record.items())
+            sections.append(f"## Current Record\n{record_str}")
 
         # Recent actions (last 5)
         recent_steps = self.completed_steps[-5:]
@@ -261,8 +257,7 @@ class SessionMemory(BaseModel):
             for s in recent_steps:
                 status = "✅" if s.result.success else "❌"
                 step_strs.append(
-                    f"  {status} Step {s.step_index}: "
-                    f"{s.action.action_type} → {s.action.target}"
+                    f"  {status} Step {s.step_index}: {s.action.action_type} → {s.action.target}"
                 )
                 if s.result.error:
                     step_strs.append(f"      Error: {s.result.error}")
@@ -295,7 +290,7 @@ class SessionMemory(BaseModel):
             "state": self.state.value,
             "current_step_index": self.current_step_index,
             "current_url": self.current_url,
-            "current_incident": self.current_incident,
+            "current_record": self.current_record,
             "total_actions": self.total_actions_executed,
             "total_validations": self.total_validations_run,
             "total_failures": self.total_failures,

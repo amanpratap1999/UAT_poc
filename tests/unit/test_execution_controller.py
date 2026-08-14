@@ -99,9 +99,7 @@ async def test_execute_fill(
     result = await controller.execute(action)
 
     assert result.success is True
-    mock_page_interactor.fill.assert_called_once_with(
-        "Short Description", "Test incident"
-    )
+    mock_page_interactor.fill.assert_called_once_with("Short Description", "Test incident")
 
 
 @pytest.mark.asyncio
@@ -131,9 +129,7 @@ async def test_execute_with_failure_and_recovery(
     mock_recovery_engine: MagicMock,
 ) -> None:
     """Test that failed actions trigger recovery."""
-    mock_page_interactor.click.side_effect = SelectorNotFoundError(
-        "Element not found"
-    )
+    mock_page_interactor.click.side_effect = SelectorNotFoundError("Element not found")
     mock_recovery_engine.attempt_recovery.return_value = RecoveryResult(
         success=True,
         strategy="wait_and_retry",
@@ -160,9 +156,7 @@ async def test_execute_with_failure_no_recovery(
     mock_recovery_engine: MagicMock,
 ) -> None:
     """Test failed action when recovery also fails."""
-    mock_page_interactor.click.side_effect = SelectorNotFoundError(
-        "Element not found"
-    )
+    mock_page_interactor.click.side_effect = SelectorNotFoundError("Element not found")
     mock_recovery_engine.attempt_recovery.side_effect = Exception("Recovery failed")
 
     action = AgentAction(

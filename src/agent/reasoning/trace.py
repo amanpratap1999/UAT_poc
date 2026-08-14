@@ -51,7 +51,12 @@ class ReasoningTrace:
             reflection=reflection,
         )
         self._cycles.append(cycle)
-        logger.debug("reasoning_cycle_recorded", step=step_index, state=state_name, confidence=confidence_score)
+        logger.debug(
+            "reasoning_cycle_recorded",
+            step=step_index,
+            state=state_name,
+            confidence=confidence_score,
+        )
         return cycle
 
     @property
@@ -67,14 +72,20 @@ class ReasoningTrace:
         """Format reasoning trace as a human-readable text block for debugging."""
         lines = ["=== REASONING TRACE LOG ==="]
         for c in self._cycles:
-            lines.append(f"\n[Step {c.step_index}] State: {c.state_name} (Confidence: {c.confidence_score:.2f})")
+            lines.append(
+                f"\n[Step {c.step_index}] State: {c.state_name} (Confidence: {c.confidence_score:.2f})"  # noqa: E501
+            )
             lines.append(f"  Observation: {c.observation_summary[:120]}")
             if c.decision_rationale:
                 lines.append(f"  Rationale: {c.decision_rationale}")
             if c.chosen_action:
-                lines.append(f"  Chosen Action: {c.chosen_action.action_type} -> {c.chosen_action.target}")
+                lines.append(
+                    f"  Chosen Action: {c.chosen_action.action_type} -> {c.chosen_action.target}"
+                )
             if c.hypotheses:
                 lines.append(f"  Hypotheses: {'; '.join(c.hypotheses)}")
             if c.reflection:
-                lines.append(f"  Reflection: expected='{c.reflection.expected_outcome}', adaptation='{c.reflection.recommended_plan_adaptation or 'none'}'")
+                lines.append(
+                    f"  Reflection: expected='{c.reflection.expected_outcome}', adaptation='{c.reflection.recommended_plan_adaptation or 'none'}'"  # noqa: E501
+                )
         return "\n".join(lines)

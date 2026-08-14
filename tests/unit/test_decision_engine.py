@@ -19,7 +19,9 @@ async def test_decision_engine_heuristic(sample_observation: PageObservation) ->
     world_model = WorldModel()
     world_state = world_model.build_semantic_state(sample_observation)
 
-    intent = StructuredIntent(intent_type="IncidentValidation", goal="Test incident form")
+    intent = StructuredIntent(
+        intent_type="IncidentValidation", goal="Test incident form", target_module="incident"
+    )
     memory = SessionMemory(goal="Test incident form")
 
     decision = await engine.decide_next_action(intent, world_state, memory)
@@ -31,21 +33,25 @@ async def test_decision_engine_heuristic(sample_observation: PageObservation) ->
 @pytest.mark.asyncio
 async def test_decision_engine_llm(sample_observation: PageObservation) -> None:
     """Test LLM-based decision making."""
-    client = MockLLMClient(responses=[
-        {
-            "action_type": "fill",
-            "target": "label:Short Description",
-            "value": "Test Short Description",
-            "reasoning": "Populate mandatory field",
-            "expected_outcome": "Field is populated",
-            "confidence": 0.96,
-        }
-    ])
+    client = MockLLMClient(
+        responses=[
+            {
+                "action_type": "fill",
+                "target": "label:Short Description",
+                "value": "Test Short Description",
+                "reasoning": "Populate mandatory field",
+                "expected_outcome": "Field is populated",
+                "confidence": 0.96,
+            }
+        ]
+    )
     engine = DecisionEngine(llm_client=client)
     world_model = WorldModel()
     world_state = world_model.build_semantic_state(sample_observation)
 
-    intent = StructuredIntent(intent_type="IncidentCreation", goal="Create incident")
+    intent = StructuredIntent(
+        intent_type="IncidentCreation", goal="Create incident", target_module="incident"
+    )
     memory = SessionMemory(goal="Create incident")
 
     decision = await engine.decide_next_action(intent, world_state, memory)

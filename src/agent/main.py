@@ -11,14 +11,15 @@ and cognitive layers together into the autonomous reasoning loop:
 
 from __future__ import annotations
 
-import uuid
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from typing import Any
 
 from fastapi import FastAPI
 
 from agent import __version__
 from agent.api.v1.dependencies import (
+    get_behavioral_verifier,
     get_browser_manager,
     get_cached_settings,
     get_confidence_engine,
@@ -26,11 +27,14 @@ from agent.api.v1.dependencies import (
     get_intent_manager,
     get_knowledge_memory,
     get_knowledge_store,
+    get_learning_service,
     get_observation_engine,
     get_planner,
+    get_puter_backend,
     get_recovery_engine,
     get_reflection_engine,
     get_reporting_engine,
+    get_session_store,
     get_skill_registry,
     get_tool_registry,
     get_validation_engine,
@@ -39,6 +43,7 @@ from agent.api.v1.dependencies import (
 from agent.api.v1.router import router
 from agent.browser.manager import BrowserManager
 from agent.browser.page_interactor import PageInteractor
+from agent.capabilities.registry import CapabilityRegistry
 from agent.confidence.engine import ConfidenceEngine
 from agent.core.config import Settings
 from agent.core.exceptions import AgentMaxStepsExceededError
@@ -46,19 +51,23 @@ from agent.core.logging import get_logger, setup_logging
 from agent.core.state_machine import AgentStateMachine
 from agent.core.types import AgentState
 from agent.decision.engine import DecisionEngine
-from agent.domain.reflection import ReflectionResult
 from agent.domain.report import TestReport
 from agent.execution.controller import ExecutionController
 from agent.intent.manager import IntentManager
 from agent.knowledge.store import KnowledgeStore
+from agent.learning.service import LearningService
 from agent.memory.long_term import KnowledgeMemory
 from agent.memory.session import SessionMemory
+from agent.memory.session_store import SessionStore
 from agent.observation.engine import ObservationEngine
+from agent.perception.backends import PuterUiTarsBackend
+from agent.perception.engine import PerceptionDecisionEngine
+from agent.perception.store import RecoveryStore
+from agent.perception.verifier import BehavioralVerifier
 from agent.planner.planner import Planner
 from agent.recovery.engine import RecoveryEngine
 from agent.reflection.engine import ReflectionEngine
 from agent.reporting.engine import ReportingEngine
-from agent.skills.registry import SkillRegistry
 from agent.tools.registry import ToolRegistry
 from agent.validation.engine import ValidationEngine
 from agent.world.model import WorldModel
@@ -85,28 +94,45 @@ class AgentOrchestrator:
         recovery_engine: RecoveryEngine,
         reporting_engine: ReportingEngine,
         knowledge_store: KnowledgeStore,
+        session_store: SessionStore,
+        learning_service: LearningService,
         intent_manager: IntentManager | None = None,
         world_model: WorldModel | None = None,
-        skill_registry: SkillRegistry | None = None,
+        skill_registry: CapabilityRegistry | None = None,
         tool_registry: ToolRegistry | None = None,
         reflection_engine: ReflectionEngine | None = None,
         confidence_engine: ConfidenceEngine | None = None,
         knowledge_memory: KnowledgeMemory | None = None,
         decision_engine: DecisionEngine | None = None,
+        recovery_store: RecoveryStore | None = None,
+        puter_backend: PuterUiTarsBackend | None = None,
+        behavioral_verifier: BehavioralVerifier | None = None,
+        scenario_generator: Any | None = None,
+        test_store: Any | None = None,
+        customer_knowledge_model: Any | None = None,
     ) -> None:
         self._settings = settings
+        self._reporting_engine = reporting_engine
+        self._learning = learning_service
+
         self._planner = planner
         self._browser_manager = browser_manager
         self._observation_engine = observation_engine
         self._validation_engine = validation_engine
         self._recovery_engine = recovery_engine
-        self._reporting_engine = reporting_engine
         self._knowledge_store = knowledge_store
+        self._session_store = session_store
+
+        # Perception dependencies
+        # Since these are optional in __init__ (for tests), we fallback if not provided,
+        # but in production create_orchestrator provides them.
+        self._puter_backend = puter_backend
+        self._behavioral_verifier = behavioral_verifier
 
         # Cognitive components
         self._intent_manager = intent_manager or IntentManager()
         self._world_model = world_model or WorldModel()
-        self._skill_registry = skill_registry or SkillRegistry()
+        self._skill_registry = skill_registry or CapabilityRegistry()
         self._tool_registry = tool_registry or ToolRegistry()
         self._reflection_engine = reflection_engine or ReflectionEngine()
         self._confidence_engine = confidence_engine or ConfidenceEngine()
@@ -117,8 +143,38 @@ class AgentOrchestrator:
             tool_registry=self._tool_registry,
         )
 
+        from agent.cognition.orchestrator import CognitiveOrchestrator
+
+        self._cognitive_orchestrator = CognitiveOrchestrator(
+            skill_registry=self._skill_registry,
+            knowledge_model=customer_knowledge_model,
+            learning_service=learning_service,
+            scenario_generator=scenario_generator,
+            decision_engine=self._decision_engine,
+            validation_engine=validation_engine,
+            perception_engine=None,  # Will be set after launch
+            execution_controller=None,  # Will be set after launch
+            observation_engine=observation_engine,
+            browser_manager=browser_manager,
+            state_machine=None,
+            settings=settings,
+            llm_client=None,  # Planner LLM client
+        )
+
+        # Testing & Domain
+        self._scenario_generator = scenario_generator
+        self._test_store = test_store
+        self._customer_knowledge_model = customer_knowledge_model
+
+        # Setup planner with testing capabilities
+        self._planner._scenario_generator = self._scenario_generator
+        self._planner._test_store = self._test_store
+
+        self._cognitive_orchestrator._llm = self._planner._llm
+
         # State Machine & Memory
         self._state_machine = AgentStateMachine(initial_state=AgentState.IDLE)
+        self._cognitive_orchestrator._state_machine = self._state_machine
         self._memory = SessionMemory(
             observation_window=settings.agent.observation_window,
         )
@@ -129,6 +185,7 @@ class AgentOrchestrator:
         # Built during run
         self._page_interactor: PageInteractor | None = None
         self._execution_controller: ExecutionController | None = None
+        self._perception_engine: PerceptionDecisionEngine | None = None
 
     @property
     def session_id(self) -> str:
@@ -155,15 +212,38 @@ class AgentOrchestrator:
         logger.info("stop_requested", reason=reason)
         self._stop_requested = True
 
+    async def _save_session(self) -> None:
+        """Persist the current session state to the session store."""
+        await self._session_store.save(self.session_id, self._memory.model_dump(mode="json"))
+
+    async def generate_test_scenarios(
+        self,
+        requirement: str,
+        fields: list[dict[str, Any]],
+        workflow_type: str | None = None,
+        table_name: str | None = None,
+    ) -> list[Any]:
+        """Generate test scenarios, utilizing domain intelligence if available."""
+        return await self._planner.generate_test_scenarios(
+            requirement=requirement,
+            fields=fields,
+            workflow_type=workflow_type,
+            knowledge_model=self._customer_knowledge_model,
+            table_name=table_name,
+        )
+
     async def run(self, goal: str) -> TestReport:
         """Execute the full autonomous cognitive agent loop."""
         logger.info("agent_run_started", goal=goal, session_id=self.session_id)
 
         self._memory.goal = goal
+        await self._save_session()
 
         try:
             # 1. INTENT ANALYSIS
-            self._transition(AgentState.INTENT_ANALYSIS, "Parsing user prompt into structured intent")
+            self._transition(
+                AgentState.INTENT_ANALYSIS, "Parsing user prompt into structured intent"
+            )
             structured_intent = await self._intent_manager.parse_intent(goal)
             self._memory.structured_intent = structured_intent
 
@@ -182,6 +262,21 @@ class AgentOrchestrator:
                 recovery_engine=self._recovery_engine,
                 servicenow_config=self._settings.servicenow,
             )
+
+            # If perception dependencies are available, set up PerceptionDecisionEngine
+            if self._puter_backend and self._behavioral_verifier:
+                self._perception_engine = PerceptionDecisionEngine(
+                    browser=self._browser_manager,
+                    interactor=self._page_interactor,
+                    executor=self._execution_controller,
+                    grounder=self._puter_backend,
+                    verifier=self._behavioral_verifier,
+                    learning_service=self._learning,
+                    observer=self._observation_engine,
+                )
+
+            self._cognitive_orchestrator._execution_controller = self._execution_controller
+            self._cognitive_orchestrator._perception_engine = self._perception_engine
 
             # Navigate to ServiceNow
             instance_url = self._settings.servicenow.instance_url
@@ -205,8 +300,13 @@ class AgentOrchestrator:
                 result="success",
             )
 
-            # 4. EXECUTE COGNITIVE LOOP
-            await self._execute_cognitive_loop()
+            if self._memory.plan:
+                # 4. EXECUTE COGNITIVE LOOP (Dynamic Phase 7 Orchestrator)
+                await self._cognitive_orchestrator.run_cognitive_loop(self._memory, goal)
+
+            # If we reach here without exceptions and we aren't failed, we succeeded
+            if self._memory.state not in (AgentState.FAILED, AgentState.COMPLETED):
+                self._transition_safe(AgentState.COMPLETED, "Agent execution finished")
 
         except AgentMaxStepsExceededError:
             logger.warning("max_steps_exceeded", steps=self._memory.total_actions_executed)
@@ -225,6 +325,7 @@ class AgentOrchestrator:
             except Exception as e:
                 logger.error("report_generation_failed", error=str(e))
 
+            await self._save_session()
             await self._browser_manager.close()
 
         logger.info(
@@ -235,172 +336,6 @@ class AgentOrchestrator:
         )
 
         return self._report  # type: ignore[return-value]
-
-    async def _execute_cognitive_loop(self) -> None:
-        """The cognitive reasoning loop:
-        Observe -> World Model -> Reasoning -> Decision -> Execution -> Validate -> Reflect -> Learn -> Transition
-        """
-        max_steps = self._settings.agent.max_steps
-        latest_reflection: ReflectionResult | None = None
-
-        while self._memory.total_actions_executed < max_steps:
-            if self._stop_requested:
-                logger.info("agent_stopped_by_user")
-                self._transition(AgentState.COMPLETED, "User requested stop")
-                break
-
-            # A. OBSERVATION
-            self._transition(AgentState.OBSERVING, "Observing browser state")
-            page = self._browser_manager.get_page()
-            raw_obs = await self._observation_engine.observe(page)
-            self._memory.add_observation(raw_obs)
-
-            # B. WORLD MODELING & REASONING
-            self._transition(AgentState.REASONING, "Building world model & evaluating cognitive hypotheses")
-            world_state = self._world_model.build_semantic_state(raw_obs)
-
-            # C. DECISION MAKING
-            self._transition(AgentState.DECISION, "Selecting immediate action & scoring confidence")
-            intent = self._memory.structured_intent or (
-                await self._intent_manager.parse_intent(self._memory.goal)
-            )
-
-            decision = await self._decision_engine.decide_next_action(
-                intent=intent,
-                world_state=world_state,
-                memory=self._memory,
-                latest_reflection=latest_reflection,
-            )
-
-            action = decision.action
-            confidence_assessment = decision.confidence_assessment
-
-            # Record reasoning cycle in trace
-            self._memory.reasoning_trace.record_cycle(
-                step_index=self._memory.current_step_index,
-                state_name=self._state_machine.current_state.value,
-                observation_summary=world_state.to_compact_cognitive_summary(),
-                hypotheses=latest_reflection.hypotheses if latest_reflection else [],
-                decision_rationale=decision.reasoning,
-                chosen_action=action,
-                confidence_score=confidence_assessment.score,
-            )
-
-            # Low confidence guardrail
-            if not confidence_assessment.is_above_threshold and confidence_assessment.suggested_pre_action:
-                logger.warning(
-                    "confidence_below_threshold_pre_action",
-                    score=confidence_assessment.score,
-                    suggested=confidence_assessment.suggested_pre_action,
-                )
-                if confidence_assessment.suggested_pre_action == "observe":
-                    await page.wait_for_timeout(1000)
-                    continue
-
-            # D. EXECUTION
-            self._transition(AgentState.EXECUTING, f"Executing action: {action.action_type}")
-            if self._memory.plan and self._memory.plan.current_step:
-                self._memory.plan.current_step.mark_in_progress()
-
-            result = await self._execution_controller.execute(action)  # type: ignore[union-attr]
-
-            self._memory.add_timeline_entry(
-                action=f"{action.action_type}: {action.target}",
-                result="success" if result.success else f"failed: {result.error}",
-                duration_ms=result.duration_ms,
-                screenshot_path=result.screenshot_path,
-            )
-
-            # E. POST-ACTION OBSERVATION & VALIDATION
-            self._transition(AgentState.OBSERVING, "Post-action observation")
-            raw_obs_after = await self._observation_engine.observe(page)
-            self._memory.add_observation(raw_obs_after)
-            world_state_after = self._world_model.build_semantic_state(raw_obs_after)
-
-            self._transition(AgentState.VALIDATING, "Validating post-action outcome")
-            console_errors = self._browser_manager.get_page_errors()
-            self._browser_manager.clear_logs()
-
-            validation = await self._validation_engine.validate_action(
-                action=action,
-                result=result,
-                before=raw_obs,
-                after=raw_obs_after,
-                console_errors=console_errors,
-            )
-
-            skill = self._skill_registry.resolve_skill(intent)
-            if skill:
-                skill_val = await skill.validate(action, world_state, world_state_after)
-                validation.checks.extend(skill_val.checks)
-
-            self._memory.add_completed_step(
-                action=action,
-                result=result,
-                observation_before=raw_obs,
-                observation_after=raw_obs_after,
-                validation=validation,
-            )
-
-            if self._memory.plan and self._memory.plan.current_step:
-                if result.success and validation.overall_passed:
-                    self._memory.plan.current_step.mark_success()
-                elif not result.success:
-                    self._memory.plan.current_step.mark_failed(result.error or "Action failed")
-
-            # F. REFLECTION
-            self._transition(AgentState.REFLECTION, "Reflecting on action outcome")
-            latest_reflection = await self._reflection_engine.reflect(
-                action=action,
-                result=result,
-                world_state=world_state_after,
-                expected_outcome=decision.expected_outcome,
-            )
-
-            # G. LEARNING
-            self._transition(AgentState.LEARNING, "Recording long-term instance learning")
-            if world_state_after.missing_mandatory_fields:
-                self._knowledge_memory.record_learning(
-                    topic=f"{world_state_after.raw_page_type.value}.mandatory",
-                    insight=f"Mandatory fields on {world_state_after.page_semantic_type}: {', '.join(world_state_after.missing_mandatory_fields)}",
-                    category="form_rules",
-                )
-
-            # Check for recovery if validation failed
-            if not validation.overall_passed and not result.success:
-                self._transition(AgentState.RECOVERING, "Attempting planner-level recovery")
-                try:
-                    await self._planner.suggest_recovery(
-                        error=Exception(result.error or "Validation failed"),
-                        action=action,
-                        observation=raw_obs_after,
-                    )
-                except Exception as e:
-                    logger.warning("recovery_suggestion_failed", error=str(e))
-
-            # H. CHECK COMPLETION
-            should_check = (
-                self._memory.total_actions_executed % 5 == 0
-                or (self._memory.plan and self._memory.plan.current_step is None)
-                or (self._memory.plan and self._memory.plan.progress_pct >= 100.0)
-            )
-
-            if should_check:
-                self._transition(AgentState.REASONING, "Checking goal completion status")
-                try:
-                    is_complete = await self._planner.is_goal_complete(self._memory)
-                    if is_complete:
-                        logger.info("goal_complete")
-                        self._transition(AgentState.COMPLETED, "Goal achieved")
-                        break
-                except Exception as e:
-                    logger.warning("completion_check_failed", error=str(e))
-
-        else:
-            raise AgentMaxStepsExceededError(
-                f"Agent exceeded maximum {max_steps} steps",
-                details={"steps": self._memory.total_actions_executed},
-            )
 
     def _transition(self, to_state: AgentState, reason: str = "") -> None:
         """Execute state transition via AgentStateMachine and sync SessionMemory."""
@@ -450,6 +385,7 @@ def create_orchestrator(settings: Settings | None = None) -> AgentOrchestrator:
         recovery_engine=get_recovery_engine(s),
         reporting_engine=get_reporting_engine(s),
         knowledge_store=get_knowledge_store(s),
+        session_store=get_session_store(s),
         intent_manager=get_intent_manager(s),
         world_model=get_world_model(),
         skill_registry=get_skill_registry(),
@@ -458,12 +394,16 @@ def create_orchestrator(settings: Settings | None = None) -> AgentOrchestrator:
         confidence_engine=get_confidence_engine(),
         knowledge_memory=get_knowledge_memory(),
         decision_engine=get_decision_engine(s),
+        learning_service=get_learning_service(),
+        puter_backend=get_puter_backend(s),
+        behavioral_verifier=get_behavioral_verifier(s),
     )
 
 
 # ---------------------------------------------------------------------------
 # FastAPI Application
 # ---------------------------------------------------------------------------
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -483,3 +423,6 @@ app = FastAPI(
 )
 
 app.include_router(router)
+from agent.api.v1.auth_router import router as auth_router  # noqa: E402
+
+app.include_router(auth_router)

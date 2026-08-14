@@ -3,13 +3,8 @@
 from __future__ import annotations
 
 from agent.skills.incident.domain.models import (
-    Assignment,
-    Impact,
     Incident,
-    IncidentPriority,
     IncidentState,
-    Resolution,
-    Urgency,
 )
 
 

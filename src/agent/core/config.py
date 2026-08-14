@@ -24,8 +24,11 @@ class LLMConfig(BaseSettings):
         extra="ignore",
     )
 
-    provider: Literal["openai", "groq", "anthropic"] = "openai"
-    api_key: str = Field(default="", description="API key for the LLM provider")
+    provider: Literal["openai", "groq", "anthropic", "nvidia"] = "openai"
+    api_key: str = Field(
+        default="", validation_alias="OPENAI_API_KEY", description="API key for the LLM provider"
+    )
+    base_url: str | None = Field(default=None, description="Base URL for the LLM API endpoint")
     model: str = Field(default="gpt-4o", description="Model identifier")
     max_tokens: int = Field(default=4096, description="Max tokens per response")
     temperature: float = Field(default=0.1, description="Sampling temperature")
@@ -66,6 +69,55 @@ class BrowserConfig(BaseSettings):
     viewport_height: int = Field(default=1080, description="Viewport height")
 
 
+class SessionConfig(BaseSettings):
+    """Session storage configuration."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_prefix="SESSION_",
+        extra="ignore",
+    )
+
+    store_type: Literal["memory", "redis"] = Field(
+        default="memory", description="Backend to use ('memory' or 'redis')"
+    )
+    redis_url: str = Field(
+        default="redis://localhost:6379/0",
+        validation_alias="REDIS_URL",
+        description="Redis connection URL",
+    )
+    redis_prefix: str = Field(default="session:", description="Redis key prefix")
+
+
+class PerceptionConfig(BaseSettings):
+    """Perception Layer configuration."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_prefix="PERCEPTION_",
+        extra="ignore",
+    )
+
+    puter_endpoint: str | None = Field(
+        default=None,
+        validation_alias="PUTER_ENDPOINT",
+        description="URL for Puter's hosted UI-TARS API",
+    )
+    puter_api_key: str | None = Field(
+        default=None,
+        validation_alias="PUTER_API_KEY",
+        description="API key for Puter"
+    )
+    grounding_threshold: float = Field(
+        default=0.8, description="Minimum confidence threshold for grounding"
+    )
+    recovery_store_type: Literal["memory", "redis"] = Field(
+        default="memory", description="Backend for recovery store"
+    )
+
+
 class AgentConfig(BaseSettings):
     """Agent runtime configuration."""
 
@@ -80,6 +132,26 @@ class AgentConfig(BaseSettings):
     max_retries: int = Field(default=3, description="Max recovery retries per action")
     observation_window: int = Field(
         default=10, description="Number of observations to keep in memory"
+    )
+
+
+class DomainConfig(BaseSettings):
+    """Domain Intelligence Layer configuration."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_prefix="DOMAIN_",
+        extra="ignore",
+    )
+
+    postgres_url: str = Field(
+        default="postgresql+asyncpg://postgres:postgres@localhost:5432/servicenow_qa",
+        validation_alias="DATABASE_URL",
+        description="Postgres connection string (with pgvector support)",
+    )
+    drift_polling_interval: int = Field(
+        default=300, description="Interval in seconds to poll for metadata drift"
     )
 
 
@@ -102,10 +174,20 @@ class Settings(BaseSettings):
     servicenow: ServiceNowConfig = Field(default_factory=ServiceNowConfig)
     browser: BrowserConfig = Field(default_factory=BrowserConfig)
     agent: AgentConfig = Field(default_factory=AgentConfig)
+    session: SessionConfig = Field(default_factory=SessionConfig)
+    perception: PerceptionConfig = Field(default_factory=PerceptionConfig)
+    domain: DomainConfig = Field(default_factory=DomainConfig)
 
     # Logging
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     log_format: Literal["console", "json"] = "console"
+    environment: str = Field(default="development", validation_alias="ENVIRONMENT")
+
+    # Auth
+    jwt_secret_key: str = Field(
+        default="super-secret-local-development-key", validation_alias="JWT_SECRET_KEY"
+    )
+    jwt_algorithm: str = Field(default="HS256", validation_alias="JWT_ALGORITHM")
 
     # Output directories
     report_output_dir: Path = Field(default=Path("reports"))

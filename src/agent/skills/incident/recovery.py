@@ -46,7 +46,7 @@ class IncidentRecoveryHandler:
                 action_type=ActionType.FILL,
                 target="label:Assignment Group",
                 value="Service Desk",
-                reasoning="Domain Recovery: Fill mandatory Assignment Group field before proceeding",
+                reasoning="Domain Recovery: Fill mandatory Assignment Group field before proceeding",  # noqa: E501
                 metadata={"field_label": "Assignment Group"},
             )
 
@@ -56,7 +56,7 @@ class IncidentRecoveryHandler:
                 action_type=ActionType.FILL,
                 target="label:Resolution Notes",
                 value="Resolved by autonomous QA agent testing",
-                reasoning="Domain Recovery: Populate Resolution Notes before moving to Resolved state",
+                reasoning="Domain Recovery: Populate Resolution Notes before moving to Resolved state",  # noqa: E501
                 metadata={"field_label": "Resolution Notes"},
             )
 

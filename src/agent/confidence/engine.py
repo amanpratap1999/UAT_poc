@@ -1,7 +1,8 @@
 """Confidence Engine for Deliverable 6.
 
 Evaluates every proposed action with a confidence score (0.0 to 1.0).
-Actions below the configurable threshold trigger re-observation, knowledge lookup, or reflection before execution.
+Actions below the configurable threshold trigger re-observation,
+knowledge lookup, or reflection before execution.
 """
 
 from __future__ import annotations
@@ -65,18 +66,25 @@ class ConfidenceEngine:
                 pre_action = "reflect"
 
         # Check missing mandatory fields for submit/resolve actions
-        if action.action_type in ("click", "fill") and target_name in ("resolve", "submit", "update"):
-            if world_state.missing_mandatory_fields:
-                score -= 0.35
-                reasons.append(f"Missing mandatory fields: {', '.join(world_state.missing_mandatory_fields)}")
-                pre_action = "observe"
+        if action.action_type in ("click", "fill") and target_name in (
+            "resolve",
+            "submit",
+            "update",
+        ) and world_state.missing_mandatory_fields:
+            score -= 0.35
+            reasons.append(
+                f"Missing mandatory fields: {', '.join(world_state.missing_mandatory_fields)}"
+            )
+            pre_action = "observe"
 
         # Low confidence if target is not found in available actions or fields
         if action.action_type == "click":
             avail_names = [a.action_name.lower() for a in world_state.available_actions]
             if target_name not in avail_names and not any(target_name in a for a in avail_names):
                 score -= 0.20
-                reasons.append(f"Target '{action.target}' not explicitly detected in available UI actions")
+                reasons.append(
+                    f"Target '{action.target}' not explicitly detected in available UI actions"
+                )
                 pre_action = "observe"
 
         score = max(0.0, min(1.0, score))

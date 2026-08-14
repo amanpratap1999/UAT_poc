@@ -51,43 +51,29 @@ class ValidationEngine:
         )
 
         # Always check: action succeeded
-        validation.add_check(
-            self._check_action_success(result)
-        )
+        validation.add_check(self._check_action_success(result))
 
         # Always check: no new validation messages
-        validation.add_check(
-            self._check_no_new_errors(before, after)
-        )
+        validation.add_check(self._check_no_new_errors(before, after))
 
         # Always check: no JavaScript errors
         if console_errors is not None:
-            validation.add_check(
-                self._check_no_js_errors(console_errors)
-            )
+            validation.add_check(self._check_no_js_errors(console_errors))
 
         # Action-type-specific checks
         action_type = ActionType(action.action_type)
 
         if action_type == ActionType.NAVIGATE:
-            validation.add_check(
-                self._check_page_navigation(action, after)
-            )
+            validation.add_check(self._check_page_navigation(action, after))
 
         if action_type == ActionType.FILL:
-            validation.add_check(
-                self._check_field_update(action, after)
-            )
+            validation.add_check(self._check_field_update(action, after))
 
         if action_type == ActionType.CLICK:
-            validation.add_check(
-                self._check_page_changed(before, after)
-            )
+            validation.add_check(self._check_page_changed(before, after))
 
         if action_type == ActionType.SELECT:
-            validation.add_check(
-                self._check_field_update(action, after)
-            )
+            validation.add_check(self._check_field_update(action, after))
 
         logger.info(
             "validation_complete",
@@ -146,19 +132,15 @@ class ValidationEngine:
         """Verify navigation reached the expected page."""
         expected_url = action.metadata.get("url", action.value or action.target)
         # Check if the URL contains the expected target
-        url_matches = (
-            expected_url.lower() in after.url.lower()
-            if expected_url
-            else True
-        )
+        url_matches = expected_url.lower() in after.url.lower() if expected_url else True
 
         return ValidationCheck(
             check_name="page_navigation",
-            description=f"Navigated to expected page",
+            description="Navigated to expected page",
             passed=url_matches,
             expected=expected_url,
             actual=after.url,
-            error_message=f"URL mismatch" if not url_matches else None,
+            error_message="URL mismatch" if not url_matches else None,
         )
 
     def _check_field_update(
@@ -184,9 +166,7 @@ class ValidationEngine:
                     passed=value_matches,
                     expected=expected_value,
                     actual=field.value,
-                    error_message=(
-                        f"Field value mismatch" if not value_matches else None
-                    ),
+                    error_message=("Field value mismatch" if not value_matches else None),
                 )
 
         # Field not found in observation — can't verify
@@ -208,19 +188,20 @@ class ValidationEngine:
         url_changed = before.url != after.url
         title_changed = before.title != after.title
         state_changed = before.current_state != after.current_state
-        buttons_changed = (
-            set(b.label for b in before.buttons)
-            != set(b.label for b in after.buttons)
+        buttons_changed = set(b.label for b in before.buttons) != set(
+            b.label for b in after.buttons
         )
         fields_changed = len(before.visible_fields) != len(after.visible_fields)
 
-        page_responded = any([
-            url_changed,
-            title_changed,
-            state_changed,
-            buttons_changed,
-            fields_changed,
-        ])
+        page_responded = any(
+            [
+                url_changed,
+                title_changed,
+                state_changed,
+                buttons_changed,
+                fields_changed,
+            ]
+        )
 
         return ValidationCheck(
             check_name="page_responded",
@@ -229,9 +210,7 @@ class ValidationEngine:
             expected="page changed or updated",
             actual="changed" if page_responded else "no visible change",
             error_message=(
-                "Click did not produce any visible change"
-                if not page_responded
-                else None
+                "Click did not produce any visible change" if not page_responded else None
             ),
         )
 

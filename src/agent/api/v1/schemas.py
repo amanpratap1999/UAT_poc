@@ -11,10 +11,10 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-
 # ---------------------------------------------------------------------------
 # Request models
 # ---------------------------------------------------------------------------
+
 
 class RunRequest(BaseModel):
     """Request to start an agent run."""
@@ -33,6 +33,7 @@ class StopRequest(BaseModel):
 # ---------------------------------------------------------------------------
 # Response models
 # ---------------------------------------------------------------------------
+
 
 class RunResponse(BaseModel):
     """Response when an agent run is started."""
@@ -80,3 +81,33 @@ class HealthResponse(BaseModel):
     status: str = "healthy"
     version: str
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class RunDetailResponse(BaseModel):
+    id: str
+    tenant_id: str
+    requester_id: str | None
+    goal: str
+    status: str
+    start_time: datetime
+    end_time: datetime | None
+    duration_seconds: int | None
+    defect_count: int
+
+
+class FindingResponse(BaseModel):
+    id: str
+    tenant_id: str
+    run_id: str
+    capability: str
+    description: str
+    is_defect: bool
+    severity: str | None
+    created_at: datetime
+
+
+class MetricsResponse(BaseModel):
+    tenant_id: str
+    total_runs: int
+    total_defects: int
+    average_duration_seconds: float | None

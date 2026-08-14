@@ -9,14 +9,14 @@ into browser operations.
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from agent.core.exceptions import LLMResponseParseError, PlannerError
 from agent.core.logging import get_logger
 from agent.domain.actions import AgentAction
+from agent.domain.knowledge_model import CustomerKnowledgeModel
 from agent.domain.observation import PageObservation
-from agent.domain.plan import ExecutionPlan, PlanStep
+from agent.domain.plan import ExecutionPlan
 from agent.domain.validation import ValidationCheck, ValidationResult
 from agent.memory.session import SessionMemory
 from agent.planner.llm_client import BaseLLMClient
@@ -29,6 +29,8 @@ from agent.planner.prompts import (
     SYSTEM_PROMPT,
     VALIDATION_ASSESSMENT_PROMPT,
 )
+from agent.testing.generator import ScenarioGenerator, TestScenario
+from agent.testing.store import TestIntelligenceStore
 
 logger = get_logger(__name__)
 
@@ -49,13 +51,38 @@ class Planner:
         self,
         llm_client: BaseLLMClient,
         knowledge_context: str = "",
+        scenario_generator: ScenarioGenerator | None = None,
+        test_store: TestIntelligenceStore | None = None,
     ) -> None:
         self._llm = llm_client
         self._knowledge_context = knowledge_context
+        self._scenario_generator = scenario_generator
+        self._test_store = test_store
 
-    async def create_plan(
-        self, goal: str, context: str = ""
-    ) -> ExecutionPlan:
+    async def generate_test_scenarios(
+        self,
+        requirement: str,
+        fields: list[dict[str, Any]],
+        workflow_type: str | None = None,
+        knowledge_model: CustomerKnowledgeModel | None = None,
+        table_name: str | None = None,
+    ) -> list[TestScenario]:
+        """Generate test scenarios dynamically based on strategies."""
+        if not self._scenario_generator:
+            raise PlannerError("ScenarioGenerator is not initialized.")
+
+        scenarios = await self._scenario_generator.generate_scenarios(
+            requirement, fields, workflow_type, knowledge_model, table_name
+        )
+
+        # Save to store
+        if self._test_store:
+            for s in scenarios:
+                await self._test_store.save_scenario(s)
+
+        return scenarios
+
+    async def create_plan(self, goal: str, context: str = "") -> ExecutionPlan:
         """Decompose a business goal into an ordered execution plan.
 
         Args:
@@ -123,8 +150,7 @@ class Planner:
         if memory.plan and memory.plan.current_step:
             step = memory.plan.current_step
             current_step = (
-                f"Step {step.step_index}: {step.description}\n"
-                f"Expected: {step.expected_outcome}"
+                f"Step {step.step_index}: {step.description}\nExpected: {step.expected_outcome}"
             )
         else:
             current_step = "No specific plan step — use your judgment based on the goal."
@@ -294,8 +320,7 @@ class Planner:
         logger.info("checking_goal_completion")
 
         completed_steps_str = "\n".join(
-            f"  Step {s.step_index}: {s.action.action_type} → "
-            f"{'✅' if s.result.success else '❌'}"
+            f"  Step {s.step_index}: {s.action.action_type} → {'✅' if s.result.success else '❌'}"
             for s in memory.completed_steps[-20:]  # Last 20 steps
         )
 
@@ -320,11 +345,9 @@ class Planner:
             is_complete=is_complete,
             reasoning=reasoning[:200],
         )
-        return is_complete
+        return is_complete  # type: ignore[no-any-return]
 
-    async def generate_report_summary(
-        self, memory: SessionMemory
-    ) -> dict[str, Any]:
+    async def generate_report_summary(self, memory: SessionMemory) -> dict[str, Any]:
         """Generate a professional executive summary for the report.
 
         Args:
@@ -338,16 +361,11 @@ class Planner:
         defects_str = "None found"
         if memory.failures:
             defects_str = "\n".join(
-                f"  - {f.error_type}: {f.error_message}"
-                for f in memory.failures
+                f"  - {f.error_type}: {f.error_message}" for f in memory.failures
             )
 
-        passed = sum(
-            1 for v in memory.completed_validations if v.overall_passed
-        )
-        failed = sum(
-            1 for v in memory.completed_validations if not v.overall_passed
-        )
+        passed = sum(1 for v in memory.completed_validations if v.overall_passed)
+        failed = sum(1 for v in memory.completed_validations if not v.overall_passed)
 
         prompt = REPORT_SUMMARY_PROMPT.format(
             goal=memory.goal,

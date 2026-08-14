@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from agent.core.types import ActionType
+from agent.core.types import ActionType, PageType
 from agent.domain.actions import ActionResult, AgentAction
 from agent.domain.observation import ButtonInfo, FieldInfo, PageObservation
-from agent.core.types import PageType
 from agent.validation.engine import ValidationEngine
 
 
@@ -118,10 +117,7 @@ async def test_validate_failed_action(
     )
 
     assert validation.overall_passed is False
-    assert any(
-        c.check_name == "action_execution" and not c.passed
-        for c in validation.checks
-    )
+    assert any(c.check_name == "action_execution" and not c.passed for c in validation.checks)
 
 
 @pytest.mark.asyncio

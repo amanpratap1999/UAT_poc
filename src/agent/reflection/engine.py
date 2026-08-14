@@ -2,7 +2,7 @@
 
 Purpose:
 - Evaluates expected vs observed state.
-- Forms hypotheses when discrepancies occur (e.g. page loading delay, missing mandatory fields, permissions).
+- Forms hypotheses when discrepancies occur (e.g. page loading delay).
 - Recommends intelligent plan adaptations instead of blind retries.
 """
 
@@ -76,7 +76,7 @@ class ReflectionEngine:
                     messages=[
                         {
                             "role": "system",
-                            "content": "You are a Cognitive Reflection Engine evaluating autonomous agent actions.",
+                            "content": "You are a Cognitive Reflection Engine evaluating autonomous agent actions.",  # noqa: E501
                         },
                         {
                             "role": "user",
@@ -114,9 +114,14 @@ class ReflectionEngine:
             else:
                 hypotheses.append(f"Execution error: {result.error}")
                 adaptation = "Observe page and search documentation"
-        elif world_state.missing_mandatory_fields and action.target.lower() in ("resolve", "submit"):
+        elif world_state.missing_mandatory_fields and action.target.lower() in (
+            "resolve",
+            "submit",
+        ):
             is_expected = False
-            hypotheses.append(f"Action blocked by missing mandatory fields: {', '.join(world_state.missing_mandatory_fields)}")
+            hypotheses.append(
+                f"Action blocked by missing mandatory fields: {', '.join(world_state.missing_mandatory_fields)}"  # noqa: E501
+            )
             adaptation = f"Fill mandatory fields: {', '.join(world_state.missing_mandatory_fields)}"
 
         return ReflectionResult(

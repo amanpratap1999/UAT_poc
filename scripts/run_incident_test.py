@@ -2,7 +2,7 @@
 
 Executes natural language goals against a configured ServiceNow instance.
 Usage:
-    python scripts/run_incident_test.py --goal "Open any existing Incident in New state and validate the complete Incident flow."
+    python scripts/run_incident_test.py --goal "Open any existing Incident in New state and validate the complete Incident flow."  # noqa: E501
 """
 
 from __future__ import annotations

@@ -48,7 +48,15 @@ cp .env.example .env
 # Edit .env with your LLM API key and ServiceNow instance details
 ```
 
-### 3. Run the API Server
+### 3. Initialize the Database
+
+Make sure the Docker containers are running (`docker compose up -d`), then initialize the schema and seed the QA user:
+
+```bash
+docker compose exec api python scripts/init_db.py
+```
+
+### 4. Run the API Server
 
 ```bash
 uvicorn agent.main:app --reload --host 0.0.0.0 --port 8000

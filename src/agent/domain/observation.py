@@ -74,9 +74,9 @@ class PageObservation(BaseModel):
         default=None,
         description="Current record state (e.g., 'New', 'In Progress', 'Resolved')",
     )
-    incident_number: str | None = Field(
+    record_number: str | None = Field(
         default=None,
-        description="Current incident number if on an incident form",
+        description="Current record number if on a record form (e.g., INC0000001, CHG0000001)",
     )
     visible_fields: list[FieldInfo] = Field(default_factory=list)
     mandatory_fields: list[str] = Field(default_factory=list)
@@ -110,8 +110,8 @@ class PageObservation(BaseModel):
 
         if self.current_state:
             lines.append(f"State: {self.current_state}")
-        if self.incident_number:
-            lines.append(f"Incident: {self.incident_number}")
+        if self.record_number:
+            lines.append(f"Record: {self.record_number}")
 
         if self.visible_fields:
             field_strs = []
@@ -125,8 +125,7 @@ class PageObservation(BaseModel):
 
         if self.buttons:
             btn_strs = [
-                f"  - {b.label}" + ("" if b.is_enabled else " (disabled)")
-                for b in self.buttons
+                f"  - {b.label}" + ("" if b.is_enabled else " (disabled)") for b in self.buttons
             ]
             lines.append("Buttons:")
             lines.extend(btn_strs)
@@ -137,6 +136,6 @@ class PageObservation(BaseModel):
 
         if self.notification_messages:
             lines.append("Notifications:")
-            lines.extend(f"  ℹ {msg}" for msg in self.notification_messages)
+            lines.extend(f"  i {msg}" for msg in self.notification_messages)
 
         return "\n".join(lines)

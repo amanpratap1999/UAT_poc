@@ -8,6 +8,8 @@ This is the lowest layer — no LLM logic here, only browser infrastructure.
 from __future__ import annotations
 
 import asyncio
+import contextlib
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -162,9 +164,9 @@ class BrowserManager:
         page = self.get_page()
         try:
             if hasattr(page, "accessibility"):
-                snapshot = await getattr(page, "accessibility").snapshot()
+                snapshot = await page.accessibility.snapshot()
                 if snapshot:
-                    return snapshot
+                    return snapshot  # type: ignore[no-any-return]
         except Exception:
             pass
 
@@ -206,10 +208,9 @@ class BrowserManager:
             loading_indicator = page.locator(
                 ".loading, .busy, #loading, .loading-container, #is_loading, .sn-loading-loader"
             )
-            try:
+            with suppress(Exception):
                 await loading_indicator.wait_for(state="hidden", timeout=5000)
-            except Exception:
-                pass  # Loading indicator may not exist — that's fine
+            # Loading indicator may not exist — that's fine
 
             # Also wait for active frames (e.g., gsft_main) to settle domcontentloaded
             try:
@@ -219,10 +220,8 @@ class BrowserManager:
                 for frame in frames:
                     main_frame = getattr(page, "main_frame", None)
                     if frame != main_frame and hasattr(frame, "wait_for_load_state"):
-                        try:
+                        with contextlib.suppress(Exception):
                             await frame.wait_for_load_state("domcontentloaded", timeout=3000)
-                        except Exception:
-                            pass
             except Exception:
                 pass
 

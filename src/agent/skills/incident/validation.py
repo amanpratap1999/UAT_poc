@@ -47,14 +47,13 @@ class IncidentValidator:
         expected_priority = IncidentBusinessRules.calculate_priority(after.impact, after.urgency)
         if after.priority != expected_priority:
             passed = False
-            error_msg = f"Priority calculation mismatch: expected {expected_priority.name}, actual {after.priority.name}"
+            error_msg = f"Priority calculation mismatch: expected {expected_priority.name}, actual {after.priority.name}"  # noqa: E501
 
         # Step specific validations
         step_lower = expected_step.lower()
-        if "assignment" in step_lower:
-            if not after.assignment.group:
-                passed = False
-                error_msg = "Assignment Group was not populated"
+        if "assignment" in step_lower and not after.assignment.group:
+            passed = False
+            error_msg = "Assignment Group was not populated"
 
         if "resolve" in step_lower:
             if after.state.value != "6":
@@ -82,7 +81,9 @@ class IncidentValidator:
         self, business_result: IncidentValidationResult
     ) -> ValidationResult:
         """Convert IncidentValidationResult into standard agent ValidationResult."""
-        res = ValidationResult(action_description=f"Incident Business Rule: {business_result.business_step}")
+        res = ValidationResult(
+            action_description=f"Incident Business Rule: {business_result.business_step}"
+        )
         res.add_check(
             ValidationCheck(
                 check_name=business_result.business_step,

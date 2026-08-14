@@ -18,7 +18,9 @@ async def test_reflection_heuristic_fallback(sample_observation: PageObservation
     engine = ReflectionEngine(llm_client=None)
     world_model = WorldModel()
 
-    action = AgentAction(action_type=ActionType.CLICK, target="text:Resolve", reasoning="Try resolve")
+    action = AgentAction(
+        action_type=ActionType.CLICK, target="text:Resolve", reasoning="Try resolve"
+    )
     result = ActionResult(
         success=False,
         action=action,
@@ -29,7 +31,9 @@ async def test_reflection_heuristic_fallback(sample_observation: PageObservation
     sample_observation.mandatory_fields.append("Assignment Group")
 
     world_state = world_model.build_semantic_state(sample_observation)
-    reflection = await engine.reflect(action, result, world_state, expected_outcome="Incident is resolved")
+    reflection = await engine.reflect(
+        action, result, world_state, expected_outcome="Incident is resolved"
+    )
 
     assert reflection.is_as_expected is False
     assert len(reflection.hypotheses) > 0
@@ -39,14 +43,16 @@ async def test_reflection_heuristic_fallback(sample_observation: PageObservation
 @pytest.mark.asyncio
 async def test_reflection_llm(sample_observation: PageObservation) -> None:
     """Test LLM reflection."""
-    client = MockLLMClient(responses=[
-        {
-            "is_as_expected": False,
-            "hypotheses": ["Page network request timed out", "Form mandatory field missing"],
-            "recommended_plan_adaptation": "Fill Assignment Group field",
-            "confidence": 0.88,
-        }
-    ])
+    client = MockLLMClient(
+        responses=[
+            {
+                "is_as_expected": False,
+                "hypotheses": ["Page network request timed out", "Form mandatory field missing"],
+                "recommended_plan_adaptation": "Fill Assignment Group field",
+                "confidence": 0.88,
+            }
+        ]
+    )
     engine = ReflectionEngine(llm_client=client)
     world_model = WorldModel()
     world_state = world_model.build_semantic_state(sample_observation)

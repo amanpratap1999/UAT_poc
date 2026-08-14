@@ -44,9 +44,10 @@ class WorldModel:
 
         # 3. Form completeness score
         completeness = 1.0
-        if mandatory:
-            filled_mandatory = len(mandatory) - len(missing_mandatory)
-            completeness = max(0.0, filled_mandatory / len(mandatory))
+        mandatory_count = len(mandatory) if mandatory else 0
+        if mandatory_count > 0:
+            filled_mandatory = mandatory_count - len(missing_mandatory)
+            completeness = max(0.0, filled_mandatory / mandatory_count)
 
         # 4. Analyze available vs. blocked actions
         available_actions, blocked_actions = self._analyze_actions(
@@ -64,7 +65,7 @@ class WorldModel:
             raw_page_type=observation.page_type,
             url=observation.url,
             title=observation.title,
-            record_number=observation.incident_number,
+            record_number=observation.record_number,
             record_state=observation.current_state,
             user_permissions=permissions,
             mandatory_fields=mandatory,
@@ -89,11 +90,11 @@ class WorldModel:
         if obs.page_type == PageType.LOGIN:
             return "Authentication Gateway"
         if obs.page_type == PageType.FORM:
-            if obs.incident_number:
-                return f"Incident Record ({obs.incident_number})"
+            if obs.record_number:
+                return f"Domain Record ({obs.record_number})"
             return "New Record Form"
         if obs.page_type == PageType.LIST:
-            return "Incident Queue List"
+            return "Record Queue List"
         if obs.page_type == PageType.DIALOG:
             return "Modal Dialog Overlay"
         if obs.page_type == PageType.HOMEPAGE or obs.page_type == PageType.DASHBOARD:
@@ -122,7 +123,10 @@ class WorldModel:
                         block_reason="Button disabled in UI",
                     )
                 )
-            elif action_name.lower() in ("resolve", "resolve incident", "submit", "update") and missing_mandatory:
+            elif (
+                action_name.lower() in ("resolve", "resolve incident", "submit", "update", "close")
+                and missing_mandatory
+            ):
                 blocked.append(
                     ActionCapability(
                         action_name=action_name,

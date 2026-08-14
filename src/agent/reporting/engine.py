@@ -63,12 +63,8 @@ class ReportingEngine:
         timeline = self._build_timeline(memory)
 
         # Compute validation stats
-        passed = sum(
-            1 for v in memory.completed_validations if v.overall_passed
-        )
-        failed = sum(
-            1 for v in memory.completed_validations if not v.overall_passed
-        )
+        passed = sum(1 for v in memory.completed_validations if v.overall_passed)
+        failed = sum(1 for v in memory.completed_validations if not v.overall_passed)
         total = len(memory.completed_validations)
 
         # Build validation details
@@ -77,9 +73,7 @@ class ReportingEngine:
                 "action": v.action_description,
                 "passed": v.overall_passed,
                 "checks": len(v.checks),
-                "failed_checks": [
-                    c.check_name for c in v.failed_checks
-                ],
+                "failed_checks": [c.check_name for c in v.failed_checks],
             }
             for v in memory.completed_validations
         ]
@@ -91,11 +85,7 @@ class ReportingEngine:
         browser_logs = self._build_browser_logs(memory)
 
         # Collect all screenshots
-        screenshots = [
-            entry.screenshot_path
-            for entry in memory.timeline
-            if entry.screenshot_path
-        ]
+        screenshots = [entry.screenshot_path for entry in memory.timeline if entry.screenshot_path]
 
         # Determine overall status
         if memory.total_failures == 0 and failed == 0:
@@ -125,7 +115,8 @@ class ReportingEngine:
             defects=defects,
             browser_logs=browser_logs,
             console_errors=[
-                f.error_message for f in memory.failures
+                f.error_message
+                for f in memory.failures
                 if "js" in f.error_type.lower() or "console" in f.error_type.lower()
             ],
             screenshots=screenshots,
@@ -144,9 +135,7 @@ class ReportingEngine:
                 defect_id = hypothesis.get("defect_id", "")
                 for defect in report.defects:
                     if defect.defect_id == defect_id:
-                        defect.root_cause_hypothesis = hypothesis.get(
-                            "hypothesis", ""
-                        )
+                        defect.root_cause_hypothesis = hypothesis.get("hypothesis", "")
 
         logger.info(
             "report_generated",
@@ -193,12 +182,8 @@ class ReportingEngine:
                         severity=severity,
                         title=f"Validation failure: {', '.join(check_names)}",
                         description=check_details,
-                        expected_behavior="; ".join(
-                            c.expected for c in failed_checks
-                        ),
-                        actual_behavior="; ".join(
-                            c.actual for c in failed_checks
-                        ),
+                        expected_behavior="; ".join(c.expected for c in failed_checks),
+                        actual_behavior="; ".join(c.actual for c in failed_checks),
                         evidence=evidence,
                         related_step_index=step.step_index,
                     )
@@ -223,7 +208,7 @@ class ReportingEngine:
 
         return defects
 
-    def _assess_severity(self, failed_checks: list) -> Severity:
+    def _assess_severity(self, failed_checks: list) -> Severity:  # type: ignore[type-arg]
         """Assess defect severity based on the types of failed checks."""
         critical_checks = {"action_execution", "state_change", "page_navigation"}
         high_checks = {"field_update", "no_js_errors"}
@@ -277,8 +262,8 @@ class ReportingEngine:
             "",
             "## Validation Results",
             "",
-            f"| Metric | Count |",
-            f"|--------|-------|",
+            "| Metric | Count |",
+            "|--------|-------|",
             f"| Total  | {report.total_validations} |",
             f"| Passed | {report.passed_validations} |",
             f"| Failed | {report.failed_validations} |",
@@ -288,57 +273,63 @@ class ReportingEngine:
 
         # Defects
         if report.defects:
-            lines.extend([
-                "---",
-                "",
-                "## Defects Found",
-                "",
-            ])
+            lines.extend(
+                [
+                    "---",
+                    "",
+                    "## Defects Found",
+                    "",
+                ]
+            )
             for defect in report.defects:
-                lines.extend([
-                    f"### {defect.defect_id}: {defect.title}",
-                    f"**Severity:** {defect.severity.value}",
-                    f"**Description:** {defect.description}",
-                    "",
-                    f"- **Expected:** {defect.expected_behavior}",
-                    f"- **Actual:** {defect.actual_behavior}",
-                    "",
-                ])
+                lines.extend(
+                    [
+                        f"### {defect.defect_id}: {defect.title}",
+                        f"**Severity:** {defect.severity.value}",
+                        f"**Description:** {defect.description}",
+                        "",
+                        f"- **Expected:** {defect.expected_behavior}",
+                        f"- **Actual:** {defect.actual_behavior}",
+                        "",
+                    ]
+                )
                 if defect.root_cause_hypothesis:
                     lines.append(f"**Root Cause Hypothesis:** {defect.root_cause_hypothesis}")
                     lines.append("")
 
         # Timeline
-        lines.extend([
-            "---",
-            "",
-            "## Execution Timeline",
-            "",
-            "| Step | Action | Result | Duration |",
-            "|------|--------|--------|----------|",
-        ])
+        lines.extend(
+            [
+                "---",
+                "",
+                "## Execution Timeline",
+                "",
+                "| Step | Action | Result | Duration |",
+                "|------|--------|--------|----------|",
+            ]
+        )
         for entry in report.timeline:
             lines.append(
-                f"| {entry.step_index} | {entry.action} | {entry.result} | {entry.duration_ms:.0f}ms |"
+                f"| {entry.step_index} | {entry.action} | {entry.result} | {entry.duration_ms:.0f}ms |"  # noqa: E501
             )
 
         # Recommendations
         if report.recommendations:
-            lines.extend([
-                "",
-                "---",
-                "",
-                "## Recommendations",
-                "",
-            ])
+            lines.extend(
+                [
+                    "",
+                    "---",
+                    "",
+                    "## Recommendations",
+                    "",
+                ]
+            )
             for rec in report.recommendations:
                 lines.append(f"- {rec}")
 
         return "\n".join(lines)
 
-    async def save_report(
-        self, report: TestReport, format: str = "markdown"
-    ) -> str:
+    async def save_report(self, report: TestReport, format: str = "markdown") -> str:
         """Save the report to disk.
 
         Args:

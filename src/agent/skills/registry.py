@@ -36,7 +36,9 @@ class SkillRegistry:
         """
         for skill in self._skills.values():
             if skill.can_handle(intent):
-                logger.info("resolved_skill", skill_name=skill.manifest.name, intent=intent.intent_type)
+                logger.info(
+                    "resolved_skill", skill_name=skill.manifest.name, intent=intent.intent_type
+                )
                 return skill
 
         logger.warning("no_skill_matched", intent_type=intent.intent_type)

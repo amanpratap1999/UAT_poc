@@ -7,14 +7,16 @@ with CSS fallbacks for ServiceNow's dynamic DOM.
 
 from __future__ import annotations
 
-from playwright.async_api import Page, Locator
+from typing import Any
+
+from playwright.async_api import Locator, Page
 
 from agent.core.exceptions import (
     ElementNotInteractableError,
-    ElementStaleError,
     SelectorNotFoundError,
 )
 from agent.core.logging import get_logger
+from agent.perception.models import BoundingBox, PerceptionCandidate
 
 logger = get_logger(__name__)
 
@@ -30,6 +32,53 @@ class PageInteractor:
 
     def __init__(self, page: Page) -> None:
         self._page = page
+
+    async def resolve_candidates(self, selector: str) -> list[PerceptionCandidate]:
+        """Resolve a selector into a list of PerceptionCandidates (DOM matches).
+
+        Evaluates visibility, enablement, and bounding boxes for disambiguation.
+        """
+        locator = self._resolve_locator(selector)
+        count = await locator.count()
+        candidates: list[PerceptionCandidate] = []
+
+        ctx = self._get_active_context()
+        frame_name = getattr(ctx, "name", "main")
+
+        for i in range(count):
+            loc = locator.nth(i)
+            is_visible = await loc.is_visible()
+            is_enabled = await loc.is_enabled()
+            box = await loc.bounding_box()
+
+            bbox = None
+            if box:
+                bbox = BoundingBox(
+                    x=int(box["x"]),
+                    y=int(box["y"]),
+                    width=int(box["width"]),
+                    height=int(box["height"]),
+                )
+
+            tag = await loc.evaluate("el => el.tagName.toLowerCase()")
+            text = await loc.inner_text()
+
+            candidates.append(
+                PerceptionCandidate(
+                    source="dom",
+                    target_description=selector,
+                    confidence=1.0 if is_visible else 0.5,
+                    locator_str=f"{selector} >> nth={i}",
+                    frame_context=frame_name,
+                    role=tag,
+                    label=text.strip()[:50] if text else None,
+                    is_visible=is_visible,
+                    is_enabled=is_enabled,
+                    bounding_box=bbox,
+                )
+            )
+
+        return candidates
 
     async def click(self, selector: str, timeout: int = 10000) -> None:
         """Click an element using smart selector resolution.
@@ -58,6 +107,17 @@ class PageInteractor:
                 details={"selector": selector},
             ) from e
 
+    async def click_coordinate(self, x: int, y: int) -> None:
+        """Click at a specific coordinate (visual grounding fallback)."""
+        try:
+            await self._page.mouse.click(x, y)
+            logger.debug("clicked_coordinate", x=x, y=y)
+        except Exception as e:
+            raise ElementNotInteractableError(
+                f"Cannot click coordinate ({x}, {y}) — {e}",
+                details={"x": x, "y": y},
+            ) from e
+
     async def fill(self, selector: str, value: str, timeout: int = 10000) -> None:
         """Fill a form field with a value.
 
@@ -69,6 +129,10 @@ class PageInteractor:
             timeout: Max wait time in ms.
         """
         locator = self._resolve_locator(selector)
+
+        # Disambiguate if needed (e.g., label matching both input and button)
+        locator = await self._disambiguate_locator(locator, selector, "fill", timeout)
+
         try:
             await locator.fill(value, timeout=timeout)
             logger.debug("filled", selector=selector, value=value)
@@ -84,9 +148,19 @@ class PageInteractor:
                 details={"selector": selector, "value": value},
             ) from e
 
-    async def select_option(
-        self, selector: str, value: str, timeout: int = 10000
-    ) -> None:
+    async def fill_coordinate(self, x: int, y: int, value: str) -> None:
+        """Click at a coordinate and type text (visual grounding fallback)."""
+        try:
+            await self._page.mouse.click(x, y)
+            await self._page.keyboard.type(value)
+            logger.debug("filled_coordinate", x=x, y=y, value=value)
+        except Exception as e:
+            raise ElementNotInteractableError(
+                f"Cannot fill at coordinate ({x}, {y}) — {e}",
+                details={"x": x, "y": y, "value": value},
+            ) from e
+
+    async def select_option(self, selector: str, value: str, timeout: int = 10000) -> None:
         """Select an option from a dropdown.
 
         Tries select_option first, falls back to click-based selection
@@ -109,9 +183,7 @@ class PageInteractor:
                 await self._page.wait_for_timeout(500)
                 option_locator = self._page.get_by_text(value, exact=False)
                 await option_locator.first.click(timeout=timeout)
-                logger.debug(
-                    "selected_option_via_click", selector=selector, value=value
-                )
+                logger.debug("selected_option_via_click", selector=selector, value=value)
             except Exception as e:
                 raise ElementNotInteractableError(
                     f"Cannot select option '{value}' in: {selector} — {e}",
@@ -150,9 +222,7 @@ class PageInteractor:
 
         if selector:
             locator = self._resolve_locator(selector)
-            await locator.evaluate(
-                f"el => el.scrollBy({delta_x}, {delta_y})"
-            )
+            await locator.evaluate(f"el => el.scrollBy({delta_x}, {delta_y})")
         else:
             await self._page.mouse.wheel(delta_x, delta_y)
 
@@ -233,7 +303,11 @@ class PageInteractor:
             for frame in frames:
                 frame_name = getattr(frame, "name", "") or ""
                 frame_url = getattr(frame, "url", "") or ""
-                if frame_name == "gsft_main" or "gsft_main" in frame_name or "gsft_main" in frame_url:
+                if (
+                    frame_name == "gsft_main"
+                    or "gsft_main" in frame_name
+                    or "gsft_main" in frame_url
+                ):
                     return frame
             for frame in frames:
                 main_frame = getattr(self._page, "main_frame", None)
@@ -266,20 +340,56 @@ class PageInteractor:
             role = parts[0].strip()
             name = parts[1].strip() if len(parts) > 1 else None
             if name:
-                return ctx.get_by_role(role, name=name)  # type: ignore[arg-type]
-            return ctx.get_by_role(role)  # type: ignore[arg-type]
+                return ctx.get_by_role(role, name=name)  # type: ignore[no-any-return]
+            return ctx.get_by_role(role)  # type: ignore[no-any-return]
 
         if selector.startswith("label:"):
             label = selector[6:].strip()
-            return ctx.get_by_label(label)
+            return ctx.get_by_label(label)  # type: ignore[no-any-return]
 
         if selector.startswith("text:"):
             text = selector[5:].strip()
-            return ctx.get_by_text(text, exact=False)
+            return ctx.get_by_text(text, exact=False)  # type: ignore[no-any-return]
 
         if selector.startswith("placeholder:"):
             placeholder = selector[12:].strip()
-            return ctx.get_by_placeholder(placeholder)
+            return ctx.get_by_placeholder(placeholder)  # type: ignore[no-any-return]
 
         # Default: CSS selector
-        return ctx.locator(selector)
+        return ctx.locator(selector)  # type: ignore[no-any-return]
+
+    async def _disambiguate_locator(
+        self, locator: Locator, selector: str, action_type: str, timeout: int
+    ) -> Locator:
+        """Resolve ambiguous locators (e.g. multiple matches) based on action intent."""
+        try:
+            # Wait briefly to ensure elements are present (if none, let downstream fail naturally)
+            await locator.first.wait_for(state="attached", timeout=min(2000, timeout))
+        except Exception:
+            return locator
+
+        count = await locator.count()
+        if count <= 1:
+            return locator
+
+        logger.debug("disambiguating_locator", selector=selector, count=count, action=action_type)
+
+        if action_type == "fill":
+            valid_locators = []
+            for i in range(count):
+                loc = locator.nth(i)
+                tag = await loc.evaluate("el => el.tagName.toLowerCase()")
+                if tag in ["input", "textarea"]:
+                    valid_locators.append(loc)
+
+            if len(valid_locators) == 1:
+                logger.debug("disambiguated_fill_target", selector=selector)
+                return valid_locators[0]
+            elif len(valid_locators) > 1:
+                raise ElementNotInteractableError(
+                    f"Cannot fill field: {selector} — DOM ambiguity, {len(valid_locators)} editable elements found.",  # noqa: E501
+                    details={"selector": selector},
+                )
+
+        # If we couldn't confidently disambiguate, return original to fail safely
+        return locator

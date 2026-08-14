@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, cast
 
 from agent.core.logging import get_logger
 
@@ -113,7 +113,7 @@ class RedisSessionStore(SessionStore):
         raw = await self._redis.get(self._key(session_id))
         if raw is None:
             return None
-        return json.loads(raw)
+        return cast(dict[str, Any], json.loads(raw))
 
     async def delete(self, session_id: str) -> None:
         await self._redis.delete(self._key(session_id))

@@ -1,0 +1,78 @@
+version: "3.8"
+
+services:
+  db:
+    image: ankane/pgvector:v0.4.2
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: servicenow_qa
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+  api:
+    build: .
+    command: uvicorn agent.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./src:/app/src
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgrespassword@db:5432/servicenow_qa
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - LLM_PROVIDER=${LLM_PROVIDER}
+      - LLM_BASE_URL=${LLM_BASE_URL}
+      - LLM_MODEL=${LLM_MODEL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PUTER_ENDPOINT=${PUTER_ENDPOINT}
+      - PUTER_API_KEY=${PUTER_API_KEY}
+      # DO NOT PUT REAL CREDENTIALS HERE
+    depends_on:
+      - db
+      - redis
+
+  worker:
+    build: .
+    command: celery -A agent.core.celery_app worker --loglevel=info
+    volumes:
+      - ./src:/app/src
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgrespassword@db:5432/servicenow_qa
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - LLM_PROVIDER=${LLM_PROVIDER}
+      - LLM_BASE_URL=${LLM_BASE_URL}
+      - LLM_MODEL=${LLM_MODEL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PUTER_ENDPOINT=${PUTER_ENDPOINT}
+      - PUTER_API_KEY=${PUTER_API_KEY}
+    depends_on:
+      - db
+      - redis
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+    # No secrets — VITE_API_BASE_URL is handled by nginx proxy at /api/
+    # Do NOT put JWT secrets, API keys, or backend credentials here.
+
+volumes:
+  pgdata:
+  redisdata:

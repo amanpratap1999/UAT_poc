@@ -14,16 +14,16 @@ from __future__ import annotations
 
 from typing import Any
 
+from agent.capabilities.registry import CapabilityDefinition
 from agent.core.logging import get_logger
 from agent.domain.actions import AgentAction
 from agent.domain.intent import StructuredIntent
-from agent.domain.plan import ExecutionPlan, PlanStep
+from agent.domain.plan import ExecutionPlan
 from agent.domain.skill import SkillManifest
 from agent.domain.validation import ValidationResult
 from agent.domain.world import SemanticWorldState
 from agent.skills.base import BaseSkill
 from agent.skills.incident.evidence import EvidenceCollector
-from agent.skills.incident.knowledge.rules import IncidentLifecycle
 from agent.skills.incident.lifecycle import LifecycleEngine
 from agent.skills.incident.navigation import IncidentNavigator
 from agent.skills.incident.observation import IncidentObserver
@@ -67,17 +67,48 @@ class IncidentSkill(BaseSkill):
     def evidence_collector(self) -> EvidenceCollector:
         return self._evidence_collector
 
+    def get_capability_definition(self) -> CapabilityDefinition:
+        return CapabilityDefinition(
+            name="Incident",
+            module_name="incident",
+            supported_tables=["incident", "incident_task"],
+            description="ServiceNow Incident Management domain skill plugin",
+        )
+
+    def get_domain_selectors(self) -> dict[str, str | list[str]]:
+        return {
+            "record_number": [
+                "input[name$='.number']",
+                "input[id$='.number']",
+                "[id^='sys_readonly.'][id$='.number']",
+            ],
+            "record_state": [
+                "select[name$='.state']",
+                "select[id$='.state']",
+                "[id^='sys_readonly.'][id$='.state']",
+                "[id*='state'] option[selected]",
+            ],
+        }
+
+    def get_lifecycle_states(self) -> list[str]:
+        return ["New", "In Progress", "On Hold", "Resolved", "Closed", "Canceled"]
+
     def can_handle(self, intent: StructuredIntent) -> bool:
         """Check if intent targets incident management."""
         if intent.target_module.lower() == "incident":
             return True
-        return intent.intent_type in self.manifest.supported_intents or "incident" in intent.goal.lower()
+        return (
+            intent.intent_type in self.manifest.supported_intents
+            or "incident" in intent.goal.lower()
+        )
 
     async def plan(
         self, intent: StructuredIntent, world_state: SemanticWorldState | None = None
     ) -> ExecutionPlan:
         """Build a domain-specific execution plan for the incident goal."""
-        logger.info("building_incident_execution_plan", goal=intent.goal, intent_type=intent.intent_type)
+        logger.info(
+            "building_incident_execution_plan", goal=intent.goal, intent_type=intent.intent_type
+        )
         plan = ExecutionPlan(goal=intent.goal)
 
         goal_lower = intent.goal.lower()
@@ -102,10 +133,15 @@ class IncidentSkill(BaseSkill):
         else:
             # Default complete lifecycle plan
             plan.add_step("Navigate to Incident Management", "Incident list view displayed")
-            plan.add_step("Open an Existing Incident in New State", "Incident form displayed in New state")
+            plan.add_step(
+                "Open an Existing Incident in New State", "Incident form displayed in New state"
+            )
             plan.add_step("Update Assignment Group", "Assignment group populated")
             plan.add_step("Move State to In Progress", "State changed to In Progress")
-            plan.add_step("Fill Resolution Details & Resolve", "Resolution code & notes populated, state is Resolved")
+            plan.add_step(
+                "Fill Resolution Details & Resolve",
+                "Resolution code & notes populated, state is Resolved",
+            )
             plan.add_step("Validate Complete Lifecycle", "Complete Incident flow verified")
 
         return plan
@@ -120,10 +156,12 @@ class IncidentSkill(BaseSkill):
         logger.info("incident_skill_validating_action", action=action.action_type)
 
         incident_before = self._observer.parse_incident(
-            before.model_copy() if hasattr(before, "model_copy") else before, before  # type: ignore[arg-type]
+            before.model_copy() if hasattr(before, "model_copy") else before,
+            before,
         )
         incident_after = self._observer.parse_incident(
-            after.model_copy() if hasattr(after, "model_copy") else after, after  # type: ignore[arg-type]
+            after.model_copy() if hasattr(after, "model_copy") else after,
+            after,
         )
 
         business_result = self._validator.validate_business_outcome(
@@ -136,7 +174,7 @@ class IncidentSkill(BaseSkill):
         self._evidence_collector.record_evidence(
             step_description=action.reasoning or f"Action {action.action_type}",
             expected_result="Business rule satisfied",
-            observed_result=f"State: {incident_after.state.name}, Priority: {incident_after.priority.name}",
+            observed_result=f"State: {incident_after.state.name}, Priority: {incident_after.priority.name}",  # noqa: E501
             passed=business_result.passed,
             incident_number=incident_after.number,
             reasoning_summary=action.reasoning,
@@ -145,9 +183,7 @@ class IncidentSkill(BaseSkill):
 
         return self._validator.to_standard_validation_result(business_result)
 
-    async def recover(
-        self, error: Exception, context: dict[str, Any]
-    ) -> AgentAction | None:
+    async def recover(self, error: Exception, context: dict[str, Any]) -> AgentAction | None:
         """Suggest domain-specific recovery action."""
         logger.info("incident_skill_recovery_requested", error=str(error))
 

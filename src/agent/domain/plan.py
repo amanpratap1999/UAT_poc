@@ -82,7 +82,8 @@ class ExecutionPlan(BaseModel):
     def completed_steps(self) -> list[PlanStep]:
         """All steps that have been completed (success or failed)."""
         return [
-            s for s in self.steps
+            s
+            for s in self.steps
             if s.status in (StepStatus.SUCCESS, StepStatus.FAILED, StepStatus.SKIPPED)
         ]
 

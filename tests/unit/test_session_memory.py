@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-import pytest
-
-from agent.core.types import ActionType, AgentState, PageType
+from agent.core.types import ActionType, AgentState
 from agent.domain.actions import ActionResult, AgentAction
-from agent.domain.observation import FieldInfo, PageObservation
+from agent.domain.observation import PageObservation
 from agent.domain.plan import ExecutionPlan
-from agent.domain.validation import ValidationCheck, ValidationResult
 from agent.memory.session import SessionMemory
 
 
@@ -22,7 +19,7 @@ def test_session_memory_defaults() -> None:
     assert memory.total_actions_executed == 0
     assert memory.session_id != ""
     assert memory.plan is None
-    assert memory.current_incident is None
+    assert memory.current_record is None
 
 
 def test_add_observation(sample_observation: PageObservation) -> None:
@@ -47,9 +44,9 @@ def test_add_observation_tracks_incident(sample_observation: PageObservation) ->
 
     memory.add_observation(sample_observation)
 
-    assert memory.current_incident is not None
-    assert memory.current_incident["number"] == "INC0010001"
-    assert memory.current_incident["state"] == "New"
+    assert memory.current_record is not None
+    assert memory.current_record["number"] == "INC0010001"
+    assert memory.current_record["state"] == "New"
 
 
 def test_add_completed_step() -> None:

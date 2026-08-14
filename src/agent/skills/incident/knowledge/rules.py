@@ -1,3 +1,4 @@
+
 """Incident Knowledge Model for Deliverable 2.
 
 Centralizes all ServiceNow Incident Management business rules, valid state transitions,
@@ -5,6 +6,8 @@ mandatory field requirements per transition, and Priority Matrix calculations.
 """
 
 from __future__ import annotations
+
+from typing import ClassVar
 
 from agent.skills.incident.domain.models import (
     Impact,
@@ -18,10 +21,18 @@ class IncidentLifecycle:
     """Defines valid state transitions for ServiceNow Incident Management."""
 
     # Map current state -> allowed next states
-    VALID_TRANSITIONS: dict[IncidentState, set[IncidentState]] = {
+    VALID_TRANSITIONS: ClassVar[dict[IncidentState, set[IncidentState]]] = {
         IncidentState.NEW: {IncidentState.IN_PROGRESS, IncidentState.CANCELED},
-        IncidentState.IN_PROGRESS: {IncidentState.ON_HOLD, IncidentState.RESOLVED, IncidentState.CANCELED},
-        IncidentState.ON_HOLD: {IncidentState.IN_PROGRESS, IncidentState.RESOLVED, IncidentState.CANCELED},
+        IncidentState.IN_PROGRESS: {
+            IncidentState.ON_HOLD,
+            IncidentState.RESOLVED,
+            IncidentState.CANCELED,
+        },
+        IncidentState.ON_HOLD: {
+            IncidentState.IN_PROGRESS,
+            IncidentState.RESOLVED,
+            IncidentState.CANCELED,
+        },
         IncidentState.RESOLVED: {IncidentState.IN_PROGRESS, IncidentState.CLOSED},
         IncidentState.CLOSED: set(),
         IncidentState.CANCELED: set(),
@@ -43,7 +54,7 @@ class IncidentBusinessRules:
     """Calculates priority and determines mandatory fields for Incident transitions."""
 
     # Priority matrix lookup table: (impact, urgency) -> IncidentPriority
-    _PRIORITY_MATRIX: dict[tuple[Impact, Urgency], IncidentPriority] = {
+    _PRIORITY_MATRIX: ClassVar[dict[tuple[Impact, Urgency], IncidentPriority]] = {
         (Impact.HIGH, Urgency.HIGH): IncidentPriority.CRITICAL,
         (Impact.HIGH, Urgency.MEDIUM): IncidentPriority.HIGH,
         (Impact.HIGH, Urgency.LOW): IncidentPriority.MODERATE,
@@ -56,10 +67,15 @@ class IncidentBusinessRules:
     }
 
     # Mandatory fields per state transition target
-    _TRANSITION_MANDATORY_FIELDS: dict[IncidentState, list[str]] = {
+    _TRANSITION_MANDATORY_FIELDS: ClassVar[dict[IncidentState, list[str]]] = {
         IncidentState.NEW: ["Short Description", "Caller"],
         IncidentState.IN_PROGRESS: ["Short Description", "Caller", "Assignment Group"],
-        IncidentState.ON_HOLD: ["Short Description", "Caller", "Assignment Group", "On Hold Reason"],
+        IncidentState.ON_HOLD: [
+            "Short Description",
+            "Caller",
+            "Assignment Group",
+            "On Hold Reason",
+        ],
         IncidentState.RESOLVED: [
             "Short Description",
             "Caller",

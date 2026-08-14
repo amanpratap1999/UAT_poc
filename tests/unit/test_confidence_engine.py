@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from agent.confidence.engine import ConfidenceEngine
 from agent.core.types import ActionType
 from agent.domain.actions import AgentAction
@@ -17,7 +15,9 @@ def test_confidence_evaluation(sample_observation: PageObservation) -> None:
     world_model = WorldModel()
 
     # Normal action
-    valid_action = AgentAction(action_type=ActionType.CLICK, target="text:Update", reasoning="Update")
+    valid_action = AgentAction(
+        action_type=ActionType.CLICK, target="text:Update", reasoning="Update"
+    )
     world_state = world_model.build_semantic_state(sample_observation)
 
     assessment = engine.evaluate_confidence(valid_action, world_state)
@@ -31,7 +31,9 @@ def test_confidence_evaluation(sample_observation: PageObservation) -> None:
     sample_observation.mandatory_fields.append("Category")
     world_state_blocked = world_model.build_semantic_state(sample_observation)
 
-    resolve_action = AgentAction(action_type=ActionType.CLICK, target="text:Resolve Incident", reasoning="Resolve")
+    resolve_action = AgentAction(
+        action_type=ActionType.CLICK, target="text:Resolve Incident", reasoning="Resolve"
+    )
     assessment_blocked = engine.evaluate_confidence(resolve_action, world_state_blocked)
 
     assert assessment_blocked.score < 0.70

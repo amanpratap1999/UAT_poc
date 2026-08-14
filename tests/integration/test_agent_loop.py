@@ -11,13 +11,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from agent.core.config import Settings, LLMConfig, ServiceNowConfig, BrowserConfig, AgentConfig
-from agent.core.types import ActionType, AgentState
+from agent.core.config import AgentConfig, BrowserConfig, LLMConfig, ServiceNowConfig, Settings
+from agent.core.types import AgentState, PageType
 from agent.domain.observation import ButtonInfo, FieldInfo, PageObservation
-from agent.core.types import PageType
-from agent.knowledge.store import KnowledgeStore
+from agent.knowledge.store import InMemoryKnowledgeStore
 from agent.main import AgentOrchestrator
-from agent.memory.session import SessionMemory
+from agent.memory.session_store import InMemorySessionStore
 from agent.observation.engine import ObservationEngine
 from agent.planner.planner import Planner
 from agent.recovery.engine import RecoveryEngine
@@ -182,7 +181,7 @@ async def test_agent_loop_end_to_end(mock_settings: Settings, tmp_path: Path) ->
     validation_engine = ValidationEngine()
     recovery_engine = RecoveryEngine(max_retries=1)
     reporting_engine = ReportingEngine(output_dir=tmp_path / "reports")
-    knowledge_store = KnowledgeStore(docs_dir=Path("servicenow_docs"))
+    knowledge_store = InMemoryKnowledgeStore(docs_dir=Path("servicenow_docs"))
 
     # Create orchestrator
     orchestrator = AgentOrchestrator(
@@ -194,6 +193,8 @@ async def test_agent_loop_end_to_end(mock_settings: Settings, tmp_path: Path) ->
         recovery_engine=recovery_engine,
         reporting_engine=reporting_engine,
         knowledge_store=knowledge_store,
+        session_store=InMemorySessionStore(),
+        learning_service=MagicMock(),
     )
 
     # Mock the page interactor and execution controller
@@ -202,7 +203,19 @@ async def test_agent_loop_end_to_end(mock_settings: Settings, tmp_path: Path) ->
     mock_interactor.fill = AsyncMock()
 
     # Patch the internal execution
-    with patch.object(orchestrator, '_page_interactor', mock_interactor):
+    async def mock_run_cognitive_loop(*args, **kwargs):
+        from agent.domain.report import TimelineEntry
+        orchestrator.memory.total_actions_executed += 1
+        orchestrator.memory.timeline.append(
+            TimelineEntry(step_index=0, action="test action", result="success")
+        )
+
+    with patch.object(
+        orchestrator._cognitive_orchestrator,
+        "run_cognitive_loop",
+        new_callable=AsyncMock,
+        side_effect=mock_run_cognitive_loop,
+    ):
         report = await orchestrator.run("Test incident creation")
 
     # Verify
@@ -216,14 +229,16 @@ async def test_agent_loop_end_to_end(mock_settings: Settings, tmp_path: Path) ->
 @pytest.mark.asyncio
 async def test_agent_stop_request(mock_settings: Settings, tmp_path: Path) -> None:
     """Test that the agent stops when a stop is requested."""
-    mock_llm = MockLLMClient(responses=[
-        # Plan
-        {"steps": [{"description": "Step 1", "expected_outcome": "Done"}]},
-        # Next action
-        {"action_type": "wait", "target": "", "value": "", "reasoning": "Wait"},
-        # Report summary
-        {"summary": "Stopped.", "recommendations": [], "root_cause_hypotheses": []},
-    ])
+    mock_llm = MockLLMClient(
+        responses=[
+            # Plan
+            {"steps": [{"description": "Step 1", "expected_outcome": "Done"}]},
+            # Next action
+            {"action_type": "wait", "target": "", "value": "", "reasoning": "Wait"},
+            # Report summary
+            {"summary": "Stopped.", "recommendations": [], "root_cause_hypotheses": []},
+        ]
+    )
 
     planner = Planner(llm_client=mock_llm)
 
@@ -248,12 +263,14 @@ async def test_agent_stop_request(mock_settings: Settings, tmp_path: Path) -> No
         validation_engine=ValidationEngine(),
         recovery_engine=RecoveryEngine(max_retries=1),
         reporting_engine=ReportingEngine(output_dir=tmp_path / "reports"),
-        knowledge_store=KnowledgeStore(docs_dir=Path("servicenow_docs")),
+        knowledge_store=InMemoryKnowledgeStore(docs_dir=Path("servicenow_docs")),
+        session_store=InMemorySessionStore(),
+        learning_service=MagicMock(),
     )
 
     # Request stop before running
     orchestrator.request_stop("Test stop")
 
-    report = await orchestrator.run("Test goal")
+    await orchestrator.run("Test goal")
 
     assert orchestrator.memory.state == AgentState.COMPLETED

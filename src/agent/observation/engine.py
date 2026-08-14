@@ -56,7 +56,7 @@ class ObservationEngine:
         validation_msgs = await self._extract_validation_messages(page)
         notifications = await self._extract_notifications(page)
         current_state = await self._extract_current_state(page)
-        incident_number = await self._extract_incident_number(page)
+        record_number = await self._extract_record_number(page)
         interactive_elements = await self._extract_interactive_elements(page)
         mandatory_fields = [f.name for f in fields if f.is_mandatory]
 
@@ -65,7 +65,7 @@ class ObservationEngine:
             title=title,
             page_type=page_type,
             current_state=current_state,
-            incident_number=incident_number,
+            record_number=record_number,
             visible_fields=fields,
             mandatory_fields=mandatory_fields,
             buttons=buttons,
@@ -93,7 +93,11 @@ class ObservationEngine:
             for frame in frames:
                 frame_name = getattr(frame, "name", "") or ""
                 frame_url = getattr(frame, "url", "") or ""
-                if frame_name == "gsft_main" or "gsft_main" in frame_name or "gsft_main" in frame_url:
+                if (
+                    frame_name == "gsft_main"
+                    or "gsft_main" in frame_name
+                    or "gsft_main" in frame_url
+                ):
                     return frame
             for frame in frames:
                 main_frame = getattr(page, "main_frame", None)
@@ -103,9 +107,7 @@ class ObservationEngine:
             pass
         return page
 
-    async def _detect_page_type(
-        self, page: Page, url: str, title: str
-    ) -> PageType:
+    async def _detect_page_type(self, page: Page, url: str, title: str) -> PageType:
         """Detect the type of ServiceNow page we're on.
 
         Uses URL patterns, page title, frame context, and DOM markers to determine
@@ -120,7 +122,14 @@ class ObservationEngine:
 
         post_login_container = any(
             k in url_lower
-            for k in ["nav_to.do", "navpage.do", "now/nav", "now/workspace", "home.do", "polaris.do"]
+            for k in [
+                "nav_to.do",
+                "navpage.do",
+                "now/nav",
+                "now/workspace",
+                "home.do",
+                "polaris.do",
+            ]
         )
 
         # Login page
@@ -128,7 +137,9 @@ class ObservationEngine:
             return PageType.LOGIN
 
         # Form view (e.g., incident.do?sys_id=...)
-        if (".do?" in url_lower and "sys_id" in url_lower) or (".do?" in frame_url_lower and "sys_id" in frame_url_lower):
+        if (".do?" in url_lower and "sys_id" in url_lower) or (
+            ".do?" in frame_url_lower and "sys_id" in frame_url_lower
+        ):
             return PageType.FORM
 
         # List view (e.g., incident_list.do)
@@ -144,7 +155,7 @@ class ObservationEngine:
             # Check for form markers in DOM
             try:
                 form_count = await ctx.locator(
-                    "form[name='sys_readonly'], .form-group, .sn-form, input[name='incident.number']"
+                    "form[name='sys_readonly'], .form-group, .sn-form, input[name='incident.number']"  # noqa: E501
                 ).count()
                 if form_count > 0:
                     return PageType.FORM
@@ -172,7 +183,11 @@ class ObservationEngine:
                 pass
 
         # Dashboard
-        if "dashboard" in url_lower or "$pa_dashboard" in url_lower or "dashboard" in frame_url_lower:
+        if (
+            "dashboard" in url_lower
+            or "$pa_dashboard" in url_lower
+            or "dashboard" in frame_url_lower
+        ):
             return PageType.DASHBOARD
 
         # Homepage / Workspace landing page
@@ -256,7 +271,7 @@ class ObservationEngine:
         # Try aria-label
         label = await element.get_attribute("aria-label")
         if label:
-            return label.strip()
+            return label.strip()  # type: ignore[no-any-return]
 
         # Try associated label via id
         element_id = await element.get_attribute("id")
@@ -264,30 +279,26 @@ class ObservationEngine:
             try:
                 label_el = page.locator(f"label[for='{element_id}']")
                 if await label_el.count() > 0:
-                    return (await label_el.first.inner_text()).strip()
+                    return (await label_el.first.inner_text()).strip()  # type: ignore[no-any-return]
             except Exception:
                 pass
 
             # ServiceNow pattern: label.label_text in the same row
             try:
-                parent_row = page.locator(
-                    f"#{element_id}"
-                ).locator("xpath=ancestor::tr[1]//label")
+                parent_row = page.locator(f"#{element_id}").locator("xpath=ancestor::tr[1]//label")
                 if await parent_row.count() > 0:
-                    return (await parent_row.first.inner_text()).strip()
+                    return (await parent_row.first.inner_text()).strip()  # type: ignore[no-any-return]
             except Exception:
                 pass
 
         # Try placeholder
         placeholder = await element.get_attribute("placeholder")
         if placeholder:
-            return placeholder.strip()
+            return placeholder.strip()  # type: ignore[no-any-return]
 
         return ""
 
-    async def _is_field_mandatory(
-        self, page: Any, element: Any, label: str
-    ) -> bool:
+    async def _is_field_mandatory(self, page: Any, element: Any, label: str) -> bool:
         """Check if a field is mandatory."""
         # Check aria-required
         required = await element.get_attribute("aria-required")
@@ -304,8 +315,7 @@ class ObservationEngine:
             element_id = await element.get_attribute("id")
             if element_id:
                 mandatory_marker = page.locator(
-                    f".mandatory[data-ref='{element_id}'], "
-                    f"label.mandatory[for='{element_id}']"
+                    f".mandatory[data-ref='{element_id}'], label.mandatory[for='{element_id}']"
                 )
                 if await mandatory_marker.count() > 0:
                     return True
@@ -462,9 +472,9 @@ class ObservationEngine:
     async def _extract_current_state(self, page: Page) -> str | None:
         """Extract the current record state (e.g., 'New', 'In Progress')."""
         state_selectors = [
-            "#incident\\.state",
-            "#sys_readonly\\.incident\\.state",
-            "select[name='incident.state']",
+            "select[name$='.state']",
+            "select[id$='.state']",
+            "[id^='sys_readonly.'][id$='.state']",
             "[id*='state'] option[selected]",
         ]
         ctx = self._get_active_context(page)
@@ -480,22 +490,22 @@ class ObservationEngine:
                         try:
                             value = await locator.first.input_value()
                             if value:
-                                return value
+                                return value  # type: ignore[no-any-return]
                         except Exception:
                             text = (await locator.first.inner_text()).strip()
                             if text:
-                                return text
+                                return text  # type: ignore[no-any-return]
                 except Exception:
                     continue
 
         return None
 
-    async def _extract_incident_number(self, page: Page) -> str | None:
-        """Extract the current incident number from the page."""
+    async def _extract_record_number(self, page: Page) -> str | None:
+        """Extract the current record number from the page."""
         number_selectors = [
-            "#incident\\.number",
-            "#sys_readonly\\.incident\\.number",
-            "input[name='incident.number']",
+            "input[name$='.number']",
+            "input[id$='.number']",
+            "[id^='sys_readonly.'][id$='.number']",
         ]
         ctx = self._get_active_context(page)
         contexts = [ctx]
@@ -509,12 +519,12 @@ class ObservationEngine:
                     if await locator.count() > 0:
                         try:
                             value = await locator.first.input_value()
-                            if value and re.match(r"INC\d+", value):
-                                return value
+                            if value and re.match(r"[A-Z]{3,}\d+", value):
+                                return value  # type: ignore[no-any-return]
                         except Exception:
                             text = (await locator.first.inner_text()).strip()
-                            if text and re.match(r"INC\d+", text):
-                                return text
+                            if text and re.match(r"[A-Z]{3,}\d+", text):
+                                return text  # type: ignore[no-any-return]
                 except Exception:
                     continue
 
@@ -526,7 +536,7 @@ class ObservationEngine:
 
         try:
             if hasattr(page, "accessibility"):
-                ax_tree = await getattr(page, "accessibility").snapshot()
+                ax_tree = await page.accessibility.snapshot()
                 if ax_tree and "children" in ax_tree:
                     self._walk_accessibility_tree(ax_tree["children"], elements, depth=0)
                     if elements:
@@ -540,9 +550,20 @@ class ObservationEngine:
             tree = await cdp.send("Accessibility.getFullAXTree")
             nodes = tree.get("nodes", [])
             interactive_roles = {
-                "button", "link", "textbox", "combobox", "checkbox",
-                "radio", "tab", "menuitem", "option", "switch",
-                "searchbox", "spinbutton", "slider", "heading",
+                "button",
+                "link",
+                "textbox",
+                "combobox",
+                "checkbox",
+                "radio",
+                "tab",
+                "menuitem",
+                "option",
+                "switch",
+                "searchbox",
+                "spinbutton",
+                "slider",
+                "heading",
             }
             for node in nodes:
                 if node.get("ignored"):
@@ -576,9 +597,19 @@ class ObservationEngine:
         to keep the observation compact.
         """
         interactive_roles = {
-            "button", "link", "textbox", "combobox", "checkbox",
-            "radio", "tab", "menuitem", "option", "switch",
-            "searchbox", "spinbutton", "slider",
+            "button",
+            "link",
+            "textbox",
+            "combobox",
+            "checkbox",
+            "radio",
+            "tab",
+            "menuitem",
+            "option",
+            "switch",
+            "searchbox",
+            "spinbutton",
+            "slider",
         }
 
         for node in nodes:

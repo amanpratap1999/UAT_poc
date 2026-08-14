@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agent.domain.observation import FieldInfo, PageObservation
+from agent.domain.observation import PageObservation
 from agent.skills.incident.domain.models import IncidentState
 from agent.skills.incident.observation import IncidentObserver
 

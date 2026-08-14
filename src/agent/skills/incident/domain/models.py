@@ -7,13 +7,13 @@ priorities, assignment info, resolution details, and validation outcomes.
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 
-class IncidentState(str, Enum):
+class IncidentState(StrEnum):
     """ServiceNow Incident State values."""
 
     NEW = "1"
@@ -42,7 +42,7 @@ class IncidentState(str, Enum):
         return cls.NEW
 
 
-class Impact(str, Enum):
+class Impact(StrEnum):
     """ServiceNow Impact values."""
 
     HIGH = "1"
@@ -50,7 +50,7 @@ class Impact(str, Enum):
     LOW = "3"
 
 
-class Urgency(str, Enum):
+class Urgency(StrEnum):
     """ServiceNow Urgency values."""
 
     HIGH = "1"
@@ -58,7 +58,7 @@ class Urgency(str, Enum):
     LOW = "3"
 
 
-class IncidentPriority(str, Enum):
+class IncidentPriority(StrEnum):
     """ServiceNow Priority values (calculated from Impact x Urgency)."""
 
     CRITICAL = "1"
@@ -88,7 +88,9 @@ class WorkNotes(BaseModel):
     """Work notes and customer comments."""
 
     work_notes: list[str] = Field(default_factory=list, description="Internal IT work notes")
-    additional_comments: list[str] = Field(default_factory=list, description="Customer visible comments")
+    additional_comments: list[str] = Field(
+        default_factory=list, description="Customer visible comments"
+    )
 
 
 class Incident(BaseModel):
@@ -117,7 +119,9 @@ class Incident(BaseModel):
 class IncidentValidationResult(BaseModel):
     """Domain-level validation outcome for an Incident business step."""
 
-    business_step: str = Field(description="Business outcome verified (e.g. State Transition, Priority Matrix)")
+    business_step: str = Field(
+        description="Business outcome verified (e.g. State Transition, Priority Matrix)"
+    )
     passed: bool = True
     incident_number: str = ""
     expected_state: str = ""

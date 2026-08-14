@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, PropertyMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from agent.core.exceptions import (
+    NavigationTimeoutError,
     RecoveryExhaustedError,
     SelectorNotFoundError,
-    NavigationTimeoutError,
 )
 from agent.core.types import ActionType
 from agent.domain.actions import AgentAction
@@ -98,7 +98,11 @@ async def test_recovery_dismiss_dialog_success(
     close_locator.first = MagicMock()
     close_locator.first.click = AsyncMock()
 
-    page.locator = MagicMock(side_effect=lambda s: close_locator if "close" in s.lower() or "Close" in s else element_locator)
+    page.locator = MagicMock(
+        side_effect=lambda s: (
+            close_locator if "close" in s.lower() or "Close" in s else element_locator
+        )
+    )
     page.get_by_text = MagicMock(return_value=element_locator)
 
     result = await engine.attempt_recovery(

@@ -23,16 +23,18 @@ async def test_intent_manager_parse_rule_fallback() -> None:
 @pytest.mark.asyncio
 async def test_intent_manager_parse_llm() -> None:
     """Test LLM-based intent parsing."""
-    client = MockLLMClient(responses=[
-        {
-            "intent_type": "IncidentValidation",
-            "goal": "Validate incident resolution workflow",
-            "target_module": "incident",
-            "priority": "High",
-            "confidence": 0.97,
-            "is_ambiguous": False,
-        }
-    ])
+    client = MockLLMClient(
+        responses=[
+            {
+                "intent_type": "IncidentValidation",
+                "goal": "Validate incident resolution workflow",
+                "target_module": "incident",
+                "priority": "High",
+                "confidence": 0.97,
+                "is_ambiguous": False,
+            }
+        ]
+    )
     manager = IntentManager(llm_client=client)
     intent = await manager.parse_intent("Verify resolve incident functionality")
 

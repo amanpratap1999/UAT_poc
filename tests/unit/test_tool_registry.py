@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from agent.core.types import ToolCategory
 from agent.tools.browser_tools import register_default_tools
-from agent.tools.registry import ToolDefinition, ToolRegistry
+from agent.tools.registry import ToolRegistry
 
 
 def test_tool_registry_registration() -> None:

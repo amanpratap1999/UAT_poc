@@ -55,7 +55,7 @@ class LifecycleEngine:
 
         if not is_valid:
             block_reasons.append(
-                f"Transition from {current_state.name} to {target_state.name} is invalid per ServiceNow Incident lifecycle rules."
+                f"Transition from {current_state.name} to {target_state.name} is invalid per ServiceNow Incident lifecycle rules."  # noqa: E501
             )
 
         # Check required mandatory fields for target state
@@ -66,7 +66,7 @@ class LifecycleEngine:
             if not val:
                 missing_fields.append(field_name)
                 block_reasons.append(
-                    f"Transition to {target_state.name} requires mandatory field '{field_name}' to be populated."
+                    f"Transition to {target_state.name} requires mandatory field '{field_name}' to be populated."  # noqa: E501
                 )
 
         is_blocked = len(block_reasons) > 0

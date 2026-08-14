@@ -1,13 +1,15 @@
 """Agent State Machine — explicit formal state management.
 
 Deliverable 10: Formalizes runtime states and explicit transitions:
-  Idle -> Intent Analysis -> Planning -> Observation -> Reasoning -> Decision -> Execution -> Validation -> Reflection -> Learning -> Completed / Failed
+  Idle -> Intent Analysis -> Planning -> Observation -> Reasoning -> Decision
+  -> Execution -> Validation -> Reflection -> Learning -> Completed / Failed
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any, ClassVar
 
 from pydantic import BaseModel, Field
 
@@ -51,18 +53,57 @@ class AgentStateMachine:
       FAILED -> IDLE
     """
 
-    ALLOWED_TRANSITIONS: dict[AgentState, set[AgentState]] = {
+    ALLOWED_TRANSITIONS: ClassVar[dict[AgentState, set[AgentState]]] = {
         AgentState.IDLE: {AgentState.INTENT_ANALYSIS, AgentState.PLANNING, AgentState.FAILED},
         AgentState.INTENT_ANALYSIS: {AgentState.PLANNING, AgentState.FAILED},
-        AgentState.PLANNING: {AgentState.OBSERVING, AgentState.DECISION, AgentState.FAILED, AgentState.COMPLETED},
-        AgentState.OBSERVING: {AgentState.REASONING, AgentState.DECISION, AgentState.VALIDATING, AgentState.FAILED},
-        AgentState.REASONING: {AgentState.DECISION, AgentState.REFLECTION, AgentState.PLANNING, AgentState.OBSERVING, AgentState.COMPLETED, AgentState.FAILED},
-        AgentState.DECISION: {AgentState.EXECUTING, AgentState.RECOVERING, AgentState.COMPLETED, AgentState.FAILED},
+        AgentState.PLANNING: {
+            AgentState.OBSERVING,
+            AgentState.DECISION,
+            AgentState.FAILED,
+            AgentState.COMPLETED,
+        },
+        AgentState.OBSERVING: {
+            AgentState.REASONING,
+            AgentState.DECISION,
+            AgentState.VALIDATING,
+            AgentState.FAILED,
+        },
+        AgentState.REASONING: {
+            AgentState.DECISION,
+            AgentState.REFLECTION,
+            AgentState.PLANNING,
+            AgentState.OBSERVING,
+            AgentState.COMPLETED,
+            AgentState.FAILED,
+        },
+        AgentState.DECISION: {
+            AgentState.EXECUTING,
+            AgentState.RECOVERING,
+            AgentState.COMPLETED,
+            AgentState.FAILED,
+        },
         AgentState.EXECUTING: {AgentState.OBSERVING, AgentState.VALIDATING, AgentState.FAILED},
         AgentState.VALIDATING: {AgentState.REFLECTION, AgentState.REASONING, AgentState.FAILED},
-        AgentState.REFLECTION: {AgentState.LEARNING, AgentState.REASONING, AgentState.DECISION, AgentState.RECOVERING, AgentState.FAILED},
-        AgentState.RECOVERING: {AgentState.EXECUTING, AgentState.OBSERVING, AgentState.REASONING, AgentState.FAILED},
-        AgentState.LEARNING: {AgentState.REASONING, AgentState.OBSERVING, AgentState.RECOVERING, AgentState.COMPLETED, AgentState.FAILED},
+        AgentState.REFLECTION: {
+            AgentState.LEARNING,
+            AgentState.REASONING,
+            AgentState.DECISION,
+            AgentState.RECOVERING,
+            AgentState.FAILED,
+        },
+        AgentState.RECOVERING: {
+            AgentState.EXECUTING,
+            AgentState.OBSERVING,
+            AgentState.REASONING,
+            AgentState.FAILED,
+        },
+        AgentState.LEARNING: {
+            AgentState.REASONING,
+            AgentState.OBSERVING,
+            AgentState.RECOVERING,
+            AgentState.COMPLETED,
+            AgentState.FAILED,
+        },
         AgentState.COMPLETED: {AgentState.IDLE},
         AgentState.FAILED: {AgentState.IDLE},
     }

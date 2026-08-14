@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 from agent.core.types import ActionType
 from agent.domain.actions import ActionResult, AgentAction
-from agent.domain.observation import PageObservation
 from agent.domain.plan import ExecutionPlan
 from agent.domain.validation import ValidationCheck, ValidationResult
 from agent.memory.session import SessionMemory

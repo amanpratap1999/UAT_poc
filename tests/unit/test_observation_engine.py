@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, PropertyMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -26,15 +26,17 @@ def _make_mock_page(
 
     # Mock accessibility tree
     page.accessibility = MagicMock()
-    page.accessibility.snapshot = AsyncMock(return_value={
-        "role": "WebArea",
-        "name": title,
-        "children": [
-            {"role": "button", "name": "Update"},
-            {"role": "textbox", "name": "Short Description"},
-            {"role": "link", "name": "Incident List"},
-        ],
-    })
+    page.accessibility.snapshot = AsyncMock(
+        return_value={
+            "role": "WebArea",
+            "name": title,
+            "children": [
+                {"role": "button", "name": "Update"},
+                {"role": "textbox", "name": "Short Description"},
+                {"role": "link", "name": "Incident List"},
+            ],
+        }
+    )
 
     return page
 
@@ -47,9 +49,7 @@ def engine() -> ObservationEngine:
 @pytest.mark.asyncio
 async def test_detect_form_page(engine: ObservationEngine) -> None:
     """Test form page detection from URL pattern."""
-    page = _make_mock_page(
-        url="https://test.service-now.com/incident.do?sys_id=abc123"
-    )
+    page = _make_mock_page(url="https://test.service-now.com/incident.do?sys_id=abc123")
     observation = await engine.observe(page)
 
     assert observation.page_type == PageType.FORM

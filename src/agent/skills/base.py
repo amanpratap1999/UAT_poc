@@ -13,6 +13,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any
 
+from agent.capabilities.registry import CapabilityDefinition
 from agent.domain.actions import AgentAction
 from agent.domain.intent import StructuredIntent
 from agent.domain.plan import ExecutionPlan
@@ -28,6 +29,21 @@ class BaseSkill(ABC):
     @abstractmethod
     def manifest(self) -> SkillManifest:
         """Return the manifest describing this skill."""
+
+    @abstractmethod
+    def get_capability_definition(self) -> CapabilityDefinition:
+        """Return the capability definition for registry discovery."""
+
+    @abstractmethod
+    def get_domain_selectors(self) -> dict[str, str | list[str]]:
+        """Return a mapping of domain-specific semantic concepts to CSS selectors.
+
+        Example: {"record_number": ["input[name='change_request.number']"]}
+        """
+
+    @abstractmethod
+    def get_lifecycle_states(self) -> list[str]:
+        """Return the expected valid lifecycle states for this domain."""
 
     @abstractmethod
     def can_handle(self, intent: StructuredIntent) -> bool:
@@ -49,7 +65,5 @@ class BaseSkill(ABC):
         """Domain-specific validation after action execution."""
 
     @abstractmethod
-    async def recover(
-        self, error: Exception, context: dict[str, Any]
-    ) -> AgentAction | None:
+    async def recover(self, error: Exception, context: dict[str, Any]) -> AgentAction | None:
         """Domain-specific recovery strategy."""

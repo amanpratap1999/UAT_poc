@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -23,7 +22,9 @@ class InstanceLearning(BaseModel):
     """A learned fact or rule about a ServiceNow instance."""
 
     learning_id: str
-    category: str = Field(default="general", description="form_rules, field_defaults, workflow_constraints")
+    category: str = Field(
+        default="general", description="form_rules, field_defaults, workflow_constraints"
+    )
     topic: str = Field(description="Specific topic or field name")
     insight: str = Field(description="The learned fact or rule")
     confidence: float = Field(default=0.9, ge=0.0, le=1.0)
@@ -39,7 +40,9 @@ class KnowledgeMemory:
         self._learnings: dict[str, InstanceLearning] = {}
         self._load()
 
-    def record_learning(self, topic: str, insight: str, category: str = "general", confidence: float = 0.9) -> InstanceLearning:
+    def record_learning(
+        self, topic: str, insight: str, category: str = "general", confidence: float = 0.9
+    ) -> InstanceLearning:
         """Record or update a learned rule about the ServiceNow instance.
 
         Args:
@@ -79,8 +82,11 @@ class KnowledgeMemory:
             return list(self._learnings.values())
         q_lower = query.lower()
         return [
-            l for l in self._learnings.values()
-            if q_lower in l.topic.lower() or q_lower in l.insight.lower() or q_lower in l.category.lower()
+            learn
+            for learn in self._learnings.values()
+            if q_lower in learn.topic.lower()
+            or q_lower in learn.insight.lower()
+            or q_lower in learn.category.lower()
         ]
 
     def get_prompt_summary(self, query: str = "") -> str:
@@ -90,8 +96,10 @@ class KnowledgeMemory:
             return ""
 
         lines = ["## Long-Term Instance Learnings:"]
-        for l in matching:
-            lines.append(f"  - [{l.topic}] {l.insight} (Confidence: {l.confidence:.2f})")
+        for learn in matching:
+            lines.append(
+                f"  - [{learn.topic}] {learn.insight} (Confidence: {learn.confidence:.2f})"
+            )
         return "\n".join(lines)
 
     def _load(self) -> None:
@@ -112,7 +120,7 @@ class KnowledgeMemory:
         """Save learnings to disk."""
         try:
             self._storage_file.parent.mkdir(parents=True, exist_ok=True)
-            data = [l.model_dump(mode="json") for l in self._learnings.values()]
+            data = [learn.model_dump(mode="json") for learn in self._learnings.values()]
             self._storage_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
         except Exception as e:
             logger.warning("failed_to_save_knowledge_memory", error=str(e))

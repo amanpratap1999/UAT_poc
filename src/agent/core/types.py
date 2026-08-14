@@ -6,10 +6,10 @@ imports from here rather than defining its own action/state enums.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class ActionType(str, Enum):
+class ActionType(StrEnum):
     """Types of browser actions the agent can perform."""
 
     CLICK = "click"
@@ -24,7 +24,7 @@ class ActionType(str, Enum):
     VALIDATE = "validate"
 
 
-class AgentState(str, Enum):
+class AgentState(StrEnum):
     """High-level states of the agent runtime."""
 
     IDLE = "idle"
@@ -42,7 +42,7 @@ class AgentState(str, Enum):
     FAILED = "failed"
 
 
-class ToolCategory(str, Enum):
+class ToolCategory(StrEnum):
     """Categories of tools available in the registry."""
 
     BROWSER = "browser"
@@ -51,7 +51,7 @@ class ToolCategory(str, Enum):
     REPORTING = "reporting"
 
 
-class StepStatus(str, Enum):
+class StepStatus(StrEnum):
     """Status of an individual plan step."""
 
     PENDING = "pending"
@@ -61,7 +61,7 @@ class StepStatus(str, Enum):
     SKIPPED = "skipped"
 
 
-class PageType(str, Enum):
+class PageType(StrEnum):
     """Detected page types in ServiceNow."""
 
     FORM = "form"
@@ -73,7 +73,7 @@ class PageType(str, Enum):
     UNKNOWN = "unknown"
 
 
-class Severity(str, Enum):
+class Severity(StrEnum):
     """Defect severity levels."""
 
     CRITICAL = "critical"
@@ -83,7 +83,7 @@ class Severity(str, Enum):
     INFO = "info"
 
 
-class RecoveryStrategy(str, Enum):
+class RecoveryStrategy(StrEnum):
     """Available recovery strategies for the recovery engine."""
 
     WAIT_AND_RETRY = "wait_and_retry"

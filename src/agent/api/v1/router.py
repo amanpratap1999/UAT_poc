@@ -1,27 +1,27 @@
-"""API v1 router — thin routing layer for agent operations.
+"""API v1 router — routing layer for agent operations, multi-tenant aware."""
 
-Routers only parse inputs, call the orchestrator, and return responses.
-No business logic lives here.
-"""
+import uuid
+from typing import Annotated, Any
 
-from __future__ import annotations
-
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from agent import __version__
+from agent.api.v1.auth import TokenData, get_current_user_token, require_qa_manager
 from agent.api.v1.schemas import (
+    FindingResponse,
     HealthResponse,
-    ReportResponse,
+    MetricsResponse,
+    RunDetailResponse,
     RunRequest,
     RunResponse,
-    StatusResponse,
-    StopRequest,
 )
+from agent.core.db import get_db_session
+from agent.domain.models import Finding, Run
+from agent.worker.tasks import execute_run
 
 router = APIRouter(prefix="/api/v1", tags=["agent"])
-
-# In-memory session store (replaced by proper store in production)
-_sessions: dict = {}
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -33,103 +33,109 @@ async def health_check() -> HealthResponse:
     )
 
 
-@router.post("/agent/run", response_model=RunResponse)
-async def run_agent(
+@router.post("/runs", response_model=RunResponse)
+async def create_run(
     request: RunRequest,
-    background_tasks: BackgroundTasks,
+    token: Annotated[TokenData, Depends(get_current_user_token)],
+    db: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> RunResponse:
-    """Start an autonomous agent run with a business goal.
+    """Start an autonomous agent run. Queues a Celery task."""
+    run_id = str(uuid.uuid4())
 
-    The agent runs asynchronously in the background. Use the
-    status and report endpoints to monitor progress.
-    """
-    # Import here to avoid circular imports at module level
-    from agent.main import create_orchestrator
+    new_run = Run(
+        id=run_id,
+        tenant_id=token.tenant_id or "unknown",
+        requester_id=token.user_id,
+        goal=request.goal,
+        status="queued",
+    )
+    db.add(new_run)
+    await db.commit()
 
-    try:
-        orchestrator = create_orchestrator()
-        session_id = orchestrator.session_id
+    # Enqueue Celery task (we use .delay which is synchronous but fast)
+    execute_run.delay(run_id=run_id, goal=request.goal, tenant_id=token.tenant_id)
 
-        # Store session reference
-        _sessions[session_id] = orchestrator
+    return RunResponse(
+        session_id=run_id,
+        status="queued",
+        message=f"Agent run queued for goal: {request.goal}",
+    )
 
-        # Run in background
-        background_tasks.add_task(orchestrator.run, request.goal)
 
-        return RunResponse(
-            session_id=session_id,
-            status="started",
-            message=f"Agent started with goal: {request.goal}",
+@router.get("/runs", response_model=list[RunDetailResponse])
+async def list_runs(
+    token: Annotated[TokenData, Depends(get_current_user_token)],
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+) -> Any:
+    """List runs for the current tenant."""
+    result = await db.execute(
+        select(Run)
+        .where(Run.tenant_id == token.tenant_id)
+        .order_by(Run.start_time.desc())
+        .limit(100)
+    )
+    runs = result.scalars().all()
+    return runs
+
+
+@router.get("/runs/{run_id}", response_model=RunDetailResponse)
+async def get_run(
+    run_id: str,
+    token: Annotated[TokenData, Depends(get_current_user_token)],
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+) -> Any:
+    """Get details of a specific run."""
+    result = await db.execute(select(Run).where(Run.id == run_id, Run.tenant_id == token.tenant_id))
+    run = result.scalars().first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return run
+
+
+@router.get("/findings", response_model=list[FindingResponse])
+async def list_findings(
+    token: Annotated[TokenData, Depends(get_current_user_token)],
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+) -> Any:
+    """List findings across all runs for the tenant."""
+    result = await db.execute(
+        select(Finding)
+        .where(Finding.tenant_id == token.tenant_id)
+        .order_by(Finding.created_at.desc())
+        .limit(100)
+    )
+    return result.scalars().all()
+
+
+@router.get("/metrics", response_model=MetricsResponse, dependencies=[Depends(require_qa_manager)])
+async def get_metrics(
+    token: Annotated[TokenData, Depends(get_current_user_token)],
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+) -> Any:
+    """Get aggregated metrics for the tenant. Requires QA Manager or Admin role."""
+    # Total runs
+    runs_result = await db.execute(
+        select(func.count(Run.id)).where(Run.tenant_id == token.tenant_id)
+    )
+    total_runs = runs_result.scalar() or 0
+
+    # Total defects
+    defects_result = await db.execute(
+        select(func.sum(Run.defect_count)).where(Run.tenant_id == token.tenant_id)
+    )
+    total_defects = defects_result.scalar() or 0
+
+    # Average duration
+    duration_result = await db.execute(
+        select(func.avg(Run.duration_seconds)).where(
+            Run.tenant_id == token.tenant_id, Run.status == "completed"
         )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/agent/status/{session_id}", response_model=StatusResponse)
-async def get_agent_status(session_id: str) -> StatusResponse:
-    """Get the current status of an agent run."""
-    orchestrator = _sessions.get(session_id)
-    if not orchestrator:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    summary = orchestrator.memory.get_summary()
-    return StatusResponse(
-        session_id=summary["session_id"],
-        state=summary["state"],
-        current_step_index=summary["current_step_index"],
-        current_url=summary["current_url"],
-        goal=summary["goal"],
-        total_actions=summary["total_actions"],
-        total_validations=summary["total_validations"],
-        total_failures=summary["total_failures"],
-        plan_progress=summary["plan_progress"],
-        current_incident=summary.get("current_incident"),
-        started_at=orchestrator.memory.started_at,
     )
+    avg_duration = duration_result.scalar()
 
-
-@router.get("/agent/report/{session_id}", response_model=ReportResponse)
-async def get_agent_report(session_id: str) -> ReportResponse:
-    """Get the generated report for a completed agent run."""
-    orchestrator = _sessions.get(session_id)
-    if not orchestrator:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    if not orchestrator.report:
-        raise HTTPException(
-            status_code=409,
-            detail="Report not yet generated. Agent may still be running.",
-        )
-
-    report = orchestrator.report
-    return ReportResponse(
-        report_id=report.report_id,
-        goal=report.goal,
-        status=report.status,
-        duration_seconds=report.duration_seconds,
-        total_validations=report.total_validations,
-        passed_validations=report.passed_validations,
-        failed_validations=report.failed_validations,
-        pass_rate=report.pass_rate,
-        defects_count=len(report.defects),
-        summary=report.summary,
-        report_file=orchestrator.report_file,
+    return MetricsResponse(
+        tenant_id=token.tenant_id or "unknown",
+        total_runs=total_runs,
+        total_defects=int(total_defects),
+        average_duration_seconds=float(avg_duration) if avg_duration else None,
     )
-
-
-@router.post("/agent/stop/{session_id}")
-async def stop_agent(session_id: str, request: StopRequest | None = None) -> dict:
-    """Stop a running agent session."""
-    orchestrator = _sessions.get(session_id)
-    if not orchestrator:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    orchestrator.request_stop(
-        reason=request.reason if request else "User requested stop"
-    )
-
-    return {
-        "session_id": session_id,
-        "status": "stop_requested",
-        "message": "Stop signal sent to agent",
-    }

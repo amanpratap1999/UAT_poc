@@ -15,12 +15,11 @@ Output:
 
 from __future__ import annotations
 
-from typing import Any
-
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from agent.confidence.engine import ConfidenceAssessment, ConfidenceEngine
 from agent.core.logging import get_logger
+from agent.core.types import ActionType
 from agent.domain.actions import AgentAction
 from agent.domain.intent import StructuredIntent
 from agent.domain.reflection import ReflectionResult
@@ -109,7 +108,11 @@ class DecisionEngine:
         """
         logger.info("making_immediate_decision", step=memory.current_step_index)
 
-        tool_summary = self._tool_registry.get_prompt_summary() if self._tool_registry else "Browser & Validation tools"
+        tool_summary = (
+            self._tool_registry.get_prompt_summary()
+            if self._tool_registry
+            else "Browser & Validation tools"
+        )
         reflection_summary = latest_reflection.model_dump_json() if latest_reflection else "None"
 
         chosen_action: AgentAction
@@ -122,7 +125,7 @@ class DecisionEngine:
                     messages=[
                         {
                             "role": "system",
-                            "content": "You are a Cognitive Decision Engine selecting immediate agent actions.",
+                            "content": "You are a Cognitive Decision Engine selecting immediate agent actions.",  # noqa: E501
                         },
                         {
                             "role": "user",
@@ -144,7 +147,7 @@ class DecisionEngine:
                 expected = response.get("expected_outcome", "Action executes successfully")
 
                 chosen_action = AgentAction(
-                    action_type=action_type,
+                    action_type=ActionType(action_type),
                     target=target,
                     value=value,
                     reasoning=rationale,
@@ -179,12 +182,12 @@ class DecisionEngine:
         if world_state.available_actions:
             first_action = world_state.available_actions[0]
             return AgentAction(
-                action_type="click",
+                action_type=ActionType.CLICK,
                 target=first_action.target,
                 reasoning=f"Heuristic choice: click available action {first_action.action_name}",
             )
         return AgentAction(
-            action_type="wait",
+            action_type=ActionType.WAIT,
             target="",
             value="1000",
             reasoning="Heuristic fallback: wait for page state",

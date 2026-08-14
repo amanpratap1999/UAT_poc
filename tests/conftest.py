@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -25,7 +23,6 @@ from agent.domain.observation import (
 from agent.domain.plan import ExecutionPlan
 from agent.memory.session import SessionMemory
 from agent.planner.llm_client import BaseLLMClient
-
 
 # ---------------------------------------------------------------------------
 # Configuration fixtures
@@ -110,7 +107,7 @@ def sample_observation() -> PageObservation:
         title="Incident | INC0010001",
         page_type=PageType.FORM,
         current_state="New",
-        incident_number="INC0010001",
+        record_number="INC0010001",
         visible_fields=[
             FieldInfo(
                 name="Short Description",
@@ -156,7 +153,7 @@ def sample_observation_with_errors() -> PageObservation:
         title="Incident | INC0010001",
         page_type=PageType.FORM,
         current_state="New",
-        incident_number="INC0010001",
+        record_number="INC0010001",
         visible_fields=[
             FieldInfo(
                 name="Short Description",

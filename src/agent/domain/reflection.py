@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -19,7 +18,7 @@ class ReflectionResult(BaseModel):
     is_as_expected: bool = True
     hypotheses: list[str] = Field(
         default_factory=list,
-        description="Hypotheses explaining discrepancy (e.g. page loading delay, missing mandatory field)",
+        description="Hypotheses explaining discrepancy (e.g. page loading delay, missing mandatory field)",  # noqa: E501
     )
     recommended_plan_adaptation: str | None = Field(
         default=None,

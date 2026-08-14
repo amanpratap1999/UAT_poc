@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
-from agent.skills.incident.domain.models import Assignment, Impact, Incident, IncidentState, Resolution, Urgency
+from agent.skills.incident.domain.models import (
+    Assignment,
+    Impact,
+    Incident,
+    IncidentState,
+    Resolution,
+    Urgency,
+)
 from agent.skills.incident.validation import IncidentValidator
 
 
@@ -21,7 +28,9 @@ def test_validate_business_outcome_success() -> None:
         state=IncidentState.RESOLVED,
         impact=Impact.HIGH,
         urgency=Urgency.HIGH,
-        priority=__import__("agent.skills.incident.domain.models", fromlist=["IncidentPriority"]).IncidentPriority.CRITICAL,
+        priority=__import__(
+            "agent.skills.incident.domain.models", fromlist=["IncidentPriority"]
+        ).IncidentPriority.CRITICAL,
         assignment=Assignment(group="Service Desk"),
         resolution=Resolution(code="Solved (Permanently)", notes="Fixed bug"),
     )
@@ -42,7 +51,9 @@ def test_validate_business_outcome_priority_mismatch() -> None:
         impact=Impact.HIGH,
         urgency=Urgency.HIGH,
         # Priority should be CRITICAL (1), but set to LOW (4)
-        priority=__import__("agent.skills.incident.domain.models", fromlist=["IncidentPriority"]).IncidentPriority.LOW,
+        priority=__import__(
+            "agent.skills.incident.domain.models", fromlist=["IncidentPriority"]
+        ).IncidentPriority.LOW,
     )
 
     res = validator.validate_business_outcome(before, after, expected_step="Check Priority Matrix")

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -52,11 +51,17 @@ class SemanticWorldState(BaseModel):
         if self.missing_mandatory_fields:
             lines.append(f"Missing Mandatory Fields: {', '.join(self.missing_mandatory_fields)}")
 
-        avail = [a.action_name for a in self.available_actions if a.is_available and not a.is_blocked]
+        avail = [
+            a.action_name for a in self.available_actions if a.is_available and not a.is_blocked
+        ]
         if avail:
             lines.append(f"Available Actions: {', '.join(avail)}")
 
-        blocked = [f"{a.action_name} ({a.block_reason or 'blocked'})" for a in self.blocked_actions if a.is_blocked]
+        blocked = [
+            f"{a.action_name} ({a.block_reason or 'blocked'})"
+            for a in self.blocked_actions
+            if a.is_blocked
+        ]
         if blocked:
             lines.append(f"Blocked Actions: {', '.join(blocked)}")
 

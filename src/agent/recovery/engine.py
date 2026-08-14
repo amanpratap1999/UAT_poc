@@ -8,7 +8,8 @@ the session memory.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import contextlib
+from dataclasses import dataclass
 
 from playwright.async_api import Page
 
@@ -111,7 +112,7 @@ class RecoveryEngine:
             strategies=[s.value for s in strategies],
         )
 
-        for attempt, strategy in enumerate(strategies[:self._max_retries], 1):
+        for attempt, strategy in enumerate(strategies[: self._max_retries], 1):
             logger.info(
                 "trying_recovery_strategy",
                 strategy=strategy.value,
@@ -185,18 +186,14 @@ class RecoveryEngine:
                 details=f"Unknown strategy: {strategy}",
             )
 
-    async def _wait_and_retry(
-        self, action: AgentAction, page: Page
-    ) -> RecoveryResult:
+    async def _wait_and_retry(self, action: AgentAction, page: Page) -> RecoveryResult:
         """Wait for the page to stabilize, then check if the element exists.
 
         This handles loading delays, AJAX updates, and DOM re-renders.
         """
         # Wait for network idle
-        try:
+        with contextlib.suppress(Exception):
             await page.wait_for_load_state("networkidle", timeout=10000)
-        except Exception:
-            pass
 
         # Additional wait for ServiceNow AJAX
         await page.wait_for_timeout(2000)
@@ -264,9 +261,7 @@ class RecoveryEngine:
             details="No dialog found to dismiss",
         )
 
-    async def _scroll_into_view(
-        self, action: AgentAction, page: Page
-    ) -> RecoveryResult:
+    async def _scroll_into_view(self, action: AgentAction, page: Page) -> RecoveryResult:
         """Scroll to bring the target element into the viewport."""
         if not action.target:
             return RecoveryResult(
@@ -305,9 +300,7 @@ class RecoveryEngine:
             details="Could not find element to scroll to",
         )
 
-    async def _relocate_element(
-        self, action: AgentAction, page: Page
-    ) -> RecoveryResult:
+    async def _relocate_element(self, action: AgentAction, page: Page) -> RecoveryResult:
         """Try alternative selectors to find the target element.
 
         ServiceNow elements can be located by:
@@ -331,7 +324,7 @@ class RecoveryEngine:
 
         for strategy_name, locator_fn in alternative_strategies:
             try:
-                locator = locator_fn()
+                locator = locator_fn()  # type: ignore[no-untyped-call]
                 if await locator.count() > 0 and await locator.first.is_visible():
                     return RecoveryResult(
                         success=True,

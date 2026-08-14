@@ -11,7 +11,9 @@ def test_reasoning_trace_recording() -> None:
     """Test recording cycles in reasoning trace."""
     trace = ReasoningTrace()
 
-    action = AgentAction(action_type=ActionType.CLICK, target="text:Submit", reasoning="Submit form")
+    action = AgentAction(
+        action_type=ActionType.CLICK, target="text:Submit", reasoning="Submit form"
+    )
     cycle = trace.record_cycle(
         step_index=1,
         state_name="reasoning",

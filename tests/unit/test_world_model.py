@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
-from agent.core.types import PageType
-from agent.domain.observation import ButtonInfo, FieldInfo, PageObservation
+from agent.domain.observation import FieldInfo, PageObservation
 from agent.world.model import WorldModel
 
 
@@ -21,7 +18,7 @@ def test_build_semantic_state(sample_observation: PageObservation) -> None:
 
     world_state = model.build_semantic_state(sample_observation)
 
-    assert world_state.page_semantic_type == "Incident Record (INC0010001)"
+    assert world_state.page_semantic_type == "Domain Record (INC0010001)"
     assert world_state.record_number == "INC0010001"
     assert world_state.record_state == "New"
     assert "Category" in world_state.missing_mandatory_fields
@@ -42,3 +39,15 @@ def test_semantic_summary(sample_observation: PageObservation) -> None:
     assert "Current Page:" in summary
     assert "Record State:" in summary
     assert "Available Actions:" in summary
+
+
+def test_build_semantic_state_zero_mandatory(sample_observation: PageObservation) -> None:
+    """Regression test proving zero mandatory fields doesn't cause division by zero."""
+    model = WorldModel()
+
+    sample_observation.mandatory_fields = []
+    for field in sample_observation.visible_fields:
+        field.is_mandatory = False
+
+    world_state = model.build_semantic_state(sample_observation)
+    assert world_state.form_completeness_score == 1.0

@@ -17,7 +17,8 @@ from agent.planner.llm_client import BaseLLMClient
 
 logger = get_logger(__name__)
 
-INTENT_PARSER_PROMPT = """Analyze the following user testing goal for a ServiceNow application and convert it into a structured intent.
+INTENT_PARSER_PROMPT = """Analyze the following user testing goal for a ServiceNow application
+and convert it into a structured intent.
 
 User Goal: {raw_prompt}
 
@@ -86,6 +87,7 @@ class IntentManager:
         extracted_entities: dict[str, Any] = {}
 
         import re
+
         inc_match = re.search(r"inc\d+", prompt_lower)
         if inc_match:
             extracted_entities["incident_number"] = inc_match.group(0).upper()

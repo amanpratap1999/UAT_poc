@@ -1,0 +1,17 @@
+{
+  "field_strategies": {
+    "numeric": ["Boundary Value Analysis"],
+    "date": ["Boundary Value Analysis", "Invalid Date Combinations"],
+    "dropdown": ["Equivalence Partitioning"],
+    "checkbox": ["Decision Table"],
+    "mandatory": ["Negative Testing"],
+    "reference": ["Relationship Testing"],
+    "attachment": ["File Type Boundaries", "File Size Boundaries"],
+    "free_text": ["Error Guessing", "Injection", "Length Boundaries"]
+  },
+  "workflow_strategies": {
+    "wizard": ["State Transition Testing"],
+    "sla": ["Time Transition Testing", "State Transition Testing"],
+    "approval": ["Decision Table", "State Transition Testing"]
+  }
+}

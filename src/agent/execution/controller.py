@@ -11,16 +11,16 @@ planner decisions to browser operations.
 
 from __future__ import annotations
 
+import contextlib
 import time
 from typing import TYPE_CHECKING
 
 from agent.core.config import ServiceNowConfig, get_settings
 from agent.core.exceptions import (
-    ExecutionError,
-    SelectorNotFoundError,
     ElementNotInteractableError,
     ElementStaleError,
     NavigationTimeoutError,
+    SelectorNotFoundError,
 )
 from agent.core.logging import get_logger
 from agent.core.types import ActionType
@@ -113,17 +113,13 @@ class ExecutionController:
 
             # Wait for load / navigation / redirect settlement after interactive actions
             if action_enum in (ActionType.CLICK, ActionType.NAVIGATE, ActionType.KEY_PRESS):
-                try:
+                with contextlib.suppress(Exception):
                     await self._browser.wait_for_load()
-                except Exception:
-                    pass
 
             duration_ms = (time.perf_counter() - start_time) * 1000
 
             # Take a post-action screenshot for the timeline
-            screenshot_path = await self._safe_screenshot(
-                f"action_{action.action_type}"
-            )
+            screenshot_path = await self._safe_screenshot(f"action_{action.action_type}")
 
             result = ActionResult(
                 success=True,
@@ -145,9 +141,7 @@ class ExecutionController:
             NavigationTimeoutError,
         ) as e:
             duration_ms = (time.perf_counter() - start_time) * 1000
-            screenshot_path = await self._safe_screenshot(
-                f"error_{action.action_type}"
-            )
+            screenshot_path = await self._safe_screenshot(f"error_{action.action_type}")
 
             logger.warning(
                 "action_failed",
@@ -187,9 +181,7 @@ class ExecutionController:
 
         except Exception as e:
             duration_ms = (time.perf_counter() - start_time) * 1000
-            screenshot_path = await self._safe_screenshot(
-                f"error_{action.action_type}"
-            )
+            screenshot_path = await self._safe_screenshot(f"error_{action.action_type}")
 
             logger.error(
                 "action_unexpected_error",
@@ -222,15 +214,31 @@ class ExecutionController:
 
         # Secure credential substitution for login fields
         username_targets = {
-            "username", "user name", "user id", "login id", "user_name", "user",
-            "sys_user", "user_id", "login_id", "username field"
+            "username",
+            "user name",
+            "user id",
+            "login id",
+            "user_name",
+            "user",
+            "sys_user",
+            "user_id",
+            "login_id",
+            "username field",
         }
         password_targets = {
-            "password", "password field", "user_password", "sys_password",
-            "password:", "user password"
+            "password",
+            "password field",
+            "user_password",
+            "sys_password",
+            "password:",
+            "user password",
         }
 
-        if target_clean in username_targets or "username" in target_clean or "user name" in target_clean:
+        if (
+            target_clean in username_targets
+            or "username" in target_clean
+            or "user name" in target_clean
+        ):
             value = self._servicenow_config.username or action.value
         elif target_clean in password_targets or "password" in target_clean:
             value = self._servicenow_config.password or action.value

@@ -1,0 +1,125 @@
+import type { Config } from "tailwindcss";
+
+const config: Config = {
+  darkMode: "class",
+  content: ["./index.html", "./src/**/*.{ts,tsx,js,jsx}"],
+  theme: {
+    // Override ALL Tailwind defaults with our design tokens
+    colors: {
+      transparent: "transparent",
+      current: "currentColor",
+      // Core palette
+      "graphite-950": "#14161A",
+      "graphite-800": "#1C1F26",
+      "graphite-600": "#2C313C",
+      "ink-100": "#E8E6E1",
+      "ink-400": "#9B9690",
+      "ink-600": "#5A5750",
+      "signal-teal": "#4DD8C4",
+      "amber-500": "#E8A33D",
+      // Classification badge colours
+      "class-business-rule": "#6B85C4",
+      "class-app-bug": "#E8A33D",
+      "class-config-diff": "#9B7FC7",
+      "class-expected-custom": "#7FA890",
+      "class-unknown": "#5A5750",
+      // Status colours
+      "status-queued": "#9B9690",
+      "status-running": "#4DD8C4",
+      "status-completed": "#7FA890",
+      "status-failed": "#C47070",
+      "status-blocked": "#E8A33D",
+      // Utility
+      white: "#FFFFFF",
+      black: "#000000",
+    },
+    fontFamily: {
+      display: ['"General Sans"', '"Neue Montreal"', '"Inter"', "sans-serif"],
+      body: ['"Inter"', '"IBM Plex Sans"', "system-ui", "sans-serif"],
+      mono: ['"IBM Plex Mono"', '"JetBrains Mono"', '"Fira Code"', "monospace"],
+    },
+    fontSize: {
+      "2xs": ["0.625rem", { lineHeight: "1rem" }],
+      xs: ["0.75rem", { lineHeight: "1rem" }],
+      sm: ["0.875rem", { lineHeight: "1.25rem" }],
+      base: ["1rem", { lineHeight: "1.5rem" }],
+      lg: ["1.125rem", { lineHeight: "1.75rem" }],
+      xl: ["1.25rem", { lineHeight: "1.75rem" }],
+      "2xl": ["1.5rem", { lineHeight: "2rem" }],
+      "3xl": ["1.875rem", { lineHeight: "2.25rem" }],
+      "4xl": ["2.25rem", { lineHeight: "2.5rem" }],
+    },
+    spacing: {
+      px: "1px",
+      "0": "0",
+      "0.5": "0.125rem",
+      "1": "0.25rem",
+      "1.5": "0.375rem",
+      "2": "0.5rem",
+      "2.5": "0.625rem",
+      "3": "0.75rem",
+      "3.5": "0.875rem",
+      "4": "1rem",
+      "5": "1.25rem",
+      "6": "1.5rem",
+      "7": "1.75rem",
+      "8": "2rem",
+      "9": "2.25rem",
+      "10": "2.5rem",
+      "11": "2.75rem",
+      "12": "3rem",
+      "14": "3.5rem",
+      "16": "4rem",
+      "20": "5rem",
+      "24": "6rem",
+      "28": "7rem",
+      "32": "8rem",
+      "36": "9rem",
+      "40": "10rem",
+      "44": "11rem",
+      "48": "12rem",
+      "52": "13rem",
+      "56": "14rem",
+      "60": "15rem",
+      "64": "16rem",
+      "72": "18rem",
+      "80": "20rem",
+      "96": "24rem",
+    },
+    extend: {
+      borderRadius: {
+        sm: "0.25rem",
+        DEFAULT: "0.375rem",
+        md: "0.5rem",
+        lg: "0.75rem",
+        xl: "1rem",
+        full: "9999px",
+      },
+      ringColor: {
+        DEFAULT: "#4DD8C4",
+      },
+      keyframes: {
+        "reticle-pulse": {
+          "0%, 100%": { opacity: "1", transform: "scale(1)" },
+          "50%": { opacity: "0.4", transform: "scale(1.08)" },
+        },
+        "fade-in": {
+          "0%": { opacity: "0", transform: "translateY(4px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        "slide-in-left": {
+          "0%": { opacity: "0", transform: "translateX(-8px)" },
+          "100%": { opacity: "1", transform: "translateX(0)" },
+        },
+      },
+      animation: {
+        "reticle-pulse": "reticle-pulse 1.2s ease-in-out infinite",
+        "fade-in": "fade-in 0.15s ease-out",
+        "slide-in-left": "slide-in-left 0.15s ease-out",
+      },
+    },
+  },
+  plugins: [],
+};
+
+export default config;

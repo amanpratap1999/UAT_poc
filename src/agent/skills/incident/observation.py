@@ -15,11 +15,9 @@ from agent.skills.incident.domain.models import (
     Assignment,
     Impact,
     Incident,
-    IncidentPriority,
     IncidentState,
     Resolution,
     Urgency,
-    WorkNotes,
 )
 from agent.skills.incident.knowledge.rules import IncidentBusinessRules
 
@@ -40,18 +38,22 @@ class IncidentObserver:
         logger.debug("parsing_incident_from_observation", url=url)
 
         # Extract number & state safely from either type
-        number = getattr(observation, "incident_number", None) or getattr(observation, "record_number", None)
+        number = getattr(observation, "incident_number", None) or getattr(
+            observation, "record_number", None
+        )
         if not number:
             number = self._extract_number_from_title_or_url(title, url) or ""
 
-        state_raw = getattr(observation, "current_state", None) or getattr(observation, "record_state", None) or "1"
+        state_raw = (
+            getattr(observation, "current_state", None)
+            or getattr(observation, "record_state", None)
+            or "1"
+        )
         state_enum = IncidentState.from_string(state_raw)
 
         # Extract fields map
         fields = getattr(observation, "visible_fields", [])
-        fields_map = {
-            f.name.lower(): f.value for f in fields
-        }
+        fields_map = {f.name.lower(): f.value for f in fields}
 
         caller = fields_map.get("caller", "")
         short_desc = fields_map.get("short description", "")

@@ -75,4 +75,4 @@ def get_logger(name: str | None = None, **initial_context: object) -> structlog.
     logger = structlog.get_logger(name)
     if initial_context:
         logger = logger.bind(**initial_context)
-    return logger
+    return logger  # type: ignore[no-any-return]

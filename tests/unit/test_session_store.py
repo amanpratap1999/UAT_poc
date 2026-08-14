@@ -7,16 +7,16 @@ Redis server is not available.
 
 from __future__ import annotations
 
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 import pytest
 
 from agent.memory.session_store import InMemorySessionStore, RedisSessionStore, SessionStore
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _redis_available() -> bool:
     """Check if a local Redis server is reachable."""
