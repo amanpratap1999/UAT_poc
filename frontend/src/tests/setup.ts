@@ -1,5 +1,11 @@
 import "@testing-library/jest-dom";
-import { vi } from "vitest";
+import { cleanup } from "@testing-library/react";
+import { vi, afterEach } from "vitest";
+
+// Automatically cleanup DOM between tests
+afterEach(() => {
+  cleanup();
+});
 
 // Mock sessionStorage
 const sessionStorageMock = (() => {

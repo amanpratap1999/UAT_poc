@@ -1,9 +1,11 @@
 import { Settings as SettingsIcon } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
+import { getApiBaseUrl } from "@/lib/api-client";
 
 export default function Settings() {
   const { user } = useAuth();
+  const apiBaseUrl = getApiBaseUrl();
 
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
@@ -51,7 +53,7 @@ export default function Settings() {
               <div>
                 <p className="data-label mb-0.5">API Base URL</p>
                 <p className="font-mono text-xs text-ink-400">
-                  {import.meta.env.VITE_API_BASE_URL || "(via proxy)"}
+                  {apiBaseUrl || "(same-origin / relative proxy)"}
                 </p>
               </div>
               <div>

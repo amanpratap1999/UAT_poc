@@ -134,15 +134,21 @@ frontend/src/
 - **Backend Safety:** Zero backend python files were modified or destabilized.
 - **Docker Compose:** Added the `frontend` service to `docker-compose.yml` using a multi-stage `Dockerfile` and `nginx.conf`.
   - Frontend listens on port `5173:80`.
+  - Passes `VITE_API_BASE_URL` via build `args` and `environment`.
   - Nginx handles SPA client routing and proxies `/api/` requests internally to `api:8000`.
   - No secrets or API keys are exposed to the frontend environment.
+- **GitHub Codespaces & Custom Hosts Support:**
+  - Configured `VITE_API_BASE_URL` in `frontend/src/lib/api-client.ts` with `getApiBaseUrl()` and `resolveApiUrl()`.
+  - Authentication requests (`POST /api/v1/token`) and all API queries dynamically resolve to `${VITE_API_BASE_URL}/api/v1/...`.
+  - Removed all hardcoded `localhost:8000` fallbacks.
+  - Enabled `host: true` in `vite.config.ts` with `loadEnv` for transparent Codespaces port forwarding.
 
 ---
 
 ## 8. Verification & Validation Evidence
 
 ### Automated Tests
-- **Vitest & React Testing Library:** 4 test files, 26 tests passed (100% pass rate).
+- **Vitest & React Testing Library:** 5 test files, 32 tests passed (100% pass rate).
   - `src/tests/auth.test.tsx` (6 tests): Auth store, token decoding, ProtectedRoute redirects.
   - `src/tests/findings.test.ts` (7 tests): Anomaly classification mapping, color assignment, signal-teal non-contamination guard.
   - `src/tests/perception-overlay.test.tsx` (4 tests): Perception overlay, bounding box toggling, live indicators, unavailable states.

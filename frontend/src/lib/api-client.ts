@@ -12,7 +12,27 @@
 
 import { getToken, clearToken } from "./auth-store";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+/**
+ * Normalizes and returns the API base URL from the VITE_API_BASE_URL environment variable.
+ * Does not fall back to localhost:8000 to ensure Codespaces and custom domains resolve correctly.
+ */
+export function getApiBaseUrl(): string {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (!envUrl || typeof envUrl !== "string") {
+    return "";
+  }
+  return envUrl.trim().replace(/\/+$/, "");
+}
+
+/**
+ * Resolves a given API path against the configured VITE_API_BASE_URL.
+ * E.g., resolveApiUrl("/api/v1/token") -> "${VITE_API_BASE_URL}/api/v1/token" (or "/api/v1/token" if relative).
+ */
+export function resolveApiUrl(path: string): string {
+  const baseUrl = getApiBaseUrl();
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return baseUrl ? `${baseUrl}${normalizedPath}` : normalizedPath;
+}
 
 export class ApiError extends Error {
   constructor(
@@ -40,7 +60,8 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${BASE_URL}${path}`, {
+  const url = resolveApiUrl(path);
+  const response = await fetch(url, {
     ...options,
     headers,
   });
@@ -111,7 +132,8 @@ export const api = {
     };
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
-    return fetch(`${BASE_URL}${path}`, {
+    const url = resolveApiUrl(path);
+    return fetch(url, {
       method: "POST",
       headers,
       body: new URLSearchParams(body).toString(),

@@ -66,12 +66,14 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=${VITE_API_BASE_URL:-}
     ports:
       - "5173:80"
+    environment:
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL:-}
     depends_on:
       - api
-    # No secrets — VITE_API_BASE_URL is handled by nginx proxy at /api/
-    # Do NOT put JWT secrets, API keys, or backend credentials here.
 
 volumes:
   pgdata:
