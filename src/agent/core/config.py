@@ -62,7 +62,7 @@ class BrowserConfig(BaseSettings):
         extra="ignore",
     )
 
-    headless: bool = Field(default=False, description="Run in headless mode")
+    headless: bool = Field(default=True, description="Run in headless mode")
     slow_mo: int = Field(default=0, description="Slow down actions by N ms")
     timeout: int = Field(default=30000, description="Default timeout in ms")
     viewport_width: int = Field(default=1920, description="Viewport width")

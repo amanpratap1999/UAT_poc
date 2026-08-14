@@ -37,6 +37,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - PUTER_ENDPOINT=${PUTER_ENDPOINT}
       - PUTER_API_KEY=${PUTER_API_KEY}
+      - BROWSER_HEADLESS=${BROWSER_HEADLESS:-true}
       # DO NOT PUT REAL CREDENTIALS HERE
     depends_on:
       - db
@@ -58,6 +59,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - PUTER_ENDPOINT=${PUTER_ENDPOINT}
       - PUTER_API_KEY=${PUTER_API_KEY}
+      - BROWSER_HEADLESS=${BROWSER_HEADLESS:-true}
     depends_on:
       - db
       - redis
