@@ -34,11 +34,7 @@ class LearningStore:
             return
 
         try:
-            url = self._config.postgres_url
-            if url and url.startswith("postgresql+asyncpg://"):
-                url = url.replace("postgresql+asyncpg://", "postgresql://")
-
-            self._pool = await asyncpg.create_pool(url)
+            self._pool = await asyncpg.create_pool(self._config.asyncpg_dsn)
 
             async with self._pool.acquire() as conn:
                 # Recoveries
@@ -350,3 +346,10 @@ executions, findings, confidence
         except Exception as e:
             logger.error("failed_to_query_experiences", error=str(e))
             return []
+
+    async def close(self) -> None:
+        """Close the asyncpg connection pool."""
+        if self._pool is not None:
+            await self._pool.close()
+            self._pool = None
+            self._initialized = False

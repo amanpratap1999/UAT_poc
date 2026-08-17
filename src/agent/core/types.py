@@ -22,6 +22,9 @@ class ActionType(StrEnum):
     SCROLL = "scroll"
     KEY_PRESS = "key_press"
     VALIDATE = "validate"
+    VALIDATE_FIELD = "validate_field"
+    VALIDATE_STATE = "validate_state"
+    VALIDATE_ERRORS = "validate_errors"
 
 
 class AgentState(StrEnum):

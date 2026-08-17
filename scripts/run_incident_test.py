@@ -31,7 +31,7 @@ async def main() -> None:
     )
     args = parser.parse_args()
 
-    print(f"=== Starting Autonomous Incident QA Agent ===")
+    print("=== Starting Autonomous Incident QA Agent ===")
     print(f"Goal: {args.goal}")
 
     settings = get_cached_settings()
@@ -39,7 +39,7 @@ async def main() -> None:
 
     report = await orchestrator.run(args.goal)
 
-    print(f"\n=== Execution Completed ===")
+    print("\n=== Execution Completed ===")
     print(f"Report ID: {report.report_id}")
     print(f"Status: {report.status.upper()}")
     print(f"Validations Passed: {report.passed_validations}/{report.total_validations}")

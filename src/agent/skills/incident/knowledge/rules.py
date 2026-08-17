@@ -1,4 +1,3 @@
-
 """Incident Knowledge Model for Deliverable 2.
 
 Centralizes all ServiceNow Incident Management business rules, valid state transitions,

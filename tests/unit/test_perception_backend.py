@@ -2,13 +2,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from agent.perception.backends import PuterUiTarsBackend
+from agent.perception.backends import LocalUiTarsBackend
 from agent.perception.models import GroundingFailure
 
 
 @pytest.mark.asyncio
 async def test_puter_backend_success():
-    backend = PuterUiTarsBackend(endpoint_url="http://test.puter", api_key="testkey")
+    backend = LocalUiTarsBackend(endpoint_url="http://test.puter", api_key="testkey")
 
     mock_response = MagicMock()
     mock_response.json.return_value = {
@@ -35,7 +35,7 @@ async def test_puter_backend_success():
 
 @pytest.mark.asyncio
 async def test_puter_backend_no_point():
-    backend = PuterUiTarsBackend(endpoint_url="http://test.puter", api_key="testkey")
+    backend = LocalUiTarsBackend(endpoint_url="http://test.puter", api_key="testkey")
 
     mock_response = MagicMock()
     mock_response.json.return_value = {
@@ -59,7 +59,7 @@ async def test_puter_backend_no_point():
 @pytest.mark.asyncio
 async def test_puter_backend_failure():
     import httpx
-    backend = PuterUiTarsBackend(endpoint_url="http://test.puter", api_key="testkey")
+    backend = LocalUiTarsBackend(endpoint_url="http://test.puter", api_key="testkey")
 
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_post.side_effect = httpx.RequestError("Connection failed", request=MagicMock())

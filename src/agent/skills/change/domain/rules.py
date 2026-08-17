@@ -1,4 +1,3 @@
-
 """Deterministic domain rules for Change Management."""
 
 from typing import ClassVar

@@ -8,6 +8,7 @@ from agent.perception.models import GroundingFailure, GroundingResult
 
 logger = get_logger(__name__)
 
+
 class GroundingResponseParser:
     """Parses JSON responses from the Puter API into domain models."""
 

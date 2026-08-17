@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from pydantic import BaseModel, Field
 
@@ -87,18 +87,18 @@ class RecoveryMapping(BaseModel):
     servicenow_version: str | None = None
 
     # Lifecycle metadata
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    last_verified_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    last_verified_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     verification_count: int = 1
     expires_at: datetime
 
     def extend_expiry(self, days: int = 30) -> None:
         """Extend the expiry after successful revalidation."""
-        self.last_verified_at = datetime.utcnow()
+        self.last_verified_at = datetime.now(UTC)
         self.expires_at = self.last_verified_at + timedelta(days=days)
         self.verification_count += 1
 
     @property
     def is_expired(self) -> bool:
         """Check if the mapping is past its expiry date."""
-        return datetime.utcnow() > self.expires_at
+        return datetime.now(UTC) > self.expires_at

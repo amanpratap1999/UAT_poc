@@ -11,7 +11,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from agent.core.config import DomainConfig
+from agent.core.config import DomainConfig, LLMConfig
 from agent.core.logging import get_logger
 from agent.knowledge.embeddings import EmbeddingClient
 
@@ -42,6 +42,11 @@ class KnowledgeStore(ABC):
     @abstractmethod
     async def index_documents(self) -> None:
         """Index all documents in the store."""
+        pass
+
+    @abstractmethod
+    async def close(self) -> None:
+        """Close any open connections or resources."""
         pass
 
 
@@ -116,6 +121,10 @@ class InMemoryKnowledgeStore(KnowledgeStore):
         """Index documents (in memory, this just loads them)."""
         self._load_docs()
 
+    async def close(self) -> None:
+        """Close resources (no-op for in-memory)."""
+        pass
+
     async def retrieve(self, query: str, module: str = "incident_management") -> str:
         """Retrieve relevant documentation sections for a query.
 
@@ -183,16 +192,21 @@ class PgVectorKnowledgeStore(KnowledgeStore):
     """Retrieves documentation using pgvector similarity search."""
 
     def __init__(
-        self, config: DomainConfig, embedding_client: EmbeddingClient, docs_dir: Path | None = None
+        self,
+        config: DomainConfig,
+        embedding_client: EmbeddingClient,
+        docs_dir: Path | None = None,
+        llm_config: LLMConfig | None = None,
     ) -> None:
         self._config = config
         self._embedding_client = embedding_client
         self._docs_dir = docs_dir or Path("servicenow_docs")
         self._pool: asyncpg.Pool | None = None
+        self._embedding_dims = llm_config.embedding_dimensions if llm_config else 1536
 
     async def _init_pool(self) -> None:
         if self._pool is None:
-            self._pool = await asyncpg.create_pool(self._config.postgres_url)
+            self._pool = await asyncpg.create_pool(self._config.asyncpg_dsn)
 
             async def init_connection(conn: asyncpg.Connection) -> None:
                 await register_vector(conn)
@@ -201,17 +215,36 @@ class PgVectorKnowledgeStore(KnowledgeStore):
             async with self._pool.acquire() as conn:
                 await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
                 await register_vector(conn)
-                await conn.execute("""
+
+                # Check if existing table has a different vector dimension.
+                try:
+                    dim_row = await conn.fetchval(
+                        "SELECT atttypmod FROM pg_attribute "
+                        "WHERE attrelid = 'document_sections'::regclass "
+                        "AND attname = 'embedding'",
+                    )
+                except Exception:
+                    dim_row = None  # Table does not exist yet
+
+                if dim_row is not None and dim_row != self._embedding_dims:
+                    raise RuntimeError(
+                        f"Vector dimension mismatch: existing table uses "
+                        f"{dim_row} dimensions but configured embedding model "
+                        f"requires {self._embedding_dims}. Drop the "
+                        f"document_sections table and re-index knowledge data."
+                    )
+
+                await conn.execute(f"""
                     CREATE TABLE IF NOT EXISTS document_sections (
                         id SERIAL PRIMARY KEY,
                         module_name VARCHAR(255),
                         heading TEXT,
                         content TEXT,
-                        embedding vector(1536)
+                        embedding vector({self._embedding_dims})
                     )
                 """)
                 # Initialize pool connections with vector type
-                await self._pool.set_connect_args(setup=init_connection)
+                self._pool.set_connect_args(setup=init_connection)
 
     async def index_documents(self) -> None:
         """Index all markdown documents into Postgres."""
@@ -311,3 +344,11 @@ class PgVectorKnowledgeStore(KnowledgeStore):
         async with self._pool.acquire() as conn:  # type: ignore[union-attr]
             records = await conn.fetch("SELECT DISTINCT module_name FROM document_sections")
             return [r["module_name"] for r in records]
+
+    async def close(self) -> None:
+        """Close the asyncpg connection pool and embedding client."""
+        if getattr(self, "_pool", None) is not None:
+            await self._pool.close()  # type: ignore[union-attr]
+            self._pool = None
+        if hasattr(self, "_embedding_client") and self._embedding_client:
+            await self._embedding_client.close()

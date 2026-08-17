@@ -1,6 +1,6 @@
 """Unit tests for the LearningService."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -44,7 +44,7 @@ async def test_get_valid_recovery_success(learning_service, mock_store):
         confidence=0.8,
         verification_count=5,
         failure_count=0,
-        expires_at=datetime.utcnow() + timedelta(days=1),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=1),
     )
     mock_store.get_recovery.return_value = recovery
 
@@ -62,7 +62,7 @@ async def test_get_valid_recovery_expired(learning_service, mock_store):
         original_locator=None,
         successful_locator="div.test",
         confidence=0.8,
-        expires_at=datetime.utcnow() - timedelta(days=1),
+        expires_at=datetime.now(timezone.utc) - timedelta(days=1),
     )
     mock_store.get_recovery.return_value = recovery
 
@@ -80,7 +80,7 @@ async def test_get_valid_recovery_untrustworthy(learning_service, mock_store):
         original_locator=None,
         successful_locator="div.test",
         confidence=0.1,  # Too low
-        expires_at=datetime.utcnow() + timedelta(days=1),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=1),
     )
     mock_store.get_recovery.return_value = recovery
 

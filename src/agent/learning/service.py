@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from agent.core.logging import get_logger
 from agent.learning.store import LearningStore
@@ -60,7 +60,7 @@ class LearningService:
         """Update or create a recovery record based on verified outcome."""
         recovery = await self._store.get_recovery(fingerprint, target)
 
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         if recovery:
             if is_success:
                 recovery.verification_count += 1
@@ -174,7 +174,7 @@ class LearningService:
     ) -> None:
         # Simple exact-match deduplication for the POC
         exps = await self._store.query_experiences(module)
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         for e in exps:
             if e.observation == observation and e.outcome == outcome:
                 e.occurrence_count += 1

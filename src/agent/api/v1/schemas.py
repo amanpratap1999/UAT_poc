@@ -6,7 +6,7 @@ models to avoid leaking internal data structures to API consumers.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -80,7 +80,7 @@ class HealthResponse(BaseModel):
 
     status: str = "healthy"
     version: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class RunDetailResponse(BaseModel):

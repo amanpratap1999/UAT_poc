@@ -65,6 +65,9 @@ class ExecutionController:
             ActionType.SCROLL: self._handle_scroll,
             ActionType.SCREENSHOT: self._handle_screenshot,
             ActionType.VALIDATE: self._handle_validate,
+            ActionType.VALIDATE_FIELD: self._handle_validate,
+            ActionType.VALIDATE_STATE: self._handle_validate,
+            ActionType.VALIDATE_ERRORS: self._handle_validate,
             ActionType.EXTRACT: self._handle_extract,
         }
 
@@ -204,8 +207,18 @@ class ExecutionController:
     # -----------------------------------------------------------------------
 
     async def _handle_click(self, action: AgentAction) -> None:
-        """Handle click actions."""
-        await self._interactor.click(action.target)
+        """Handle click actions.
+
+        Uses coordinate-based clicking when visual grounding (e.g. Moondream)
+        provided bounding-box coordinates, otherwise falls back to the
+        standard text/CSS locator path.
+        """
+        if action.metadata.get("is_coordinate"):
+            x = int(action.metadata["x"])
+            y = int(action.metadata["y"])
+            await self._interactor.click_coordinate(x, y)
+        else:
+            await self._interactor.click(action.target)
 
     async def _handle_fill(self, action: AgentAction) -> None:
         """Handle fill actions — fill a form field with a value."""

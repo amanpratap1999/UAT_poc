@@ -66,11 +66,16 @@ class ConfidenceEngine:
                 pre_action = "reflect"
 
         # Check missing mandatory fields for submit/resolve actions
-        if action.action_type in ("click", "fill") and target_name in (
-            "resolve",
-            "submit",
-            "update",
-        ) and world_state.missing_mandatory_fields:
+        if (
+            action.action_type in ("click", "fill")
+            and target_name
+            in (
+                "resolve",
+                "submit",
+                "update",
+            )
+            and world_state.missing_mandatory_fields
+        ):
             score -= 0.35
             reasons.append(
                 f"Missing mandatory fields: {', '.join(world_state.missing_mandatory_fields)}"

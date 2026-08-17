@@ -8,7 +8,7 @@ executive summaries with root-cause hypotheses.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -57,7 +57,7 @@ class ReportingEngine:
         logger.info("generating_report", session_id=memory.session_id)
 
         report_id = f"RPT-{uuid.uuid4().hex[:8].upper()}"
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
 
         # Build timeline from memory
         timeline = self._build_timeline(memory)

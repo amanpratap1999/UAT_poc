@@ -1,13 +1,14 @@
 """Celery tasks for executing agent runs asynchronously."""
 
 import asyncio
-from datetime import datetime
+from datetime import UTC, datetime
 
 from celery.utils.log import get_task_logger  # type: ignore
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from agent.api.v1.dependencies import get_knowledge_store, get_learning_store
 from agent.core.celery_app import celery_app
 from agent.core.config import get_settings
 from agent.domain.models import Run
@@ -47,7 +48,7 @@ async def _run_agent_async(run_id: str, goal: str, tenant_id: str) -> None:
                 # Note: in a real implementation we would iterate orchestrator.report.defects
                 # and insert them into the `findings` table.
 
-                end_time = datetime.utcnow()
+                end_time = datetime.now(UTC)
                 await session.execute(
                     update(Run)
                     .where(Run.id == run_id)
@@ -66,6 +67,14 @@ async def _run_agent_async(run_id: str, goal: str, tenant_id: str) -> None:
                 await session.commit()
     finally:
         await engine.dispose()
+        store = get_knowledge_store()
+        await store.close()
+        learning_store = get_learning_store()
+        await learning_store.close()
+        from agent.api.v1.dependencies import get_test_intelligence_store
+
+        test_store = get_test_intelligence_store()
+        await test_store.close()
 
 
 @celery_app.task(bind=True, name="agent.worker.tasks.execute_run")  # type: ignore[untyped-decorator]

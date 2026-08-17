@@ -8,7 +8,7 @@ These learnings influence future planning and decision-making.
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -29,7 +29,7 @@ class InstanceLearning(BaseModel):
     insight: str = Field(description="The learned fact or rule")
     confidence: float = Field(default=0.9, ge=0.0, le=1.0)
     times_observed: int = 1
-    last_updated: datetime = Field(default_factory=datetime.utcnow)
+    last_updated: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class KnowledgeMemory:
@@ -60,7 +60,7 @@ class KnowledgeMemory:
             existing.times_observed += 1
             existing.insight = insight
             existing.confidence = min(1.0, existing.confidence + 0.05)
-            existing.last_updated = datetime.utcnow()
+            existing.last_updated = datetime.now(UTC)
             learning = existing
         else:
             learning = InstanceLearning(

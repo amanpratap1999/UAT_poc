@@ -24,13 +24,13 @@ from agent.api.v1.dependencies import (
     get_cached_settings,
     get_confidence_engine,
     get_decision_engine,
+    get_grounder_backend,
     get_intent_manager,
     get_knowledge_memory,
     get_knowledge_store,
     get_learning_service,
     get_observation_engine,
     get_planner,
-    get_puter_backend,
     get_recovery_engine,
     get_reflection_engine,
     get_reporting_engine,
@@ -60,7 +60,7 @@ from agent.memory.long_term import KnowledgeMemory
 from agent.memory.session import SessionMemory
 from agent.memory.session_store import SessionStore
 from agent.observation.engine import ObservationEngine
-from agent.perception.backends import PuterUiTarsBackend
+from agent.perception.backends import GrounderBackend
 from agent.perception.engine import PerceptionDecisionEngine
 from agent.perception.store import RecoveryStore
 from agent.perception.verifier import BehavioralVerifier
@@ -105,7 +105,7 @@ class AgentOrchestrator:
         knowledge_memory: KnowledgeMemory | None = None,
         decision_engine: DecisionEngine | None = None,
         recovery_store: RecoveryStore | None = None,
-        puter_backend: PuterUiTarsBackend | None = None,
+        grounder: GrounderBackend | None = None,
         behavioral_verifier: BehavioralVerifier | None = None,
         scenario_generator: Any | None = None,
         test_store: Any | None = None,
@@ -126,7 +126,7 @@ class AgentOrchestrator:
         # Perception dependencies
         # Since these are optional in __init__ (for tests), we fallback if not provided,
         # but in production create_orchestrator provides them.
-        self._puter_backend = puter_backend
+        self._grounder = grounder
         self._behavioral_verifier = behavioral_verifier
 
         # Cognitive components
@@ -264,12 +264,12 @@ class AgentOrchestrator:
             )
 
             # If perception dependencies are available, set up PerceptionDecisionEngine
-            if self._puter_backend and self._behavioral_verifier:
+            if self._grounder and self._behavioral_verifier:
                 self._perception_engine = PerceptionDecisionEngine(
                     browser=self._browser_manager,
                     interactor=self._page_interactor,
                     executor=self._execution_controller,
-                    grounder=self._puter_backend,
+                    grounder=self._grounder,
                     verifier=self._behavioral_verifier,
                     learning_service=self._learning,
                     observer=self._observation_engine,
@@ -395,7 +395,7 @@ def create_orchestrator(settings: Settings | None = None) -> AgentOrchestrator:
         knowledge_memory=get_knowledge_memory(),
         decision_engine=get_decision_engine(s),
         learning_service=get_learning_service(),
-        puter_backend=get_puter_backend(s),
+        grounder=get_grounder_backend(s),
         behavioral_verifier=get_behavioral_verifier(s),
     )
 

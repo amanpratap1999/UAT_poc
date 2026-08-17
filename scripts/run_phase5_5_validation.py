@@ -7,11 +7,12 @@ comparison against Browser Use to finalize the browser architecture decision.
 
 import asyncio
 import json
-import os
 import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+from agent.perception.grounder import HttpVisualGrounder
 
 from agent.browser.browser_use_adapter import BrowserUseAdapter
 from agent.browser.manager import BrowserManager
@@ -23,7 +24,6 @@ from agent.evaluation.engine import EvaluationEngine
 from agent.learning.service import LearningService
 from agent.learning.store import LearningStore
 from agent.observation.engine import ObservationEngine
-from agent.perception.grounder import HttpVisualGrounder
 from agent.perception.verifier import LLMBehavioralVerifier
 from agent.planner.llm_client import OpenAILLMClient
 from agent.testing.generator import ScenarioGenerator

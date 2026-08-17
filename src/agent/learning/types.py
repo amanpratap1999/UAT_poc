@@ -1,6 +1,6 @@
 """Pydantic models for Operational Learning records."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
@@ -16,13 +16,13 @@ class LearnedRecovery(BaseModel):
     confidence: float
     verification_count: int = 1
     failure_count: int = 0
-    first_verified_at: datetime = Field(default_factory=datetime.utcnow)
-    last_verified_at: datetime = Field(default_factory=datetime.utcnow)
+    first_verified_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    last_verified_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     expires_at: datetime
 
     @property
     def is_expired(self) -> bool:
-        return datetime.utcnow() > self.expires_at
+        return datetime.now(UTC) > self.expires_at
 
 
 class LearnedStrategyEffectiveness(BaseModel):
@@ -69,5 +69,5 @@ class LearnedExperience(BaseModel):
     evidence_reference: str | None = None
     occurrence_count: int = 1
     confidence: float = 0.5
-    first_seen: datetime = Field(default_factory=datetime.utcnow)
-    last_seen: datetime = Field(default_factory=datetime.utcnow)
+    first_seen: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    last_seen: datetime = Field(default_factory=lambda: datetime.now(UTC))

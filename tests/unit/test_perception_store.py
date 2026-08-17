@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -20,7 +20,7 @@ async def test_in_memory_recovery_store():
         ),
         confidence=0.9,
         page_fingerprint="/incident.do",
-        expires_at=datetime.utcnow() + timedelta(days=1),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=1),
     )
 
     await store.save_mapping(mapping)
@@ -47,7 +47,7 @@ async def test_recovery_store_expiry():
         ),
         confidence=0.9,
         page_fingerprint="/incident.do",
-        expires_at=datetime.utcnow() - timedelta(days=1),  # already expired
+        expires_at=datetime.now(timezone.utc) - timedelta(days=1),  # already expired
     )
 
     await store.save_mapping(mapping)

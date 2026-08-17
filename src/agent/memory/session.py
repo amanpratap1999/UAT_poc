@@ -10,7 +10,7 @@ A rolling window is applied to observations to prevent context overflow.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
@@ -34,7 +34,7 @@ class CompletedStep(BaseModel):
     observation_before: PageObservation | None = None
     observation_after: PageObservation | None = None
     validation: ValidationResult | None = None
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class FailureRecord(BaseModel):
@@ -44,7 +44,7 @@ class FailureRecord(BaseModel):
     action: AgentAction | None = None
     error_type: str
     error_message: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     recovered: bool = False
     recovery_action: str | None = None
 
@@ -57,7 +57,7 @@ class RecoveryAttempt(BaseModel):
     original_error: str
     success: bool
     details: str = ""
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class SessionMemory(BaseModel):
@@ -72,7 +72,7 @@ class SessionMemory(BaseModel):
 
     # Identity
     session_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    started_at: datetime = Field(default_factory=datetime.utcnow)
+    started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     # Goal & Cognitive Intent
     goal: str = ""

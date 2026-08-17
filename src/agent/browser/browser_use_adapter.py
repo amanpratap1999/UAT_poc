@@ -21,6 +21,7 @@ class BrowserUseAdapter:
     def __init__(self) -> None:
         self.settings = get_settings()
         from pydantic import SecretStr
+
         api_key = SecretStr(self.settings.llm.api_key)
         base_url = self.settings.llm.base_url
         model_name = self.settings.llm.model

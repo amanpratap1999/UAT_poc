@@ -8,11 +8,13 @@ rate limiting, and token tracking.
 
 from __future__ import annotations
 
+import asyncio
 import json
+import time
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar
 
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, RateLimitError
 
 from agent.core.config import LLMConfig
 from agent.core.exceptions import LLMConnectionError, LLMResponseParseError
@@ -88,13 +90,39 @@ class OpenAILLMClient(BaseLLMClient):
         self._client = AsyncOpenAI(
             api_key=config.api_key,
             base_url=base_url,
+            max_retries=0,
         )
+
+        self._rate_limit_lock = asyncio.Lock()
+        self._last_request_time = 0.0
+        self._min_interval = 1.75  # ~34 RPM
 
         logger.info(
             "llm_client_initialized",
             provider=config.provider,
             model=config.model,
         )
+
+    async def _execute_with_backoff(self, **kwargs: Any) -> Any:
+        """Execute request with custom rate limiting and backoff."""
+        max_retries = 1
+        for attempt in range(max_retries + 1):
+            async with self._rate_limit_lock:
+                now = time.time()
+                elapsed = now - self._last_request_time
+                if elapsed < self._min_interval:
+                    await asyncio.sleep(self._min_interval - elapsed)
+
+                # Update time just before executing to account for sleep
+                self._last_request_time = time.time()
+
+            try:
+                return await self._client.chat.completions.create(**kwargs)
+            except RateLimitError:
+                if attempt == max_retries:
+                    raise
+                logger.warning("llm_rate_limit_hit", wait_seconds=6.0)
+                await asyncio.sleep(6.0)
 
     async def complete(
         self,
@@ -119,7 +147,13 @@ class OpenAILLMClient(BaseLLMClient):
                 kwargs["tools"] = tools
                 kwargs["tool_choice"] = "auto"
 
-            response = await self._client.chat.completions.create(**kwargs)
+            if self._config.model == "nvidia/nemotron-3-ultra-550b-a55b":
+                kwargs["extra_body"] = {
+                    "chat_template_kwargs": {"enable_thinking": True},
+                    "reasoning_budget": 16384,
+                }
+
+            response = await self._execute_with_backoff(**kwargs)
 
             # Track token usage
             if response.usage:
@@ -136,6 +170,9 @@ class OpenAILLMClient(BaseLLMClient):
             result: dict[str, Any] = {
                 "content": message.content or "",
             }
+
+            if hasattr(message, "reasoning_content") and message.reasoning_content:
+                result["reasoning_content"] = message.reasoning_content
 
             if message.tool_calls:
                 result["tool_calls"] = [
@@ -170,13 +207,20 @@ class OpenAILLMClient(BaseLLMClient):
             Parsed JSON dictionary.
         """
         try:
-            response = await self._client.chat.completions.create(  # type: ignore[call-overload]
-                model=self._config.model,
-                messages=messages,
-                temperature=temperature or self._config.temperature,
-                max_tokens=max_tokens or self._config.max_tokens,
-                response_format={"type": "json_object"},
-            )
+            kwargs: dict[str, Any] = {
+                "model": self._config.model,
+                "messages": messages,
+                "temperature": temperature or self._config.temperature,
+                "max_tokens": max_tokens or self._config.max_tokens,
+                "response_format": {"type": "json_object"},
+            }
+            if self._config.model == "nvidia/nemotron-3-ultra-550b-a55b":
+                kwargs["extra_body"] = {
+                    "chat_template_kwargs": {"enable_thinking": True},
+                    "reasoning_budget": 16384,
+                }
+
+            response = await self._execute_with_backoff(**kwargs)
 
             if response.usage:
                 self._total_tokens_used += response.usage.total_tokens

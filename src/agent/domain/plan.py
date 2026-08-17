@@ -6,7 +6,7 @@ Each step tracks its status through the execution lifecycle.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
@@ -30,24 +30,24 @@ class PlanStep(BaseModel):
     def mark_in_progress(self) -> None:
         """Mark step as currently executing."""
         self.status = StepStatus.IN_PROGRESS
-        self.started_at = datetime.utcnow()
+        self.started_at = datetime.now(UTC)
 
     def mark_success(self) -> None:
         """Mark step as successfully completed."""
         self.status = StepStatus.SUCCESS
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now(UTC)
 
     def mark_failed(self, error: str) -> None:
         """Mark step as failed with error details."""
         self.status = StepStatus.FAILED
         self.error = error
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now(UTC)
 
     def mark_skipped(self, reason: str = "") -> None:
         """Mark step as skipped."""
         self.status = StepStatus.SKIPPED
         self.error = reason
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now(UTC)
 
 
 class ExecutionPlan(BaseModel):
@@ -59,7 +59,7 @@ class ExecutionPlan(BaseModel):
 
     goal: str = Field(description="The business goal this plan achieves")
     steps: list[PlanStep] = Field(default_factory=list)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     is_complete: bool = False
 
     @property

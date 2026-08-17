@@ -7,7 +7,7 @@ and are captured in the final report.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -26,7 +26,7 @@ class ValidationCheck(BaseModel):
         description="Supporting evidence: screenshots, DOM snippets, etc.",
     )
     error_message: str | None = None
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class ValidationResult(BaseModel):
@@ -41,7 +41,7 @@ class ValidationResult(BaseModel):
     )
     checks: list[ValidationCheck] = Field(default_factory=list)
     overall_passed: bool = False
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     def add_check(self, check: ValidationCheck) -> None:
         """Add a validation check and recompute overall status."""

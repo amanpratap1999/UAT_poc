@@ -2,15 +2,17 @@ import asyncio
 import os
 import sys
 import uuid
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 # Ensure we can import from agent
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
-from agent.core.db import Base, engine
-from agent.domain.models import User, Tenant
 from agent.api.v1.auth import get_password_hash
+from agent.core.db import Base, engine
+from agent.domain.models import Tenant, User
+
 
 async def init_db():
     print("Initializing database schema...")

@@ -1,3 +1,4 @@
+
 """Recovery Store — persistence abstraction for recovered locators.
 
 Defines the RecoveryStore interface and provides two implementations:
@@ -92,7 +93,7 @@ class RedisRecoveryStore(RecoveryStore):
         # Calculate remaining TTL in seconds
         import datetime
 
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.UTC)
         ttl = int((mapping.expires_at - now).total_seconds())
 
         if ttl > 0:

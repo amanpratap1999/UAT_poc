@@ -6,7 +6,7 @@ models so the planner receives a clean, token-efficient view of the page.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -94,7 +94,7 @@ class PageObservation(BaseModel):
         default=None,
         description="Raw accessibility tree snapshot (for debugging)",
     )
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     def to_compact_summary(self) -> str:
         """Produce a token-efficient text summary for LLM context.

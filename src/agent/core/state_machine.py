@@ -8,7 +8,7 @@ Deliverable 10: Formalizes runtime states and explicit transitions:
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, ClassVar
 
 from pydantic import BaseModel, Field
@@ -30,7 +30,7 @@ class StateTransitionEvent(BaseModel):
     from_state: AgentState
     to_state: AgentState
     reason: str = ""
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -83,7 +83,14 @@ class AgentStateMachine:
             AgentState.FAILED,
         },
         AgentState.EXECUTING: {AgentState.OBSERVING, AgentState.VALIDATING, AgentState.FAILED},
-        AgentState.VALIDATING: {AgentState.REFLECTION, AgentState.REASONING, AgentState.FAILED},
+        AgentState.VALIDATING: {
+            AgentState.REFLECTION,
+            AgentState.REASONING,
+            AgentState.OBSERVING,
+            AgentState.DECISION,
+            AgentState.EXECUTING,
+            AgentState.FAILED,
+        },
         AgentState.REFLECTION: {
             AgentState.LEARNING,
             AgentState.REASONING,

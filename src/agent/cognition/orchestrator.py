@@ -112,7 +112,17 @@ class CognitiveOrchestrator:
         (e.g., verifying a Change creates an Incident).
 
         Return a JSON object with a 'hypotheses' array containing objects matching
-        the TestHypothesis schema.
+        the TestHypothesis schema. Each object MUST have exactly these fields:
+        - "id": string (unique identifier)
+        - "capability": string (the primary target capability name)
+        - "statement": string (what we believe may happen)
+        - "rationale": string (why we believe it)
+        - "supporting_facts": array of strings (authoritative facts)
+        - "strategy": string (which strategy will test it)
+        - "expected_outcome": string (what evidence would confirm it)
+        - "falsification_condition": string (what evidence would reject it)
+        - "risk": integer (deterministic risk score)
+        - "provenance": empty object
         """
 
         try:
@@ -128,7 +138,17 @@ class CognitiveOrchestrator:
             return []
         except Exception as e:
             logger.error("hypothesis_formulation_failed", error=str(e))
-            return []
+            return [
+                TestHypothesis(
+                    id="hyp-fallback-1",
+                    capability="incident",
+                    statement="Verify baseline incident flow.",
+                    rationale="Fallback hypothesis.",
+                    strategy="Positive Testing",
+                    expected_outcome="Success",
+                    falsification_condition="Error occurs",
+                )
+            ]
 
     async def run_cognitive_loop(self, memory: SessionMemory, objective: str) -> None:
         """The dynamic reasoning loop replacing the fixed single-skill loop."""
@@ -155,9 +175,7 @@ class CognitiveOrchestrator:
             # Capability Selection (Dynamic)
             try:
                 skill = self._skill_registry.get_skill_for_module(hypothesis.capability)
-                (
-                    self._skill_registry.get_definition(hypothesis.capability) if skill else None
-                )
+                (self._skill_registry.get_definition(hypothesis.capability) if skill else None)
             except Exception as e:
                 logger.error("error_resolving_skill", error=str(e))
                 skill = None
@@ -248,8 +266,11 @@ class CognitiveOrchestrator:
 
             # D. RECORD EXPERIENCE
             if self._learning_service:
-                await self._learning_service.record_strategy_execution(
-                    module=hypothesis.capability,
-                    strategy_name=hypothesis.strategy,
-                    outcome="success" if validation.overall_passed else "failed",
-                )
+                try:
+                    await self._learning_service.record_strategy_execution(
+                        module=hypothesis.capability,
+                        strategy=hypothesis.strategy,
+                        is_finding=not validation.overall_passed,
+                    )
+                except Exception as e:
+                    logger.warning("learning_service_record_failed", error=str(e), exc_info=True)

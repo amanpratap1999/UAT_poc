@@ -31,7 +31,7 @@ class TestIntelligenceStore:
             return
 
         try:
-            self._pool = await asyncpg.create_pool(self._config.postgres_url)
+            self._pool = await asyncpg.create_pool(self._config.asyncpg_dsn)
 
             async with self._pool.acquire() as conn:
                 # Scenarios table
@@ -134,3 +134,9 @@ class TestIntelligenceStore:
                 logger.debug("finding_saved", scenario_id=scenario_id, finding_type=finding_type)
         except Exception as e:
             logger.error("failed_to_save_finding", error=str(e), scenario_id=scenario_id)
+
+    async def close(self) -> None:
+        """Close the database pool."""
+        if self._pool:
+            await self._pool.close()
+            self._pool = None

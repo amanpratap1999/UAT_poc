@@ -30,8 +30,15 @@ class LLMConfig(BaseSettings):
     )
     base_url: str | None = Field(default=None, description="Base URL for the LLM API endpoint")
     model: str = Field(default="gpt-4o", description="Model identifier")
+    embedding_model: str = Field(
+        default="text-embedding-3-small", description="Embedding model identifier"
+    )
+    embedding_dimensions: int = Field(
+        default=1536, description="Embedding vector dimensions (must match embedding model output)"
+    )
     max_tokens: int = Field(default=4096, description="Max tokens per response")
     temperature: float = Field(default=0.1, description="Sampling temperature")
+    max_retries: int = Field(default=2, description="Max retries for LLM requests")
 
 
 class ServiceNowConfig(BaseSettings):
@@ -106,9 +113,13 @@ class PerceptionConfig(BaseSettings):
         description="URL for Puter's hosted UI-TARS API",
     )
     puter_api_key: str | None = Field(
-        default=None,
-        validation_alias="PUTER_API_KEY",
-        description="API key for Puter"
+        default=None, validation_alias="PUTER_API_KEY", description="API key for Puter"
+    )
+    moondream_api_key: str | None = Field(
+        default=None, validation_alias="MOONDREAM_API_KEY", description="API key for Moondream"
+    )
+    gemini_api_key: str | None = Field(
+        default=None, validation_alias="GEMINI_API_KEY", description="API key for Gemini"
     )
     grounding_threshold: float = Field(
         default=0.8, description="Minimum confidence threshold for grounding"
@@ -153,6 +164,16 @@ class DomainConfig(BaseSettings):
     drift_polling_interval: int = Field(
         default=300, description="Interval in seconds to poll for metadata drift"
     )
+
+    @property
+    def asyncpg_dsn(self) -> str:
+        """Convert SQLAlchemy async DSN to native asyncpg-compatible DSN."""
+        url = self.postgres_url
+        if url.startswith("postgresql+asyncpg://"):
+            return url.replace("postgresql+asyncpg://", "postgresql://", 1)
+        if url.startswith("postgres+asyncpg://"):
+            return url.replace("postgres+asyncpg://", "postgres://", 1)
+        return url
 
 
 class Settings(BaseSettings):

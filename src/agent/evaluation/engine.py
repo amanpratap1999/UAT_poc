@@ -6,7 +6,7 @@ outperforms the baseline.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from agent.core.logging import get_logger
@@ -60,7 +60,7 @@ class EfficiencyMetrics:
 @dataclass
 class BenchmarkRun:
     run_id: str
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     perception: PerceptionMetrics = field(default_factory=PerceptionMetrics)
     testing: TestingMetrics = field(default_factory=TestingMetrics)
     learning: LearningMetrics = field(default_factory=LearningMetrics)

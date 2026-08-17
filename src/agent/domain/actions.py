@@ -7,7 +7,7 @@ Each action carries a 'reasoning' field so the LLM's intent is auditable.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -121,4 +121,4 @@ class ActionResult(BaseModel):
     error: str | None = None
     error_type: str | None = None
     details: dict[str, Any] = Field(default_factory=dict)
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))

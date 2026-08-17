@@ -29,7 +29,13 @@ from agent.learning.store import LearningStore
 from agent.memory.long_term import KnowledgeMemory
 from agent.memory.session_store import InMemorySessionStore, RedisSessionStore, SessionStore
 from agent.observation.engine import ObservationEngine
-from agent.perception.backends import PuterUiTarsBackend
+from agent.perception.backends import (
+    GeminiBackend,
+    GrounderBackend,
+    LocalUiTarsBackend,
+    MoondreamBackend,
+    PerceptionRouter,
+)
 from agent.perception.verifier import BehavioralVerifier, LLMBehavioralVerifier
 from agent.planner.llm_client import OpenAILLMClient
 from agent.planner.planner import Planner
@@ -67,12 +73,17 @@ def get_session_store(
     return InMemorySessionStore()
 
 
+def _get_cached_llm_client() -> OpenAILLMClient:
+    """Internal factory for OpenAILLMClient (no longer cached to isolate lifecycles)."""
+    config = get_cached_settings()
+    return OpenAILLMClient(config=config.llm)
+
+
 def get_llm_client(
     settings: Settings | None = None,
 ) -> OpenAILLMClient:
     """Create an LLM client instance."""
-    s = settings or get_cached_settings()
-    return OpenAILLMClient(config=s.llm)
+    return _get_cached_llm_client()
 
 
 def get_planner(
@@ -162,34 +173,30 @@ def _get_cached_discovery_agent() -> CustomerDiscoveryAgent:
     return CustomerDiscoveryAgent(config=config.servicenow)
 
 
-def get_discovery_agent(
-    config: Settings | None = None
-) -> CustomerDiscoveryAgent:
+def get_discovery_agent(config: Settings | None = None) -> CustomerDiscoveryAgent:
     """Provide the CustomerDiscoveryAgent."""
     return _get_cached_discovery_agent()
 
 
-@lru_cache
 def _get_cached_embedding_client() -> EmbeddingClient:
-    """Internal cached factory for EmbeddingClient."""
+    """Internal factory for EmbeddingClient (no longer cached to isolate lifecycles)."""
     config = get_cached_settings()
     return OpenAIEmbeddingClient(config=config.llm)
 
 
-def get_embedding_client(
-    config: Settings | None = None
-) -> EmbeddingClient:
+def get_embedding_client(config: Settings | None = None) -> EmbeddingClient:
     """Provide the EmbeddingClient."""
     return _get_cached_embedding_client()
 
 
-@lru_cache
 def _get_cached_knowledge_store() -> KnowledgeStore:
-    """Internal cached factory for KnowledgeStore singleton."""
+    """Internal factory for KnowledgeStore."""
     config = get_cached_settings()
     embedding_client = get_embedding_client(config)
     if HAS_PGVECTOR and config.domain.postgres_url:
-        return PgVectorKnowledgeStore(config=config.domain, embedding_client=embedding_client)
+        return PgVectorKnowledgeStore(
+            config=config.domain, embedding_client=embedding_client, llm_config=config.llm
+        )
     return InMemoryKnowledgeStore()
 
 
@@ -201,32 +208,28 @@ def get_knowledge_store(
     return _get_cached_knowledge_store()
 
 
-@lru_cache
 def _get_cached_learning_store() -> LearningStore:
+    """Internal factory for LearningStore (no longer cached to isolate lifecycles)."""
     config = get_cached_settings()
     return LearningStore(config=config.domain)
 
 
-def get_learning_store(
-    config: Settings | None = None
-) -> LearningStore:
+def get_learning_store(config: Settings | None = None) -> LearningStore:
     return _get_cached_learning_store()
 
 
-@lru_cache
 def _get_cached_learning_service() -> LearningService:
+    """Internal factory for LearningService (no longer cached to isolate lifecycles)."""
     store = _get_cached_learning_store()
     return LearningService(store=store)
 
 
-def get_learning_service(
-    store: LearningStore | None = None
-) -> LearningService:
+def get_learning_service(store: LearningStore | None = None) -> LearningService:
     return _get_cached_learning_service()
 
 
-@lru_cache
 def _get_cached_strategy_selector() -> StrategySelector:
+    """Internal factory for StrategySelector (no longer cached to isolate lifecycles)."""
     learning = _get_cached_learning_service()
     return StrategySelector(learning_service=learning)
 
@@ -237,7 +240,6 @@ def get_strategy_selector(
     return _get_cached_strategy_selector()
 
 
-@lru_cache
 def _get_cached_scenario_generator() -> ScenarioGenerator:
     llm_client = get_llm_client()
     strategy_selector = _get_cached_strategy_selector()
@@ -255,15 +257,12 @@ def get_scenario_generator(
     return _get_cached_scenario_generator()
 
 
-@lru_cache
 def _get_cached_test_intelligence_store() -> TestIntelligenceStore:
     config = get_cached_settings()
     return TestIntelligenceStore(config=config.domain)
 
 
-def get_test_intelligence_store(
-    config: Settings | None = None
-) -> TestIntelligenceStore:
+def get_test_intelligence_store(config: Settings | None = None) -> TestIntelligenceStore:
     return _get_cached_test_intelligence_store()
 
 
@@ -294,14 +293,25 @@ def get_reporting_engine(
 # get_recovery_store has been removed in favor of get_learning_store
 
 
-def get_puter_backend(settings: Settings | None = None) -> PuterUiTarsBackend | None:
-    """Create a PuterUiTarsBackend instance."""
+def get_grounder_backend(settings: Settings | None = None) -> GrounderBackend:
+    """Create a PerceptionRouter configured with primary/fallback grounders."""
     s = settings or get_cached_settings()
+
+    moondream_key = (
+        s.perception.moondream_api_key if hasattr(s.perception, "moondream_api_key") else None
+    )
+    gemini_key = s.perception.gemini_api_key if hasattr(s.perception, "gemini_api_key") else None
+
+    primary = MoondreamBackend(api_key=moondream_key)
+    fallback = GeminiBackend(api_key=gemini_key)
+
+    local = None
     if s.perception.puter_endpoint:
-        return PuterUiTarsBackend(
+        local = LocalUiTarsBackend(
             endpoint_url=s.perception.puter_endpoint, api_key=s.perception.puter_api_key
         )
-    return None
+
+    return PerceptionRouter(primary=primary, fallback=fallback, local=local)
 
 
 def get_behavioral_verifier(settings: Settings | None = None) -> BehavioralVerifier:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
@@ -36,7 +36,7 @@ class SemanticWorldState(BaseModel):
     validation_errors: list[str] = Field(default_factory=list)
     notifications: list[str] = Field(default_factory=list)
     form_completeness_score: float = Field(default=1.0, ge=0.0, le=1.0)
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     def to_compact_cognitive_summary(self) -> str:
         """Produce a semantic summary for LLM cognitive reasoning."""

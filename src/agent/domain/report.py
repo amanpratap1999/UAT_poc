@@ -6,7 +6,7 @@ defects, and professional QA summary. Supports rendering to HTML and Markdown.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -18,7 +18,7 @@ class TimelineEntry(BaseModel):
     """A single entry in the execution timeline."""
 
     step_index: int
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     action: str = Field(description="Human-readable action description")
     result: str = Field(description="Outcome: success, failed, skipped")
     duration_ms: float = 0.0
@@ -52,7 +52,7 @@ class BrowserLogEntry(BaseModel):
 
     level: str = Field(description="log, warn, error, info")
     message: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     source: str = Field(default="console", description="console, network, page_error")
 
 
@@ -66,7 +66,7 @@ class TestReport(BaseModel):
     report_id: str = Field(description="Unique report identifier")
     goal: str = Field(description="The business goal that was tested")
     status: str = Field(description="passed, failed, partial, error")
-    started_at: datetime = Field(default_factory=datetime.utcnow)
+    started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     completed_at: datetime | None = None
     duration_seconds: float = 0.0
 

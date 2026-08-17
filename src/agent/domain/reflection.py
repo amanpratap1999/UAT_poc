@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
@@ -25,7 +25,7 @@ class ReflectionResult(BaseModel):
         description="Recommended adaptation to the execution plan",
     )
     confidence: float = Field(default=0.9, ge=0.0, le=1.0)
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class ReasoningCycle(BaseModel):
@@ -40,4 +40,4 @@ class ReasoningCycle(BaseModel):
     confidence_score: float = 1.0
     outcome_summary: str = ""
     reflection: ReflectionResult | None = None
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))

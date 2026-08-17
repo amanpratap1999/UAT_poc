@@ -6,7 +6,7 @@ priorities, assignment info, resolution details, and validation outcomes.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
@@ -113,7 +113,7 @@ class Incident(BaseModel):
     resolution: Resolution = Field(default_factory=Resolution)
     work_notes: WorkNotes = Field(default_factory=WorkNotes)
     is_readonly: bool = False
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class IncidentValidationResult(BaseModel):

@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from agent.browser.page_interactor import PageInteractor
     from agent.execution.controller import ExecutionController
     from agent.observation.engine import ObservationEngine
-    from agent.perception.backends import PuterUiTarsBackend
+    from agent.perception.backends import GrounderBackend
     from agent.perception.verifier import BehavioralVerifier
 
 logger = get_logger(__name__)
@@ -33,7 +33,7 @@ class PerceptionDecisionEngine:
         browser: BrowserManager,
         interactor: PageInteractor,
         executor: ExecutionController,
-        grounder: PuterUiTarsBackend,
+        grounder: GrounderBackend,
         verifier: BehavioralVerifier,
         learning_service: LearningService,
         observer: ObservationEngine,
@@ -69,11 +69,7 @@ class PerceptionDecisionEngine:
             before_obs = None
 
         before_state_summary = (
-            before_obs.model_dump_json(
-                exclude={"visible_fields", "buttons", "tabs", "interactive_elements"}
-            )
-            if before_obs
-            else "Unknown"
+            before_obs.model_dump_json(exclude={"buttons", "tabs"}) if before_obs else "Unknown"
         )
 
         # 1. Check Learning Service for existing valid recoveries
@@ -159,6 +155,7 @@ class PerceptionDecisionEngine:
                         v_cand = await self._grounder.ground_element(
                             screenshot_bytes=screenshot_bytes,
                             target_description=target,
+                            page=page,
                         )
                         if v_cand:
                             selected_candidate = v_cand
@@ -201,11 +198,7 @@ class PerceptionDecisionEngine:
             except Exception:
                 after_obs = None
             after_state_summary = (
-                after_obs.model_dump_json(
-                    exclude={"visible_fields", "buttons", "tabs", "interactive_elements"}
-                )
-                if after_obs
-                else "Unknown"
+                after_obs.model_dump_json(exclude={"buttons", "tabs"}) if after_obs else "Unknown"
             )
 
             verification = await self._verifier.verify_action(

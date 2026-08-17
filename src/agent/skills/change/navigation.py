@@ -1,6 +1,7 @@
 """Navigation for Change Management."""
 
 from agent.core.logging import get_logger
+from agent.core.types import ActionType
 from agent.domain.actions import AgentAction
 
 logger = get_logger(__name__)
@@ -16,14 +17,18 @@ class ChangeNavigator:
         """Action to navigate to the open Change Requests list."""
         url = f"{self.base_url}/change_request_list.do?sysparm_query=active=true"
         return AgentAction(
-            action_type="navigate", target=url, reasoning="Open the list of active Change Requests"  # type: ignore[arg-type]
+            action_type=ActionType.NAVIGATE,
+            target=url,
+            reasoning="Open the list of active Change Requests",
         )
 
     def navigate_to_new_change(self) -> AgentAction:
         """Action to navigate to the new Change Request form."""
         url = f"{self.base_url}/change_request.do?sys_id=-1"
         return AgentAction(
-            action_type="navigate", target=url, reasoning="Open a new Change Request form"  # type: ignore[arg-type]
+            action_type=ActionType.NAVIGATE,
+            target=url,
+            reasoning="Open a new Change Request form",
         )
 
     def navigate_to_change(self, change_number: str) -> AgentAction:
@@ -31,7 +36,7 @@ class ChangeNavigator:
         # Using the standard text search parameter for simplicity
         url = f"{self.base_url}/change_request_list.do?sysparm_query=number={change_number}"
         return AgentAction(
-            action_type="navigate",  # type: ignore[arg-type]
+            action_type=ActionType.NAVIGATE,
             target=url,
             reasoning=f"Search for Change Request {change_number}",
         )
