@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 from abc import ABC, abstractmethod
 from typing import Any, ClassVar
@@ -123,6 +124,11 @@ class OpenAILLMClient(BaseLLMClient):
                     raise
                 logger.warning("llm_rate_limit_hit", wait_seconds=6.0)
                 await asyncio.sleep(6.0)
+            except Exception as e:
+                if attempt == max_retries or "503" not in str(e):
+                    raise
+                logger.warning("llm_server_overload_retrying", wait_seconds=3.0, error=str(e))
+                await asyncio.sleep(3.0)
 
     async def complete(
         self,
@@ -146,12 +152,6 @@ class OpenAILLMClient(BaseLLMClient):
             if tools:
                 kwargs["tools"] = tools
                 kwargs["tool_choice"] = "auto"
-
-            if self._config.model == "nvidia/nemotron-3-ultra-550b-a55b":
-                kwargs["extra_body"] = {
-                    "chat_template_kwargs": {"enable_thinking": True},
-                    "reasoning_budget": 16384,
-                }
 
             response = await self._execute_with_backoff(**kwargs)
 
@@ -214,18 +214,15 @@ class OpenAILLMClient(BaseLLMClient):
                 "max_tokens": max_tokens or self._config.max_tokens,
                 "response_format": {"type": "json_object"},
             }
-            if self._config.model == "nvidia/nemotron-3-ultra-550b-a55b":
-                kwargs["extra_body"] = {
-                    "chat_template_kwargs": {"enable_thinking": True},
-                    "reasoning_budget": 16384,
-                }
 
             response = await self._execute_with_backoff(**kwargs)
 
             if response.usage:
                 self._total_tokens_used += response.usage.total_tokens
 
-            content = response.choices[0].message.content or "{}"
+            raw_content = (response.choices[0].message.content or "{}").strip()
+            fence_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", raw_content)
+            content = fence_match.group(1).strip() if fence_match else raw_content
             return json.loads(content)  # type: ignore[no-any-return]
 
         except json.JSONDecodeError as e:

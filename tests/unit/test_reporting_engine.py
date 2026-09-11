@@ -138,12 +138,13 @@ async def test_save_report_json(
 async def test_defect_identification(
     engine: ReportingEngine,
 ) -> None:
-    """Test that defects are identified from validation failures."""
+    """Agent-scope validation failures are diagnostics, not application defects."""
     memory = SessionMemory(goal="Test")
 
-    # Add a step with failed validation
+    # A failed action_execution check means the AGENT could not perform the
+    # interaction — this must NOT be an application defect.
     action = AgentAction(action_type=ActionType.CLICK, target="btn", reasoning="t")
-    result = ActionResult(success=True, action=action)
+    result = ActionResult(success=False, action=action, error="Element not found", error_type="SelectorNotFoundError")
     validation = ValidationResult(action_description="click: btn")
     validation.add_check(
         ValidationCheck(
@@ -158,17 +159,132 @@ async def test_defect_identification(
 
     report = await engine.generate_report(memory)
 
+    assert not report.has_defects
+    assert len(report.agent_issues) == 1
+    assert report.agent_issues[0].error_type == "SelectorNotFoundError"
+
+
+@pytest.mark.asyncio
+async def test_defect_identification_application_scope(
+    engine: ReportingEngine,
+) -> None:
+    """Application-behavior validation failures ARE application defects."""
+    memory = SessionMemory(goal="Test")
+
+    # The interaction executed; the app demonstrably kept the wrong value.
+    action = AgentAction(action_type=ActionType.SELECT, target="State", value="2", reasoning="t")
+    result = ActionResult(success=True, action=action)
+    validation = ValidationResult(action_description="select: State")
+    validation.add_check(
+        ValidationCheck(
+            check_name="action_execution",
+            passed=True,
+            expected="success",
+            actual="success",
+        )
+    )
+    validation.add_check(
+        ValidationCheck(
+            check_name="field_update",
+            passed=False,
+            expected="2",
+            actual="1",
+            error_message="Field value mismatch",
+        )
+    )
+    memory.add_completed_step(action=action, result=result, validation=validation)
+
+    report = await engine.generate_report(memory)
+
     assert report.has_defects
-    assert len(report.defects) >= 1
+    assert len(report.defects) == 1
     assert report.defects[0].defect_id.startswith("DEF-")
+    assert report.defects[0].title.startswith("Validation failure: field_update")
+
+
+@pytest.mark.asyncio
+async def test_defect_withdrawn_by_investigation_verdict(
+    engine: ReportingEngine,
+) -> None:
+    """An investigation verdict clearing the mismatch withdraws the defect."""
+    memory = SessionMemory(goal="Test")
+
+    action = AgentAction(action_type=ActionType.SELECT, target="State", value="2", reasoning="t")
+    result = ActionResult(success=True, action=action)
+    validation = ValidationResult(action_description="select: State")
+    validation.add_check(
+        ValidationCheck(
+            check_name="field_update",
+            passed=False,
+            expected="2",
+            actual="1",
+            error_message="Field value mismatch",
+        )
+    )
+    memory.add_completed_step(action=action, result=result, validation=validation)
+
+    # Investigation cleared the mismatch: the knowledge model explains the
+    # observed behavior (expected customization), so it is NOT a defect.
+    memory.add_defect_verdict(
+        step_index=0,
+        hypothesis_id="hyp-1",
+        is_defect=False,
+        classification="false_positive_customization",
+        reasoning="Knowledge model explains this",
+    )
+    # The cognitive loop also maps the step to the hypothesis via the failure
+    memory.add_failure(
+        error_type="InvestigationVerifiedDefect",
+        error_message="Hypothesis hyp-1: cleared in this test fixture",
+    )
+
+    report = await engine.generate_report(memory)
+    assert not report.has_defects
 
 
 @pytest.mark.asyncio
 async def test_report_status_determination(
     engine: ReportingEngine,
 ) -> None:
-    """Test that report status is correctly determined."""
-    # No failures = passed
+    """Report status separates QA verdict from engine execution problems."""
+    # Memory with executed action and validation = passed
     memory = SessionMemory(goal="Test")
+    action = AgentAction(action_type=ActionType.CLICK, target="btn")
+    result = ActionResult(success=True, action=action)
+    validation = ValidationResult(action_description="click: btn")
+    validation.add_check(
+        ValidationCheck(
+            check_name="action_execution",
+            description="Action executed",
+            passed=True,
+            expected="success",
+            actual="success",
+        )
+    )
+    memory.add_completed_step(action=action, result=result, validation=validation)
     report = await engine.generate_report(memory)
     assert report.status == "passed"
+
+    # Engine failure with zero actions executed = error (engine couldn't run),
+    # not "failed" (which is the QA verdict for application defects)
+    memory_error = SessionMemory(goal="Test")
+    memory_error.add_failure(error_type="PlanningFailure", error_message="No hypothesis")
+    report_error = await engine.generate_report(memory_error)
+    assert report_error.status == "error"
+
+    # Application defect with zero passing validations = failed (QA verdict)
+    memory_failed = SessionMemory(goal="Test")
+    action = AgentAction(action_type=ActionType.CLICK, target="btn")
+    result = ActionResult(success=True, action=action)
+    validation = ValidationResult(action_description="click: btn")
+    validation.add_check(
+        ValidationCheck(
+            check_name="field_update",
+            passed=False,
+            expected="X",
+            actual="Y",
+        )
+    )
+    memory_failed.add_completed_step(action=action, result=result, validation=validation)
+    report_failed = await engine.generate_report(memory_failed)
+    assert report_failed.status == "failed"

@@ -19,7 +19,7 @@ const MOB_ITEMS = [
 export function MobileNav() {
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-30 border-t border-graphite-600 bg-graphite-800 lg:hidden"
+      className="theme-dark fixed bottom-0 left-0 right-0 z-30 border-t border-graphite-600/70 bg-graphite-950/95 backdrop-blur lg:hidden"
       aria-label="Mobile navigation"
     >
       <ul role="list" className="flex">

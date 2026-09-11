@@ -11,11 +11,11 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, label, error, hint, id, ...props }, ref) => {
     const inputId = id ?? label?.toLowerCase().replace(/\s+/g, "-");
     return (
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1.5">
         {label && (
           <label
             htmlFor={inputId}
-            className="text-xs font-medium uppercase tracking-widest text-ink-400"
+            className="text-xs font-semibold text-body"
           >
             {label}
           </label>
@@ -24,8 +24,8 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           id={inputId}
           className={cn(
-            "h-9 w-full rounded border border-graphite-600 bg-graphite-800 px-3 font-body text-sm text-ink-100 placeholder:text-ink-600",
-            "transition-colors focus:border-signal-teal/60 focus:outline-none focus:ring-1 focus:ring-signal-teal/30",
+            "h-9 w-full rounded-md border border-line bg-card px-3 font-body text-sm text-ink shadow-card placeholder:text-faint",
+            "transition-colors focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-accent/20",
             "disabled:cursor-not-allowed disabled:opacity-40",
             error && "border-status-failed/60 focus:border-status-failed/60 focus:ring-status-failed/20",
             className
@@ -40,7 +40,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           </p>
         )}
         {hint && !error && (
-          <p id={`${inputId}-hint`} className="text-xs text-ink-600">
+          <p id={`${inputId}-hint`} className="text-xs text-faint">
             {hint}
           </p>
         )}

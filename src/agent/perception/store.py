@@ -1,4 +1,3 @@
-
 """Recovery Store — persistence abstraction for recovered locators.
 
 Defines the RecoveryStore interface and provides two implementations:

@@ -28,17 +28,21 @@ from agent.reasoning.trace import ReasoningTrace
 class CompletedStep(BaseModel):
     """Record of a completed action with its outcome."""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     step_index: int
-    action: AgentAction
-    result: ActionResult
-    observation_before: PageObservation | None = None
-    observation_after: PageObservation | None = None
-    validation: ValidationResult | None = None
+    action: Any
+    result: Any
+    observation_before: Any = None
+    observation_after: Any = None
+    validation: Any = None
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class FailureRecord(BaseModel):
     """Record of a failure encountered during execution."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     step_index: int
     action: AgentAction | None = None
@@ -52,11 +56,31 @@ class FailureRecord(BaseModel):
 class RecoveryAttempt(BaseModel):
     """Record of a recovery attempt."""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     step_index: int
     strategy: str
     original_error: str
     success: bool
     details: str = ""
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class DefectVerdict(BaseModel):
+    """Investigation verdict for a failed validation — the authoritative
+    classification of an expectation mismatch as an application defect.
+
+    Recorded by the cognitive loop after ``InvestigationEngine.investigate_mismatch``.
+    Consumed by the reporting engine to keep the application defect count
+    distinct from agent/execution issues.
+    """
+
+    step_index: int
+    hypothesis_id: str = ""
+    is_defect: bool
+    classification: str = ""
+    reasoning: str = ""
+    knowledge_reference: str | None = None
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
@@ -97,6 +121,7 @@ class SessionMemory(BaseModel):
     observations: list[PageObservation] = Field(default_factory=list)
     failures: list[FailureRecord] = Field(default_factory=list)
     recovery_attempts: list[RecoveryAttempt] = Field(default_factory=list)
+    defect_verdicts: list[DefectVerdict] = Field(default_factory=list)
     timeline: list[TimelineEntry] = Field(default_factory=list)
 
     # Configuration
@@ -104,6 +129,15 @@ class SessionMemory(BaseModel):
         default=10,
         description="Max number of observations to retain in memory",
     )
+
+    # Precondition tracking
+    precondition_failed: bool = False
+    precondition_failure_reason: str | None = None
+
+    # Telemetry and Browser Diagnostics
+    browser_logs: list[dict[str, str]] = Field(default_factory=list)
+    console_errors: list[str] = Field(default_factory=list)
+    network_errors: list[str] = Field(default_factory=list)
 
     # Counters
     total_actions_executed: int = 0
@@ -191,6 +225,32 @@ class SessionMemory(BaseModel):
         )
         self.total_recoveries += 1
 
+    def add_defect_verdict(
+        self,
+        step_index: int,
+        is_defect: bool,
+        hypothesis_id: str = "",
+        classification: str = "",
+        reasoning: str = "",
+        knowledge_reference: str | None = None,
+    ) -> None:
+        """Record an investigation verdict for a failed validation.
+
+        The verdict is the authoritative answer to "was this expectation
+        mismatch an application defect?" — used by the reporting engine to
+        compute the application defect count, distinct from agent issues.
+        """
+        self.defect_verdicts.append(
+            DefectVerdict(
+                step_index=step_index,
+                hypothesis_id=hypothesis_id,
+                is_defect=is_defect,
+                classification=classification,
+                reasoning=reasoning,
+                knowledge_reference=knowledge_reference,
+            )
+        )
+
     def add_timeline_entry(
         self,
         action: str,
@@ -200,14 +260,19 @@ class SessionMemory(BaseModel):
         details: dict[str, Any] | None = None,
     ) -> None:
         """Add an entry to the execution timeline."""
+        dur = float(duration_ms) if isinstance(duration_ms, (int, float)) else 0.0
+        shot = str(screenshot_path) if isinstance(screenshot_path, str) else None
+        act_str = str(action)
+        res_str = str(result)
+        det = details if isinstance(details, dict) else {}
         self.timeline.append(
             TimelineEntry(
                 step_index=self.current_step_index,
-                action=action,
-                result=result,
-                duration_ms=duration_ms,
-                screenshot_path=screenshot_path,
-                details=details or {},
+                action=act_str,
+                result=res_str,
+                duration_ms=dur,
+                screenshot_path=shot,
+                details=det,
             )
         )
 
@@ -255,9 +320,9 @@ class SessionMemory(BaseModel):
         if recent_steps:
             step_strs = []
             for s in recent_steps:
-                status = "✅" if s.result.success else "❌"
+                status = "[PASS]" if s.result.success else "[FAIL]"
                 step_strs.append(
-                    f"  {status} Step {s.step_index}: {s.action.action_type} → {s.action.target}"
+                    f"  {status} Step {s.step_index}: {s.action.action_type} -> {s.action.target}"
                 )
                 if s.result.error:
                     step_strs.append(f"      Error: {s.result.error}")
@@ -266,7 +331,7 @@ class SessionMemory(BaseModel):
         # Recent failures
         if self.recent_failures:
             fail_strs = [
-                f"  ❌ Step {f.step_index}: {f.error_type} — {f.error_message}"
+                f"  [FAIL] Step {f.step_index}: {f.error_type} - {f.error_message}"
                 for f in self.recent_failures
             ]
             sections.append("## Recent Failures\n" + "\n".join(fail_strs))

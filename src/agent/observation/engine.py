@@ -8,8 +8,12 @@ supplemented with ServiceNow-specific DOM queries.
 
 from __future__ import annotations
 
+import hashlib
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from agent.browser.manager import BrowserManager
 
 from playwright.async_api import Page
 
@@ -32,7 +36,13 @@ class ObservationEngine:
     The observation engine is the bridge between raw browser state and
     the planner's reasoning. It produces token-efficient structured data
     that captures everything the planner needs.
+
+    Supports multi-modal observation: DOM + console errors + DOM fingerprint
+    + visible text summary.
     """
+
+    def __init__(self, browser_manager: BrowserManager | None = None) -> None:
+        self._browser_manager = browser_manager
 
     async def observe(self, page: Page) -> PageObservation:
         """Snapshot the current page state into a structured PageObservation.
@@ -60,6 +70,21 @@ class ObservationEngine:
         interactive_elements = await self._extract_interactive_elements(page)
         mandatory_fields = [f.name for f in fields if f.is_mandatory]
 
+        # Multi-modal: console errors and network errors from BrowserManager
+        console_errors: list[str] = []
+        network_errors: list[str] = []
+        if self._browser_manager:
+            console_errors = self._browser_manager.get_new_console_errors()
+            network_errors = self._browser_manager.get_network_errors()
+
+        # DOM fingerprint for efficient state diffing
+        dom_fingerprint = self._compute_dom_fingerprint(
+            url, title, buttons, fields
+        )
+
+        # Visible text summary (headings + key text)
+        visible_text_summary = await self._extract_visible_text_summary(page)
+
         observation = PageObservation(
             url=url,
             title=title,
@@ -73,6 +98,10 @@ class ObservationEngine:
             validation_messages=validation_msgs,
             notification_messages=notifications,
             interactive_elements=interactive_elements,
+            console_errors=console_errors,
+            network_errors=network_errors,
+            dom_fingerprint=dom_fingerprint,
+            visible_text_summary=visible_text_summary,
         )
 
         logger.info(
@@ -81,6 +110,9 @@ class ObservationEngine:
             fields=len(fields),
             buttons=len(buttons),
             validations=len(validation_msgs),
+            console_errors=len(console_errors),
+            network_errors=len(network_errors),
+            dom_fingerprint=dom_fingerprint[:8],
         )
         return observation
 
@@ -152,6 +184,18 @@ class ObservationEngine:
             contexts.append(page)
 
         for ctx in contexts:
+            # Check for login markers in DOM (e.g. login form elements)
+            try:
+                login_count = await ctx.locator(
+                    "input#user_name, input#user_password, input[name='user_name'], "
+                    "input[name='user_password'], form#login, form[action*='login'], "
+                    "#login_form, .login-wrap"
+                ).count()
+                if login_count > 0 and not post_login_container:
+                    return PageType.LOGIN
+            except Exception:
+                pass
+
             # Check for form markers in DOM
             try:
                 form_count = await ctx.locator(
@@ -214,7 +258,7 @@ class ObservationEngine:
             try:
                 field_elements = context.locator(
                     "input[type='text'], input[type='email'], "
-                    "input[type='number'], textarea, "
+                    "input[type='number'], input[type='password'], textarea, "
                     "select, [role='combobox'], [role='textbox']"
                 )
                 count = await field_elements.count()
@@ -531,7 +575,7 @@ class ObservationEngine:
         return None
 
     async def _extract_interactive_elements(self, page: Page) -> list[ElementInfo]:
-        """Extract a summary of interactive elements from the accessibility tree or CDP."""
+        """Extract a summary of interactive elements from accessibility snapshot or DOM."""
         elements: list[ElementInfo] = []
 
         try:
@@ -544,44 +588,28 @@ class ObservationEngine:
         except Exception:
             pass
 
-        # CDP Fallback for Playwright >= 1.44
+        # Lightweight DOM query fallback (avoids massive CDP AXTree memory allocations)
         try:
-            cdp = await page.context.new_cdp_session(page)
-            tree = await cdp.send("Accessibility.getFullAXTree")
-            nodes = tree.get("nodes", [])
-            interactive_roles = {
-                "button",
-                "link",
-                "textbox",
-                "combobox",
-                "checkbox",
-                "radio",
-                "tab",
-                "menuitem",
-                "option",
-                "switch",
-                "searchbox",
-                "spinbutton",
-                "slider",
-                "heading",
-            }
-            for node in nodes:
-                if node.get("ignored"):
+            interactive_locators = page.locator("button, a[href], input, select, textarea, [role='button'], [role='tab']")
+            count = await interactive_locators.count()
+            for i in range(min(count, 50)):
+                el = interactive_locators.nth(i)
+                try:
+                    if await el.is_visible():
+                        tag = await el.evaluate("e => e.tagName.toLowerCase()")
+                        text = (await el.inner_text()).strip() if tag not in ("input", "select") else (await el.get_attribute("name") or "")
+                        if text:
+                            elements.append(
+                                ElementInfo(
+                                    role=tag,
+                                    name=text[:60],
+                                    is_enabled=await el.is_enabled(),
+                                )
+                            )
+                except Exception:
                     continue
-                role_obj = node.get("role", {})
-                role = role_obj.get("value", "") if isinstance(role_obj, dict) else str(role_obj)
-                name_obj = node.get("name", {})
-                name = name_obj.get("value", "") if isinstance(name_obj, dict) else str(name_obj)
-                if role.lower() in interactive_roles and name:
-                    elements.append(
-                        ElementInfo(
-                            role=role.lower(),
-                            name=name.strip(),
-                            is_enabled=not node.get("disabled", False),
-                        )
-                    )
         except Exception as e:
-            logger.warning("accessibility_tree_error", error=str(e))
+            logger.warning("interactive_elements_extraction_error", error=str(e))
 
         return elements[:100]
 
@@ -629,3 +657,33 @@ class ObservationEngine:
             children = node.get("children", [])
             if children and depth < 10:  # Prevent infinite depth
                 self._walk_accessibility_tree(children, elements, depth + 1)
+
+    def _compute_dom_fingerprint(
+        self,
+        url: str,
+        title: str,
+        buttons: list[ButtonInfo],
+        fields: list[FieldInfo],
+    ) -> str:
+        """Compute a compact DOM fingerprint for state diffing."""
+        button_labels = sorted(b.label for b in buttons)
+        field_names = sorted(f.name for f in fields)
+        hash_input = f"{url}|{title}|{'|'.join(button_labels)}|{'|'.join(field_names)}"
+        return hashlib.sha256(hash_input.encode("utf-8")).hexdigest()[:16]
+
+    async def _extract_visible_text_summary(self, page: Page) -> str:
+        """Extract headings (h1-h3) and key visible text for LLM context."""
+        ctx = self._get_active_context(page)
+        try:
+            headings = await ctx.evaluate("""() => {
+                const els = document.querySelectorAll('h1, h2, h3, [role="heading"]');
+                return Array.from(els)
+                    .map(el => el.textContent?.trim())
+                    .filter(t => t && t.length > 0 && t.length < 200)
+                    .slice(0, 10);
+            }""")
+            if headings:
+                return " | ".join(headings)
+        except Exception:
+            pass
+        return ""

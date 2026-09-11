@@ -15,7 +15,7 @@ _settings = get_settings()
 
 SECRET_KEY = _settings.jwt_secret_key
 ALGORITHM = _settings.jwt_algorithm
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
+ACCESS_TOKEN_EXPIRE_MINUTES = int(_settings.__dict__.get("access_token_expire_minutes", 60))
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/token")
@@ -52,7 +52,39 @@ def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = 
     return str(encoded_jwt)
 
 
-async def get_current_user_token(token: Annotated[str, Depends(oauth2_scheme)]) -> TokenData:
+def create_sse_ticket(data: dict[str, Any], expires_seconds: int = 120) -> str:
+    """Create a short-lived token ticket specifically for SSE streaming (default: 2 minutes)."""
+    to_encode = data.copy()
+    expire = datetime.now(UTC) + timedelta(seconds=expires_seconds)
+    to_encode.update({"exp": expire, "scope": "sse_stream"})
+    return str(jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM))
+
+
+def validate_sse_ticket(ticket: str) -> TokenData:
+    """Synchronously decode and validate a short-lived SSE ticket."""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate stream ticket",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(ticket, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("scope") != "sse_stream":
+            raise credentials_exception
+        username: str | None = payload.get("sub")
+        role: str | None = payload.get("role")
+        tenant_id: str | None = payload.get("tenant_id")
+        user_id: str | None = payload.get("user_id")
+
+        if username is None or role is None or tenant_id is None:
+            raise credentials_exception
+        return TokenData(username=username, role=role, tenant_id=tenant_id, user_id=user_id)
+    except JWTError:
+        raise credentials_exception from None
+
+
+def validate_token_string(token: str) -> TokenData:
+    """Synchronously decode and validate a JWT token string."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -67,10 +99,13 @@ async def get_current_user_token(token: Annotated[str, Depends(oauth2_scheme)]) 
 
         if username is None or role is None or tenant_id is None:
             raise credentials_exception
-        token_data = TokenData(username=username, role=role, tenant_id=tenant_id, user_id=user_id)
+        return TokenData(username=username, role=role, tenant_id=tenant_id, user_id=user_id)
     except JWTError:
         raise credentials_exception from None
-    return token_data
+
+
+async def get_current_user_token(token: Annotated[str, Depends(oauth2_scheme)]) -> TokenData:
+    return validate_token_string(token)
 
 
 class RequireRole:

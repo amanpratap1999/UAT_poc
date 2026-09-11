@@ -3,35 +3,55 @@
 @tailwind utilities;
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   CSS CUSTOM PROPERTIES — Design Tokens
-   All colours, typography, spacing come from here.
-   Do NOT hard-code hex/px values in components.
-──────────────────────────────────────────────────────────────────────────────*/
+   CSS CUSTOM PROPERTIES — Design Tokens ("Instrument Console", light/dark mix)
+
+   Two contexts share one token vocabulary:
+     :root        → LIGHT workspace (default): paper canvas, navy ink.
+     .theme-dark  → DARK chrome/theater: graphite housing, warm off-white ink.
+
+   All semantic Tailwind classes (bg-canvas, text-ink, border-line, …) are
+   rgb-triplet backed (see tailwind.config) and flip automatically inside any
+   subtree carrying .theme-dark. The legacy .surface-* / .data-* helpers also
+   flip, so shared primitives render correctly in both halves.
+
+   Invariants carried over from the design spec:
+     • signal-teal (#4DD8C4) reserved for perception / live state ONLY.
+     • Precision data renders in the mono face with tabular numerals.
+─────────────────────────────────────────────────────────────────────────────*/
 :root {
-  /* Core Palette */
-  --color-graphite-950: #14161a;
-  --color-graphite-800: #1c1f26;
-  --color-graphite-600: #2c313c;
-  --color-ink-100: #e8e6e1;
-  --color-ink-400: #9b9690;
-  --color-ink-600: #5a5750;
-  --color-signal-teal: #4dd8c4;  /* RESERVED: perception / detection / live state ONLY */
-  --color-amber-500: #e8a33d;
+  /* ── Light workspace ──────────────────────────────────────────────────── */
+  --canvas: 250 250 248;            /* warm paper, not clinical white */
+  --card: 255 255 255;
+  --line: 233 233 229;             /* hairline borders */
+  --line-strong: 210 211 205;
 
-  /* Classification Badge Colours — deliberately muted, never signal-teal */
-  --color-class-business-rule: #6b85c4;
-  --color-class-app-bug: #e8a33d;
-  --color-class-config-diff: #9b7fc7;
-  --color-class-expected-custom: #7fa890;
-  --color-class-unknown: #5a5750;
+  --ink: 22 26 32;                 /* deep navy-ink, not black */
+  --body: 71 79 90;                /* secondary text */
+  --muted: 122 129 140;
+  --faint: 168 172 178;
 
-  /* Run Status */
-  --color-status-running: #4dd8c4;   /* signal-teal for live state */
-  --color-status-completed: #7fa890;
-  --color-status-failed: #c47070;
-  --color-status-queued: #9b9690;
-  --color-status-blocked: #e8a33d;
-  --color-status-cancelled: #5a5750;
+  --accent: 13 74 86;              /* deep teal-ink for links & focus in light mode */
+  --accent-soft: 232 247 244;      /* soft teal wash for selected rows */
+
+  --btn-primary: 22 26 32;         /* dark-ink primary button (Vercel-style) */
+  --btn-primary-hover: 44 50 60;
+  --btn-primary-fg: 255 255 255;
+
+  /* Run status */
+  --status-queued: 122 129 140;
+  --status-running: 9 146 130;     /* readable teal in light mode */
+  --status-completed: 38 122 84;
+  --status-failed: 190 62 62;
+  --status-blocked: 176 122 33;
+  --status-cancelled: 140 146 152;
+
+  /* Classification colours — light-mode readable, never signal-teal */
+  --class-business-rule: 62 96 166;
+  --class-app-bug: 185 121 24;
+  --class-config-diff: 122 82 168;
+  --class-expected-custom: 58 118 84;
+  --class-agent-issue: 100 107 117;
+  --class-unknown: 143 143 138;
 
   /* Typography */
   --font-display: "Inter", "General Sans", sans-serif;
@@ -60,9 +80,45 @@
   --motion-easing: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* ── Dark chrome / theater context ─────────────────────────────────────────── */
+.theme-dark {
+  --canvas: 20 22 26;              /* graphite-950 */
+  --card: 28 31 38;                /* graphite-800 */
+  --line: 44 49 60;                /* graphite-600 */
+  --line-strong: 58 64 78;
+
+  --ink: 232 230 225;              /* ink-100 */
+  --body: 155 150 144;             /* ink-400 */
+  --muted: 155 150 144;
+  --faint: 90 87 80;               /* ink-600 */
+
+  --accent: 77 216 196;            /* signal-teal — perception/live only */
+  --accent-soft: 20 22 26;
+
+  --btn-primary: 77 216 196;        /* teal on dark (theater) */
+  --btn-primary-hover: 94 224 206;
+  --btn-primary-fg: 20 22 26;
+
+  /* Run status — dark-mode values */
+  --status-queued: 155 150 144;
+  --status-running: 77 216 196;
+  --status-completed: 127 168 144;
+  --status-failed: 196 112 112;
+  --status-blocked: 232 163 61;
+  --status-cancelled: 90 87 80;
+
+  /* Classification colours — dark-mode values */
+  --class-business-rule: 107 133 196;
+  --class-app-bug: 232 163 61;
+  --class-config-diff: 155 127 199;
+  --class-expected-custom: 127 168 144;
+  --class-agent-issue: 138 143 152;
+  --class-unknown: 90 87 80;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    BASE RESET & DEFAULTS
-──────────────────────────────────────────────────────────────────────────────*/
+─────────────────────────────────────────────────────────────────────────────*/
 *,
 *::before,
 *::after {
@@ -80,18 +136,23 @@ html {
 
 body {
   font-family: var(--font-body);
-  background-color: var(--color-graphite-950);
-  color: var(--color-ink-100);
+  background-color: rgb(var(--canvas));
+  color: rgb(var(--ink));
   line-height: 1.5;
   min-height: 100dvh;
 }
 
+::selection {
+  background: rgb(var(--accent-soft));
+  color: rgb(var(--ink));
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    TYPOGRAPHY ROLES
-──────────────────────────────────────────────────────────────────────────────*/
+─────────────────────────────────────────────────────────────────────────────*/
 .font-display {
   font-family: var(--font-display);
-  font-weight: 600;
+  font-weight: 650;
   letter-spacing: -0.02em;
 }
 
@@ -105,36 +166,53 @@ pre {
   font-variant-numeric: tabular-nums;
 }
 
+/* Page-heading rhythm — consistent across all workspace screens */
+.page-title {
+  font-family: var(--font-display);
+  font-weight: 650;
+  font-size: 1.5rem;
+  line-height: 2rem;
+  letter-spacing: -0.025em;
+  color: rgb(var(--ink));
+}
+
+.page-subtitle {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: rgb(var(--body));
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    FOCUS VISIBLE — Keyboard accessibility
-──────────────────────────────────────────────────────────────────────────────*/
+─────────────────────────────────────────────────────────────────────────────*/
 :focus-visible {
-  outline: 2px solid var(--color-signal-teal);
+  outline: 2px solid rgb(var(--accent));
   outline-offset: 2px;
   border-radius: 3px;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   SCROLLBAR — Custom dark scrollbar
-──────────────────────────────────────────────────────────────────────────────*/
+   SCROLLBAR
+─────────────────────────────────────────────────────────────────────────────*/
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--color-graphite-950);
+  background: rgb(var(--canvas));
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--color-graphite-600);
+  background: rgb(var(--line-strong));
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-ink-600);
+  background: rgb(var(--muted));
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    PREFERS-REDUCED-MOTION — Disable all non-essential animations
-──────────────────────────────────────────────────────────────────────────────*/
+─────────────────────────────────────────────────────────────────────────────*/
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -151,40 +229,51 @@ pre {
 
 /* ─────────────────────────────────────────────────────────────────────────────
    UTILITY CLASSES
-──────────────────────────────────────────────────────────────────────────────*/
+─────────────────────────────────────────────────────────────────────────────*/
 .data-value {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: 0.8125rem;
-  color: var(--color-ink-100);
+  color: rgb(var(--ink));
 }
 
 .data-label {
   font-size: 0.6875rem;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--color-ink-400);
+  color: rgb(var(--muted));
 }
 
-/* Surface variants */
+/* Surface variants — flip with context */
 .surface-card {
-  background-color: var(--color-graphite-800);
-  border: 1px solid var(--color-graphite-600);
+  background-color: rgb(var(--card));
+  border: 1px solid rgb(var(--line));
   border-radius: 0.5rem;
+  box-shadow: 0 1px 2px rgb(16 24 40 / 0.04);
+}
+
+.theme-dark .surface-card {
+  box-shadow: none;
 }
 
 .surface-elevated {
-  background-color: var(--color-graphite-800);
-  border: 1px solid var(--color-graphite-600);
-  border-radius: 0.5rem;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  background-color: rgb(var(--card));
+  border: 1px solid rgb(var(--line));
+  border-radius: 0.75rem;
+  box-shadow: 0 12px 32px -8px rgb(16 24 40 / 0.2), 0 4px 12px -4px rgb(16 24 40 / 0.1);
+}
+
+.theme-dark .surface-elevated {
+  background-color: rgb(var(--card));
+  border-color: rgb(var(--line));
+  box-shadow: 0 8px 32px rgb(0 0 0 / 0.5);
 }
 
 /* Dividers */
 .divider {
   border: none;
-  border-top: 1px solid var(--color-graphite-600);
+  border-top: 1px solid rgb(var(--line));
   margin: 0;
 }
 
@@ -197,12 +286,29 @@ pre {
   border-color: var(--color-signal-teal);
 }
 
+/* Subtle grid texture for the light workspace canvas — instrument-paper feel */
+.workspace-canvas {
+  background-color: rgb(var(--canvas));
+  background-image:
+    radial-gradient(rgb(var(--ink) / 0.035) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    FULL-BLEED CANVAS (Live Run screen)
-──────────────────────────────────────────────────────────────────────────────*/
+─────────────────────────────────────────────────────────────────────────────*/
 .full-bleed-canvas {
   position: fixed;
   inset: 0;
-  background-color: var(--color-graphite-950);
+  background-color: var(--color-graphite-950, #14161a);
   z-index: 50;
+}
+
+/* Keep native <dialog> chrome from fighting our surface styling */
+dialog::backdrop {
+  background: rgb(15 18 22 / 0.45);
+}
+
+.theme-dark dialog::backdrop {
+  background: rgb(10 12 14 / 0.7);
 }

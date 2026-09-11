@@ -46,7 +46,7 @@ function buildChartData(runs: Run[]): ChartDataPoint[] {
 }
 
 const TOOLTIP_STYLE = {
-  backgroundColor: "#1C1F26",
+  backgroundColor: "#14161A",
   border: "1px solid #2C313C",
   borderRadius: "6px",
   fontFamily: '"IBM Plex Mono", monospace',
@@ -72,30 +72,30 @@ export function RunTrendChart({ runs }: RunTrendChartProps) {
             <BarChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
               <CartesianGrid
                 strokeDasharray="3 3"
-                stroke="#2C313C"
+                stroke="rgba(71, 79, 90, 0.15)"
                 vertical={false}
               />
               <XAxis
                 dataKey="date"
-                tick={{ fill: "#9B9690", fontSize: 11, fontFamily: "IBM Plex Mono" }}
-                axisLine={{ stroke: "#2C313C" }}
+                tick={{ fill: "#7A818C", fontSize: 11, fontFamily: "IBM Plex Mono" }}
+                axisLine={{ stroke: "rgba(71, 79, 90, 0.2)" }}
                 tickLine={false}
               />
               <YAxis
-                tick={{ fill: "#9B9690", fontSize: 11, fontFamily: "IBM Plex Mono" }}
+                tick={{ fill: "#7A818C", fontSize: 11, fontFamily: "IBM Plex Mono" }}
                 axisLine={false}
                 tickLine={false}
                 allowDecimals={false}
               />
               <Tooltip
                 contentStyle={TOOLTIP_STYLE}
-                cursor={{ fill: "#2C313C" }}
+                cursor={{ fill: "rgba(71, 79, 90, 0.08)" }}
                 formatter={(value) => [
                 typeof value === 'number' ? value : 0,
                 "defects",
               ]}
               />
-              <Bar dataKey="defects" fill="#E8A33D" radius={[3, 3, 0, 0]} maxBarSize={32} />
+              <Bar dataKey="defects" fill="#B57918" radius={[4, 4, 0, 0]} maxBarSize={32} />
             </BarChart>
           </ResponsiveContainer>
         </div>

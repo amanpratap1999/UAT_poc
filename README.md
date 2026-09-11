@@ -32,77 +32,251 @@ User Goal → Planner (LLM) → Execution Controller → Playwright Browser
 Goal → Observe → Reason → Execute → Observe → Validate → Continue/Report
 ```
 
-## Quick Start
+## Runtime Architecture & Execution Modes
 
-### 1. Install Dependencies
+The platform supports two first-class runtime environments:
 
-```bash
-pip install -e ".[dev]"
-playwright install chromium
+1. **Local Host Mode (`local`)**: Runs directly on the developer's workstation without Docker.
+   - FastAPI API runs on `http://127.0.0.1:8000`.
+   - Celery worker runs locally with `--pool=solo` (Windows compatible) in your interactive desktop session.
+   - React/Vite development server runs on `http://localhost:5173` and automatically proxies `/api` requests to port 8000.
+   - Playwright launches a **visible (headed) browser** with smooth cursor movement and remains open post-run for interactive manual inspection.
+   - Reports and screenshots persist directly to `./reports` and `./screenshots` in the repository root.
+   - Configuration is loaded from `.env.local` (or environment variables).
+2. **Docker Container Mode (`docker`)**: Runs within containerized multi-service Docker Compose topology.
+   - Microservices communicate over internal bridge networking (`db:5432`, `redis:6379`).
+   - Nginx reverse-proxies frontend and backend services on port 80.
+   - Playwright runs in headless mode inside the container.
+   - Reports and screenshots persist to container volumes mounted at `/app/reports` and `/app/screenshots`.
+   - Configuration is loaded from `.env.docker` (or environment variables).
+
+---
+
+## 💻 Local Execution
+
+### 1. Host Prerequisites
+
+Ensure the following tools and services are installed on your host machine:
+
+- **Python**: Version 3.11 or higher (`python --version`)
+- **Node.js & npm**: Node 18+ and npm 9+ (`node -v`, `npm -v`)
+- **PostgreSQL**: PostgreSQL 15+ with the `pgvector` extension installed.
+  - *Default connection:* `postgresql://postgres:postgres@localhost:5432/servicenow_qa`
+  - *Windows tip:* If installing via EDB PostgreSQL installer, install `pgvector` from [pgvector GitHub releases](https://github.com/pgvector/pgvector) or run PostgreSQL with pgvector under WSL2 / standalone Windows service.
+- **Redis**: Redis 6+ or Redis-compatible server (e.g., Memurai on Windows or Redis via WSL/Windows service).
+  - *Default connection:* `redis://127.0.0.1:6379/0`
+- **Playwright Chromium**: Managed browser binary for UI automation.
+
+### 2. Automated Bootstrap Setup
+
+Run the local setup script in PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/bootstrap-local.ps1
 ```
 
-### 2. Configure Environment
+This bootstrap script will:
+1. Verify Python 3.11+, Node.js, and npm are in your PATH.
+2. Create or verify the Python virtual environment (`.venv`).
+3. Install Python dependencies with `pip install -e ".[dev]"`.
+4. Install the Playwright Chromium browser (`playwright install chromium`).
+5. Install frontend Node modules with `npm ci`.
+6. Create local output directories: `./reports`, `./screenshots`, `./logs`, `./.runtime/local`.
+7. Initialize `.env.local` from `.env.local.example` if `.env.local` does not already exist (without overwriting existing secrets).
 
-```bash
-cp .env.example .env
-# Edit .env with your LLM API key and ServiceNow instance details
+### 3. Pre-Flight Service Validation
+
+Before starting services, run the diagnostics checker to verify your database, pgvector extension, Redis connection, and available ports:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/check-local-services.ps1
 ```
 
-### 3. Initialize the Database
+Or run directly with Python:
 
-Make sure the Docker containers are running (`docker compose up -d`), then initialize the schema and seed the QA user:
+```powershell
+python scripts/check_services.py
+```
+
+The script verifies:
+- PostgreSQL connectivity, database existence, and `vector` extension.
+- Redis server connectivity (`PING` -> `PONG`).
+- TCP port availability on 8000 (API) and 5173 (Frontend).
+- Playwright Chromium executable availability.
+- Actionable remediation advice if any dependency is missing or stopped.
+
+### 4. Configuration Diagnostics
+
+To inspect your loaded configuration with all sensitive credentials securely masked:
+
+```powershell
+python scripts/diagnose_config.py
+```
+
+### 5. Starting the Local Environment
+
+Start all local processes (FastAPI backend, Celery worker with solo pool, and Vite frontend) using the lifecycle launcher:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/start-local.ps1
+```
+
+The startup script:
+1. Validates prerequisites.
+2. Applies `.env.local` variables (`UAT_RUNTIME_MODE=local`).
+3. Executes database migrations/seeding (`python scripts/init_db.py`).
+4. Launches FastAPI API on `http://127.0.0.1:8000` and waits for `/api/v1/ready`.
+5. Launches Celery worker with `--pool=solo` in the user desktop session.
+6. Launches Vite dev server on `http://localhost:5173`.
+7. Stores process IDs in `.runtime/local/*.pid` and writes logs to `logs/*.local.log`.
+
+### 6. Local Application URLs
+
+| Application / Service | URL | Purpose |
+|-----------------------|-----|---------|
+| **Frontend Web UI** | `http://localhost:5173` | React/Vite dashboard with live agent canvas & perception overlay |
+| **Backend API** | `http://localhost:8000` | FastAPI REST API endpoints |
+| **Interactive API Docs** | `http://localhost:8000/docs` | Swagger UI documentation & testing |
+| **Readiness Health Check** | `http://localhost:8000/api/v1/ready` | DB, vector extension, Redis, and directory probe |
+| **Diagnostics Metadata** | `http://localhost:8000/api/v1/diagnostics/paths` | Verifies active runtime mode and path resolution |
+
+### 7. Checking Status
+
+To check the health and running processes of the local environment:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/status-local.ps1
+```
+
+### 8. Stopping the Local Environment
+
+To gracefully stop only the processes started by this application without impacting other system services (PostgreSQL and Redis remain running):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/stop-local.ps1
+```
+
+### 9. Troubleshooting Local Execution
+
+- **PostgreSQL / pgvector missing**: Ensure PostgreSQL is running on port 5432 and run `CREATE EXTENSION IF NOT EXISTS vector;` on the `servicenow_qa` database.
+- **Redis Connection Refused**: Start your local Redis or Memurai service on port 6379.
+- **Worker Hangs on Windows**: Windows requires the Celery solo execution pool (`--pool=solo`), which is automatically configured in `scripts/start-local.ps1`.
+- **Browser Not Visible**: Verify `HEADLESS=false` in `.env.local`. When running locally, Playwright opens a visible Chrome window and keeps it open post-run for inspection.
+- **Logs Inspection**: Check the local log files:
+  - API log: `logs/api.local.log`
+  - Worker log: `logs/worker.local.log`
+  - Frontend log: `logs/frontend.local.log`
+
+---
+
+## 🐳 Docker Execution
+
+All existing Docker Compose commands, services, and multi-container configurations remain fully preserved and operational.
+
+### 1. Configure Docker Environment
+
+Copy the Docker template file if not already present:
+
+```bash
+cp .env.docker.example .env.docker
+# Edit .env.docker with your LLM API keys and ServiceNow instance credentials
+```
+
+### 2. Start Services
+
+Build and launch all containerized services (`db`, `redis`, `api`, `worker`, `frontend`):
+
+```bash
+docker compose --env-file .env.docker up --build -d
+```
+
+Compose automatically enforces dependency readiness: `api` and `worker` wait for PostgreSQL and Redis health checks before starting.
+
+### 3. Initialize Database Schema & Seed User
 
 ```bash
 docker compose exec api python scripts/init_db.py
 ```
 
-### 4. Run the API Server
+### 4. Docker Application URLs
+
+| Application / Service | URL | Note |
+|-----------------------|-----|------|
+| **Web UI & API Proxy** | `http://localhost:80` | Nginx reverse-proxies frontend, API, and screenshots |
+| **Direct Backend API** | `http://localhost:8000` | FastAPI direct port binding |
+| **API Swagger Docs** | `http://localhost:8000/docs` | Interactive Swagger documentation |
+
+### 5. View Logs & Stop Containers
 
 ```bash
-uvicorn agent.main:app --reload --host 0.0.0.0 --port 8000
+# Stream all logs
+docker compose logs -f
+
+# Stream worker logs
+docker compose logs -f worker
+
+# Stop all services
+docker compose down
 ```
 
-### 4. Start an Agent Run
+### 6. Customizing Docker
+
+To customize Docker without modifying the main `docker-compose.yml`, copy the provided override template:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/agent/run \
-  -H "Content-Type: application/json" \
-  -d '{"goal": "Test the complete Incident lifecycle"}'
+cp docker-compose.override.example.yml docker-compose.override.yml
+# Edit docker-compose.override.yml to mount local directories or adjust port mappings
 ```
 
-### 5. Check Status
-
-```bash
-curl http://localhost:8000/api/v1/agent/status/{session_id}
-```
-
-### 6. Get Report
-
-```bash
-curl http://localhost:8000/api/v1/agent/report/{session_id}
-```
+---
 
 ## API Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/v1/health` | Health check |
-| `POST` | `/api/v1/agent/run` | Start an agent run |
-| `GET` | `/api/v1/agent/status/{id}` | Get agent status |
-| `GET` | `/api/v1/agent/report/{id}` | Get test report |
-| `POST` | `/api/v1/agent/stop/{id}` | Stop a running agent |
+| `GET` | `/api/v1/health` | Basic service ping |
+| `GET` | `/api/v1/ready` | Full readiness probe (PostgreSQL, pgvector, Redis, storage) |
+| `GET` | `/api/v1/diagnostics/paths` | Safe runtime diagnostic information and path resolution |
+| `POST` | `/api/v1/agent/run` | Start an autonomous agent run |
+| `GET` | `/api/v1/agent/status/{id}` | Get agent run status and metrics |
+| `GET` | `/api/v1/agent/report/{id}` | Get generated test report |
+| `GET` | `/api/v1/runs/{id}/perception` | Get perception evidence JSON (bounding boxes, frames) |
+| `GET` | `/api/v1/screenshots/{filename}` | Retrieve a captured screenshot |
+| `POST` | `/api/v1/agent/stop/{id}` | Gracefully stop an active agent run |
+
+---
 
 ## Running Tests
+
+### Backend Unit & Integration Tests
 
 ```bash
 # All tests
 pytest tests/ -v
 
-# Unit tests only
-pytest tests/unit/ -v
+# Runtime mode & config verification
+pytest tests/unit/test_runtime_modes.py tests/unit/test_config.py -v
 
-# Integration tests only
-pytest tests/integration/ -v
+# Readiness probe & diagnostics tests
+pytest tests/unit/test_readiness_and_diagnostics.py -v
+
+# Local Celery worker smoke pipeline test
+pytest tests/integration/test_local_worker_smoke.py -v
+```
+
+### Frontend Tests & Type Checking
+
+```bash
+cd frontend
+
+# Run Vitest unit & proxy routing tests
+npm test -- --run
+
+# Run TypeScript project checks
+npm run type-check
+
+# Build production frontend bundle
+npm run build
 ```
 
 ## Project Structure

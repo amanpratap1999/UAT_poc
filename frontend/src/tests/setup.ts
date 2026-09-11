@@ -21,11 +21,14 @@ const sessionStorageMock = (() => {
 Object.defineProperty(window, "sessionStorage", { value: sessionStorageMock });
 
 // Mock ResizeObserver
-global.ResizeObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}));
+class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+window.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver;
+global.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver;
 
 // Mock matchMedia (prefers-reduced-motion)
 Object.defineProperty(window, "matchMedia", {

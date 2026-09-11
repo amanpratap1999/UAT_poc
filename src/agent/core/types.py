@@ -43,6 +43,11 @@ class AgentState(StrEnum):
     LEARNING = "learning"
     COMPLETED = "completed"
     FAILED = "failed"
+    PRECONDITION_FAILED = "precondition_failed"
+    BLOCKED = "blocked"
+    PAUSED = "paused"
+    CANCELLED = "cancelled"
+    AWAITING_USER_INPUT = "awaiting_user_input"
 
 
 class ToolCategory(StrEnum):
@@ -62,6 +67,44 @@ class StepStatus(StrEnum):
     SUCCESS = "success"
     FAILED = "failed"
     SKIPPED = "skipped"
+    BLOCKED = "blocked"
+
+
+class RunEventType(StrEnum):
+    """Canonical event types emitted during live agent execution."""
+
+    RUN_STARTED = "run_started"
+    INTENT_PARSED = "intent_parsed"
+    PLAN_CREATED = "plan_created"
+    PRECONDITION_CHECK_STARTED = "precondition_check_started"
+    PRECONDITION_CHECK_PASSED = "precondition_check_passed"
+    PRECONDITION_CHECK_FAILED = "precondition_check_failed"
+    STEP_STARTED = "step_started"
+    STEP_FINISHED = "step_finished"
+    CLARIFICATION_REQUESTED = "clarification_requested"
+    APPROVAL_PROMPT = "approval_prompt"
+    RUN_PAUSED = "run_paused"
+    RUN_RESUMED = "run_resumed"
+    RUN_CANCELLED = "run_cancelled"
+    RUN_FINISHED = "run_finished"
+    RUN_FAILED = "run_failed"
+
+    # Backward-compatible mappings
+    ACTION_STARTED = "step_started"
+    ACTION_COMPLETED = "step_finished"
+    APPROVAL_REQUIRED = "approval_prompt"
+    USER_INPUT_REQUIRED = "clarification_requested"
+    RUN_COMPLETED = "run_finished"
+
+
+class RunControlStatus(StrEnum):
+    """Shared control status constants."""
+
+    RUNNING = "running"
+    PAUSED = "paused"
+    CANCELLED = "cancelled"
+    AWAITING_USER_INPUT = "awaiting_user_input"
+    AWAITING_APPROVAL = "awaiting_approval"
 
 
 class PageType(StrEnum):

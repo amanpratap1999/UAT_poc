@@ -20,7 +20,7 @@ export function RunTable({ runs }: RunTableProps) {
   if (runs.length === 0) {
     return (
       <div className="surface-card flex flex-col items-center gap-3 py-12 text-center">
-        <p className="text-sm text-ink-400">No runs match your filters.</p>
+        <p className="text-sm text-body">No runs match your filters.</p>
       </div>
     );
   }
@@ -43,32 +43,39 @@ export function RunTable({ runs }: RunTableProps) {
           {runs.map((run) => (
             <TableRow key={run.id}>
               <TableCell>
-                <span className="font-mono text-xs text-ink-400" title={run.id}>
+                <span
+                  className="rounded bg-canvas px-1.5 py-0.5 font-mono text-xs text-body"
+                  title={run.id}
+                >
                   {run.id.slice(0, 8)}…
                 </span>
               </TableCell>
               <TableCell>
-                <span className="text-sm text-ink-100" title={run.goal}>
+                <Link
+                  to={`/runs/${run.id}`}
+                  className="block max-w-md truncate text-sm font-medium text-ink hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  title={run.goal}
+                >
                   {truncate(run.goal, 60)}
-                </span>
+                </Link>
               </TableCell>
               <TableCell>
                 <RunStatusBadge status={run.status} withDot />
               </TableCell>
               <TableCell>
-                <span className="font-mono text-xs text-ink-400">
+                <span className="font-mono text-xs text-body">
                   {formatDateTime(run.start_time)}
                 </span>
               </TableCell>
               <TableCell>
-                <span className="font-mono text-xs text-ink-400">
+                <span className="font-mono text-xs text-body">
                   {formatDuration(run.duration_seconds)}
                 </span>
               </TableCell>
               <TableCell>
                 <span
-                  className={`font-mono text-sm ${
-                    run.defect_count > 0 ? "text-amber-500" : "text-ink-400"
+                  className={`font-mono text-sm font-medium ${
+                    run.defect_count > 0 ? "text-status-blocked" : "text-faint"
                   }`}
                 >
                   {run.defect_count}
@@ -77,7 +84,7 @@ export function RunTable({ runs }: RunTableProps) {
               <TableCell>
                 <Link
                   to={`/runs/${run.id}`}
-                  className="inline-flex items-center gap-1 text-xs text-ink-400 hover:text-signal-teal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal-teal"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                   aria-label={`View run ${run.id.slice(0, 8)}`}
                 >
                   <ExternalLink size={14} aria-hidden="true" />

@@ -84,3 +84,85 @@ async def test_disambiguate_locator_click_unaffected(mock_page):
         mock_locator, "label:Something", "click", 5000
     )
     assert resolved == mock_locator
+
+
+@pytest.mark.asyncio
+async def test_resolve_locator_semantic_string(mock_page):
+    """Test unprefixed semantic strings are resolved using semantic hierarchy."""
+    interactor = PageInteractor(mock_page)
+    
+    mock_ctx = MagicMock()
+    mock_role = MagicMock()
+    mock_role.or_ = MagicMock(return_value=mock_role)
+    mock_ctx.get_by_role.return_value = mock_role
+    mock_ctx.get_by_label.return_value = mock_role
+    mock_ctx.get_by_title.return_value = mock_role
+    mock_ctx.get_by_text.return_value = mock_role
+    mock_ctx.locator.return_value = mock_role
+    
+    interactor._get_active_context = MagicMock(return_value=mock_ctx)
+    
+    locator = interactor._resolve_locator("Custom Action")
+    
+    # Should have called the semantic methods
+    mock_ctx.get_by_role.assert_any_call("button", name="Custom Action")
+    mock_ctx.get_by_role.assert_any_call("link", name="Custom Action")
+    mock_ctx.get_by_label.assert_any_call("Custom Action")
+    mock_ctx.get_by_title.assert_any_call("Custom Action", exact=False)
+    mock_ctx.get_by_text.assert_any_call("Custom Action", exact=False)
+    
+    assert locator == mock_role
+
+
+@pytest.mark.asyncio
+async def test_resolve_locator_nth_chaining(mock_page):
+    """Test that >> nth=N selectors are properly parsed and chained."""
+    interactor = PageInteractor(mock_page)
+    
+    mock_ctx = MagicMock()
+    mock_base_loc = MagicMock()
+    mock_nth_loc = MagicMock()
+    mock_base_loc.nth.return_value = mock_nth_loc
+    mock_ctx.get_by_text.return_value = mock_base_loc
+    mock_ctx.locator.return_value = mock_base_loc
+    
+    interactor._get_active_context = MagicMock(return_value=mock_ctx)
+    
+    res = interactor._resolve_locator("text:Click Me >> nth=2")
+    mock_base_loc.nth.assert_called_with(2)
+    assert res == mock_nth_loc
+
+
+@pytest.mark.asyncio
+async def test_resolve_locator_explicit_prefixes(mock_page):
+    """Test explicit prefixes bypass semantic fallback."""
+    interactor = PageInteractor(mock_page)
+    
+    mock_ctx = MagicMock()
+    mock_ctx.get_by_role.return_value = "role_locator"
+    mock_ctx.get_by_title.return_value = "title_locator"
+    mock_ctx.locator.return_value = "css_locator"
+    interactor._get_active_context = MagicMock(return_value=mock_ctx)
+    
+    assert interactor._resolve_locator("role:button:Submit") == "role_locator"
+    mock_ctx.get_by_role.assert_called_with("button", name="Submit")
+    
+    assert interactor._resolve_locator("title:Close") == "title_locator"
+    mock_ctx.get_by_title.assert_called_with("Close", exact=False)
+    
+    assert interactor._resolve_locator("css:.btn-primary") == "css_locator"
+    mock_ctx.locator.assert_called_with("css=.btn-primary")
+
+
+@pytest.mark.asyncio
+async def test_resolve_candidates_catches_exception(mock_page):
+    """Test invalid locators don't crash candidate resolution."""
+    interactor = PageInteractor(mock_page)
+    
+    mock_locator = AsyncMock()
+    mock_locator.count.side_effect = Exception("DOMException: Invalid selector")
+    interactor._resolve_locator = MagicMock(return_value=mock_locator)
+    
+    candidates = await interactor.resolve_candidates("Some Invalid Target")
+    
+    assert candidates == []

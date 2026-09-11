@@ -11,27 +11,49 @@ interface MetricCardProps {
   icon: React.ComponentType<{ size?: number; className?: string }>;
   isLoading?: boolean;
   blocked?: boolean;
+  tone?: "neutral" | "warning" | "success";
 }
 
-export function MetricCard({ title, value, subtitle, icon: Icon, isLoading, blocked }: MetricCardProps) {
+export function MetricCard({ title, value, subtitle, icon: Icon, isLoading, blocked, tone = "neutral" }: MetricCardProps) {
   return (
-    <Card>
-      <CardHeader>
+    <Card className="group relative overflow-hidden p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-raise">
+      {/* Tone edge — subtle top hairline accent */}
+      <span
+        aria-hidden="true"
+        className={`absolute inset-x-0 top-0 h-px ${
+          tone === "warning"
+            ? "bg-status-blocked/50"
+            : tone === "success"
+            ? "bg-status-completed/50"
+            : "bg-transparent"
+        }`}
+      />
+      <CardHeader className="mb-3">
         <CardTitle>{title}</CardTitle>
-        <Icon size={14} className="text-ink-600" aria-hidden="true" />
+        <span
+          className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+            tone === "warning"
+              ? "bg-status-blocked/10 text-status-blocked"
+              : tone === "success"
+              ? "bg-status-completed/10 text-status-completed"
+              : "bg-ink/5 text-muted"
+          }`}
+        >
+          <Icon size={15} aria-hidden="true" />
+        </span>
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <Skeleton className="h-8 w-24" />
+          <Skeleton className="h-9 w-24" />
         ) : blocked ? (
           <div>
-            <p className="font-mono text-xs text-ink-600">Not yet available</p>
-            <p className="mt-1 text-2xs text-ink-600">Requires additional backend instrumentation</p>
+            <p className="font-mono text-sm text-faint">Not yet available</p>
+            <p className="mt-1 text-2xs text-faint">Requires additional backend instrumentation</p>
           </div>
         ) : (
           <div>
-            <p className="font-mono text-2xl font-medium text-ink-100">{value}</p>
-            {subtitle && <p className="mt-1 font-mono text-xs text-ink-400">{subtitle}</p>}
+            <p className="font-mono text-3xl font-medium tracking-tight text-ink">{value}</p>
+            {subtitle && <p className="mt-1.5 text-xs text-muted">{subtitle}</p>}
           </div>
         )}
       </CardContent>
@@ -60,6 +82,7 @@ export function MetricsGrid({ metrics, isLoading }: MetricsGridProps) {
         subtitle={metrics?.total_runs ? `${((metrics.total_defects / metrics.total_runs)).toFixed(1)} per run` : undefined}
         icon={Bug}
         isLoading={isLoading}
+        tone={metrics?.total_defects ? "warning" : "success"}
       />
       <MetricCard
         title="Avg Run Duration"
@@ -84,17 +107,17 @@ interface BlockedMetricsProps {
 export function BlockedMetricsBanner({ className }: BlockedMetricsProps) {
   return (
     <div
-      className={`flex items-start gap-3 rounded border border-graphite-600 bg-graphite-800 p-4 ${className ?? ""}`}
+      className={`flex items-start gap-3 rounded-lg border border-line bg-card p-4 shadow-card ${className ?? ""}`}
     >
-      <AlertCircle size={16} className="mt-0.5 shrink-0 text-amber-500" aria-hidden="true" />
+      <AlertCircle size={16} className="mt-0.5 shrink-0 text-status-blocked" aria-hidden="true" />
       <div>
-        <p className="text-sm font-medium text-ink-100">
+        <p className="text-sm font-medium text-ink">
           Some metrics require additional backend instrumentation
         </p>
-        <p className="mt-1 text-xs text-ink-400">
+        <p className="mt-1 text-xs leading-relaxed text-body">
           Defect detection rate, false positive/negative rate, vision-fallback rate, and cost per
           run are not yet available from the backend{" "}
-          <code className="font-mono">/api/v1/metrics</code> endpoint. They will appear here once
+          <code className="rounded bg-canvas px-1 py-0.5 font-mono text-2xs text-body">/api/v1/metrics</code> endpoint. They will appear here once
           the backend exposes them.
         </p>
       </div>

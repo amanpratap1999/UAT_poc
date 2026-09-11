@@ -94,6 +94,56 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return response.json() as Promise<T>;
 }
 
+// ─── Binary (blob) fetch with auth ────────────────────────────────────────────
+
+async function fetchBlob(path: string, signal?: AbortSignal): Promise<Blob> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const url = resolveApiUrl(path);
+  const response = await fetch(url, { method: "GET", headers, signal });
+
+  if (response.status === 401) {
+    clearToken();
+    throw new ApiError(401, "Session expired. Please log in again.");
+  }
+
+  if (!response.ok) {
+    let detail: unknown;
+    try {
+      detail = await response.json();
+    } catch {
+      detail = await response.text().catch(() => "");
+    }
+    const message =
+      typeof detail === "object" && detail !== null && "detail" in detail
+        ? String((detail as { detail: unknown }).detail)
+        : `Failed to load resource (${response.status})`;
+    throw new ApiError(response.status, message, detail);
+  }
+
+  const contentType = response.headers.get("content-type") || "";
+  const blob = await response.blob();
+
+  if (blob.size === 0) {
+    throw new ApiError(response.status, "Received empty screenshot image data");
+  }
+
+  if (
+    contentType &&
+    !contentType.startsWith("image/") &&
+    !contentType.includes("application/octet-stream")
+  ) {
+    throw new ApiError(
+      response.status,
+      `Expected image response but received ${contentType}`
+    );
+  }
+
+  return blob;
+}
+
 // ─── Typed API methods ────────────────────────────────────────────────────────
 
 export const api = {
@@ -122,6 +172,14 @@ export const api = {
   },
 
   /**
+   * GET a binary blob (e.g. a screenshot) with auth headers.
+   * Returns a Blob suitable for URL.createObjectURL().
+   */
+  getBlob(path: string, signal?: AbortSignal): Promise<Blob> {
+    return fetchBlob(path, signal);
+  },
+
+  /**
    * POST with application/x-www-form-urlencoded encoding.
    * Used for OAuth2 password flow (POST /api/v1/token).
    */
@@ -145,4 +203,50 @@ export const api = {
       return res.json() as Promise<T>;
     });
   },
+
+  // ─── Interactive Agent Controls ──────────────────────────────────────────
+
+  pauseRun(runId: string, reason = "User requested pause"): Promise<{ status: string; message: string }> {
+    return this.post(`/api/v1/runs/${runId}/pause`, { reason });
+  },
+
+  resumeRun(runId: string, message = "User resumed run"): Promise<{ status: string; message: string }> {
+    return this.post(`/api/v1/runs/${runId}/resume`, { message });
+  },
+
+  cancelRun(runId: string, reason = "User cancelled run"): Promise<{ status: string; message: string }> {
+    return this.post(`/api/v1/runs/${runId}/cancel`, { reason });
+  },
+
+  clarifyRun(runId: string, requestId: string, answer: string): Promise<{ status: string; message: string }> {
+    return this.post(`/api/v1/runs/${runId}/clarify`, { request_id: requestId, answer });
+  },
+
+  approveRun(
+    runId: string,
+    promptId: string,
+    approved: boolean,
+    feedback?: string
+  ): Promise<{ status: string; message: string }> {
+    return this.post(`/api/v1/runs/${runId}/approve`, { prompt_id: promptId, approved, feedback });
+  },
+
+  generateTestCases(payload: {
+    story?: string;
+    requirement?: string;
+    acceptance_criteria?: string[];
+    table_name?: string;
+    workflow_type?: string;
+  }): Promise<{ story_id: string; test_cases: any[]; count: number }> {
+    return this.post("/api/v1/test-cases/generate", payload);
+  },
+
+  executeTestCase(testCaseId: string): Promise<{ session_id: string; status: string; message: string }> {
+    return this.post(`/api/v1/test-cases/${testCaseId}/execute`, {});
+  },
+
+  getStreamTicket(runId: string): Promise<{ ticket: string }> {
+    return this.post(`/api/v1/runs/${runId}/stream-ticket`, {});
+  },
 };
+

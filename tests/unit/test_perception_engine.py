@@ -46,6 +46,10 @@ async def test_perception_engine_single_dom_match():
     )
     executor.execute.return_value = exec_result
 
+    verifier.verify_action.return_value = VerificationResult(
+        is_verified=True, confidence=1.0, reasoning="ok"
+    )
+
     engine = PerceptionDecisionEngine(
         browser, interactor, executor, grounder, verifier, learning, observer
     )
@@ -57,8 +61,8 @@ async def test_perception_engine_single_dom_match():
     assert result.success is True
     # Verify vision was not called
     grounder.ground_element.assert_not_called()
-    # Verify behavioral verifier was not called (since we didn't use vision or recovered)
-    verifier.verify_action.assert_not_called()
+    # Verify behavioral verifier was called to verify action outcome
+    verifier.verify_action.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -161,3 +165,78 @@ async def test_perception_engine_grounding_failure():
     assert result.success is False
     assert result.error_type == "GroundingFailure"
     assert "Visual grounding failed critically" in result.error
+
+
+@pytest.mark.asyncio
+async def test_perception_engine_dom_failure_escalates_to_vision():
+    """Test that when a DOM locator fails at execution time, the engine escalates to Moondream vision."""
+    browser = AsyncMock()
+    browser.take_screenshot.return_value = "screenshot.png"
+    page_mock = AsyncMock()
+    page_mock.screenshot = AsyncMock(return_value=b"bytes")
+    browser.get_page = MagicMock(return_value=page_mock)
+
+    interactor = AsyncMock()
+    executor = AsyncMock()
+    grounder = AsyncMock()
+    verifier = AsyncMock()
+    learning = AsyncMock()
+    observer = AsyncMock()
+
+    obs = MagicMock()
+    obs.url = "http://example.com"
+    obs.model_dump_json.return_value = "{}"
+    observer.observe.return_value = obs
+
+    learning.get_valid_recovery.return_value = None
+
+    # Interactor initially finds 1 DOM candidate
+    from agent.perception.models import BoundingBox
+
+    dom_cand = PerceptionCandidate(
+        source="dom",
+        target_description="Show Password",
+        locator_str="Show Password >> nth=0",
+        is_visible=True,
+        is_enabled=True,
+        confidence=1.0,
+        bounding_box=BoundingBox(x=100, y=200, width=50, height=20),
+    )
+    interactor.resolve_candidates.return_value = [dom_cand]
+
+    # Executor fails on DOM locator, but succeeds when given coordinate action
+    dom_fail_result = ActionResult(
+        success=False,
+        action=AgentAction(action_type=ActionType.CLICK.value, target="Show Password >> nth=0"),
+        error="Element not found: Show Password >> nth=0",
+    )
+    vision_success_result = ActionResult(
+        success=True,
+        action=AgentAction(action_type=ActionType.CLICK.value, target="Show Password"),
+    )
+    executor.execute.side_effect = [dom_fail_result, vision_success_result]
+
+    # Grounder returns a visual candidate upon escalation
+    vis_cand = PerceptionCandidate(
+        source="vision",
+        target_description="Show Password",
+        confidence=0.92,
+        bounding_box=BoundingBox(x=150, y=250, width=40, height=20),
+    )
+    grounder.ground_element.return_value = vis_cand
+
+    verifier.verify_action.return_value = VerificationResult(
+        is_verified=True, confidence=0.9, reasoning="Visual toggle successful"
+    )
+
+    engine = PerceptionDecisionEngine(
+        browser, interactor, executor, grounder, verifier, learning, observer
+    )
+
+    action = AgentAction(action_type=ActionType.CLICK.value, target="Show Password")
+    result = await engine.execute_with_perception(action)
+
+    assert result.success is True
+    # Grounder was called because DOM execution failed and escalated
+    grounder.ground_element.assert_called_once()
+    assert executor.execute.call_count == 2

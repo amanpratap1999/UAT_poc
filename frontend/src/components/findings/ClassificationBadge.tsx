@@ -6,6 +6,7 @@ const LABEL: Record<AnomalyClassification, string> = {
   "Application Bug": "App Bug",
   "Configuration Difference": "Config Diff",
   "Expected Customization": "Expected",
+  "Agent Issue": "Agent Issue",
   "Unknown": "Unknown",
 };
 
@@ -14,7 +15,7 @@ interface ClassificationBadgeProps {
 }
 
 /**
- * Classification badge — uses four muted classification colours.
+ * Classification badge — theme-aware via CSS-variable colours.
  * NEVER uses signal-teal — that is reserved for perception/live state (Invariant 1).
  */
 export function ClassificationBadge({ capability }: ClassificationBadgeProps) {
@@ -25,8 +26,8 @@ export function ClassificationBadge({ capability }: ClassificationBadgeProps) {
 
   return (
     <span
-      className="inline-flex items-center rounded-sm px-2 py-0.5 font-mono text-2xs font-medium uppercase tracking-wider"
-      style={{ color, backgroundColor: bg }}
+      className="inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-2xs font-medium tracking-wide"
+      style={{ color, backgroundColor: bg, borderColor: color }}
       title={classification}
     >
       {label}

@@ -6,6 +6,7 @@ from typing import Any
 
 from agent.cognition.models import InvestigationResult
 from agent.core.logging import get_logger
+from agent.domain.defect_scope import classify_step_failure
 from agent.domain.knowledge_model import CustomerKnowledgeModel
 
 logger = get_logger(__name__)
@@ -16,6 +17,14 @@ class InvestigationEngine:
 
     Prevents false positives by checking observed behavior against known
     customer configurations (e.g. customizations, UI policies) or learned experiences.
+
+    Semantics: an expectation mismatch is only a candidate application defect
+    when the mismatch is about the application's observed behavior. If the
+    agent itself failed to perform/observe/verify the step (agent-scope
+    failure — element not found, perception failure, inconclusive
+    behavioral verification), nothing about the application can be
+    concluded and the mismatch is classified as an agent issue, never a
+    verified application defect.
     """
 
     def __init__(
@@ -27,7 +36,13 @@ class InvestigationEngine:
         self._learning_service = learning_service
 
     async def investigate_mismatch(
-        self, action: Any, expected: str, actual: str, table_name: str | None = None
+        self,
+        action: Any,
+        expected: str,
+        actual: str,
+        table_name: str | None = None,
+        result: Any = None,
+        validation: Any = None,
     ) -> InvestigationResult:
         """Investigate why actual behavior differed from expected.
 
@@ -36,10 +51,68 @@ class InvestigationEngine:
             expected: The expected outcome.
             actual: The observed outcome (e.g., error message or missing field).
             table_name: Contextual table for knowledge lookup.
+            result: The ActionResult (optional, for scope classification).
+            validation: The ValidationResult (optional, for scope classification).
 
         Returns:
             InvestigationResult containing the classification.
         """
+        # 0. Defect-scope gate: agent-side and precondition failures are never application
+        #    defects. If a precondition failed or the engine could not perform/observe/verify,
+        #    no conclusion about an application defect can be drawn.
+        scope = classify_step_failure(result, validation)
+        if scope == "precondition":
+            reason_text = (
+                getattr(validation, "precondition_details", {}).get("reason")
+                if validation
+                else None
+            ) or f"Precondition failed. Expected: {expected} | Actual: {actual}"
+            logger.info(
+                "investigation_skipped_precondition_failed",
+                table=table_name,
+                reason=reason_text,
+            )
+            return InvestigationResult(
+                is_defect=False,
+                classification="precondition_failed",
+                reasoning=(
+                    f"Precondition mismatch detected: {reason_text}. "
+                    "The live record/environment did not satisfy the required starting state. "
+                    "This is classified as PRECONDITION_FAILED, not an application defect."
+                ),
+                evidence=f"Precondition failed. Expected: {expected} | Actual: {actual}",
+                knowledge_reference="ServiceNow:Preconditions",
+            )
+
+        if scope == "agent":
+            logger.info(
+                "investigation_skipped_agent_scope",
+                table=table_name,
+                reason="agent could not perform/observe/verify — no application conclusion possible",
+            )
+            return InvestigationResult(
+                is_defect=False,
+                classification="agent_execution_issue",
+                reasoning=(
+                    "The mismatch is attributable to the QA agent (element "
+                    "location, perception, execution, or verification failure), "
+                    "not the application. Recorded as an agent issue."
+                ),
+                evidence=f"Agent-scope failure. Expected: {expected} | Actual: {actual}",
+            )
+
+        # Check if expectation is already satisfied (idempotent target state or passing validation)
+        if (validation and getattr(validation, "overall_passed", False)) or (
+            expected and actual and expected.strip().lower() == actual.strip().lower()
+        ):
+            logger.info("investigation_expectation_satisfied", expected=expected, actual=actual)
+            return InvestigationResult(
+                is_defect=False,
+                classification="idempotent_pass",
+                reasoning=f"Target state expectation satisfied ({actual}). Treated as valid pass/no-op.",
+                evidence=f"Expected: {expected} | Actual: {actual}",
+            )
+
         logger.info("investigating_mismatch", expected=expected, actual=actual, table=table_name)
 
         # 1. Consult CustomerKnowledgeModel to see if this is a known customization

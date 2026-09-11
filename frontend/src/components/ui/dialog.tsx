@@ -52,8 +52,7 @@ export function Dialog({ open, onClose, title, description, children, className 
     <dialog
       ref={dialogRef}
       className={cn(
-        "surface-elevated w-full max-w-lg rounded-lg p-0",
-        "backdrop:bg-graphite-950/70 backdrop:backdrop-blur-sm",
+        "surface-elevated w-full max-w-lg rounded-xl p-0",
         "open:animate-fade-in",
         className
       )}
@@ -61,13 +60,13 @@ export function Dialog({ open, onClose, title, description, children, className 
       aria-labelledby="dialog-title"
       aria-describedby={description ? "dialog-description" : undefined}
     >
-      <div className="flex items-start justify-between border-b border-graphite-600 p-5">
+      <div className="flex items-start justify-between border-b border-line p-5">
         <div>
-          <h2 id="dialog-title" className="font-display text-base font-semibold text-ink-100">
+          <h2 id="dialog-title" className="font-display text-base font-semibold text-ink">
             {title}
           </h2>
           {description && (
-            <p id="dialog-description" className="mt-1 text-sm text-ink-400">
+            <p id="dialog-description" className="mt-1 text-sm text-body">
               {description}
             </p>
           )}

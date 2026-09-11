@@ -62,3 +62,36 @@ class Finding(Base):
     severity = Column(String, nullable=True)
     evidence = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Screenshot(Base):
+    """Metadata and ownership tracking for captured screenshots."""
+
+    __tablename__ = "screenshots"
+
+    id = Column(String, primary_key=True)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    run_id = Column(String, ForeignKey("runs.id"), nullable=True, index=True)
+    filename = Column(String, nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class TestCaseModel(Base):
+    """Structured test case stored in database with tenant isolation."""
+
+    __tablename__ = "test_cases"
+
+    id = Column(String, primary_key=True)
+    tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
+    story_id = Column(String, nullable=True, index=True)
+    title = Column(String, nullable=False)
+    description = Column(String, default="")
+    target_record = Column(String, nullable=True)
+    expected_initial_state = Column(String, nullable=True)
+    preconditions = Column(JSON, nullable=True)
+    steps = Column(JSON, nullable=True)
+    final_assertions = Column(JSON, nullable=True)
+    cleanup_steps = Column(JSON, nullable=True)
+    acceptance_criteria = Column(JSON, nullable=True)
+    risk_level = Column(String, default="Medium")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -56,6 +56,30 @@ class BrowserLogEntry(BaseModel):
     source: str = Field(default="console", description="console, network, page_error")
 
 
+class AgentIssueReport(BaseModel):
+    """A diagnostic record of an agent/execution-side problem.
+
+    These are failures of the QA engine itself — element location, perception,
+    browser execution, verification, planning, or runtime errors. They are
+    deliberately distinct from application defects: an agent issue means the
+    engine could not perform/observe/verify, NOT that the ServiceNow
+    application misbehaved. They are preserved for engine diagnostics and
+    never counted toward the application defect count.
+    """
+
+    issue_id: str = Field(description="Unique issue identifier (e.g., AGI-001)")
+    title: str = Field(description="Short issue title")
+    description: str = Field(description="Detailed issue description")
+    category: str = Field(
+        default="execution",
+        description="execution | perception | verification | planning | runtime",
+    )
+    related_step_index: int | None = None
+    error_type: str | None = Field(
+        default=None, description="Exception/error type, if any"
+    )
+
+
 class TestReport(BaseModel):
     """Complete QA test report — the final deliverable of an agent run.
 
@@ -65,7 +89,7 @@ class TestReport(BaseModel):
 
     report_id: str = Field(description="Unique report identifier")
     goal: str = Field(description="The business goal that was tested")
-    status: str = Field(description="passed, failed, partial, error")
+    status: str = Field(description="passed, failed, precondition_failed, blocked, error")
     started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     completed_at: datetime | None = None
     duration_seconds: float = 0.0
@@ -81,6 +105,9 @@ class TestReport(BaseModel):
 
     # Defects
     defects: list[DefectReport] = Field(default_factory=list)
+
+    # Agent/execution issues — engine diagnostics, NEVER application defects
+    agent_issues: list[AgentIssueReport] = Field(default_factory=list)
 
     # Logs
     browser_logs: list[BrowserLogEntry] = Field(default_factory=list)
@@ -99,11 +126,29 @@ class TestReport(BaseModel):
         default_factory=list,
         description="Paths to all captured screenshots",
     )
+    video_recording_path: str | None = Field(
+        default=None,
+        description="Path to recorded video of browser execution if recording was enabled",
+    )
+    step_evidence: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Step-level evidence chain entries",
+    )
 
     @property
     def has_defects(self) -> bool:
         """Whether any defects were found."""
         return len(self.defects) > 0
+
+    @property
+    def defect_count(self) -> int:
+        """Number of verified application defects (agent issues excluded)."""
+        return len(self.defects)
+
+    @property
+    def agent_issue_count(self) -> int:
+        """Number of agent-side diagnostic issues."""
+        return len(self.agent_issues)
 
     @property
     def pass_rate(self) -> float:

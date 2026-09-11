@@ -17,10 +17,8 @@ export default function Dashboard() {
     <div className="flex flex-col gap-6 animate-fade-in">
       {/* Page heading */}
       <div>
-        <h1 className="font-display text-2xl font-semibold tracking-tight text-ink-100">
-          Dashboard
-        </h1>
-        <p className="mt-1 text-sm text-ink-400">
+        <h1 className="page-title">Dashboard</h1>
+        <p className="page-subtitle">
           Quality metrics for your ServiceNow QA runs
         </p>
       </div>
@@ -29,7 +27,7 @@ export default function Dashboard() {
       {metricsError && (
         <div
           role="alert"
-          className="flex items-start gap-3 rounded border border-status-failed/30 bg-status-failed/10 p-4 text-sm text-status-failed"
+          className="flex items-start gap-3 rounded-lg border border-status-failed/30 bg-status-failed/5 p-4 text-sm text-status-failed"
         >
           <AlertCircle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
           <div>

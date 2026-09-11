@@ -9,6 +9,7 @@ export type AnomalyClassification =
   | "Application Bug"
   | "Configuration Difference"
   | "Expected Customization"
+  | "Agent Issue"
   | "Unknown";
 
 /** Finding as returned by GET /api/v1/findings */
@@ -24,11 +25,12 @@ export interface Finding {
 }
 
 /**
- * Classify a raw capability string into one of the four known categories.
+ * Classify a raw capability string into one of the known categories.
  * Used for badge colouring until the backend surfaces classification explicitly.
  */
 export function classifyCapability(capability: string): AnomalyClassification {
   const lower = capability.toLowerCase();
+  if (lower.includes("agent issue")) return "Agent Issue";
   if (lower.includes("business") || lower.includes("rule")) return "Business Rule Failure";
   if (lower.includes("bug") || lower.includes("application")) return "Application Bug";
   if (lower.includes("config") || lower.includes("configuration")) return "Configuration Difference";
@@ -36,18 +38,25 @@ export function classifyCapability(capability: string): AnomalyClassification {
   return "Unknown";
 }
 
+/**
+ * Classification colours as CSS variables — values are defined per-theme in
+ * globals.css (--class-* tokens) so badges stay readable in both the light
+ * workspace and the dark theater. Never signal-teal (Invariant 1).
+ */
 export const CLASSIFICATION_COLORS: Record<AnomalyClassification, string> = {
-  "Business Rule Failure": "#6B85C4",
-  "Application Bug": "#E8A33D",
-  "Configuration Difference": "#9B7FC7",
-  "Expected Customization": "#7FA890",
-  "Unknown": "#5A5750",
+  "Business Rule Failure": "rgb(var(--class-business-rule))",
+  "Application Bug": "rgb(var(--class-app-bug))",
+  "Configuration Difference": "rgb(var(--class-config-diff))",
+  "Expected Customization": "rgb(var(--class-expected-custom))",
+  "Agent Issue": "rgb(var(--class-agent-issue))",
+  "Unknown": "rgb(var(--class-unknown))",
 };
 
 export const CLASSIFICATION_BG: Record<AnomalyClassification, string> = {
-  "Business Rule Failure": "rgba(107,133,196,0.15)",
-  "Application Bug": "rgba(232,163,61,0.15)",
-  "Configuration Difference": "rgba(155,127,199,0.15)",
-  "Expected Customization": "rgba(127,168,144,0.15)",
-  "Unknown": "rgba(90,87,80,0.15)",
+  "Business Rule Failure": "rgb(var(--class-business-rule) / 0.1)",
+  "Application Bug": "rgb(var(--class-app-bug) / 0.1)",
+  "Configuration Difference": "rgb(var(--class-config-diff) / 0.1)",
+  "Expected Customization": "rgb(var(--class-expected-custom) / 0.1)",
+  "Agent Issue": "rgb(var(--class-agent-issue) / 0.1)",
+  "Unknown": "rgb(var(--class-unknown) / 0.1)",
 };

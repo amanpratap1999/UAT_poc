@@ -27,6 +27,13 @@ async def test_incident_skill_can_handle() -> None:
     )
     assert skill.can_handle(intent_general) is True
 
+    intent_non_incident = StructuredIntent(
+        intent_type="GeneralValidation",
+        goal="Click Show Password on login page",
+        target_module="auth",
+    )
+    assert skill.can_handle(intent_non_incident) is False
+
 
 @pytest.mark.asyncio
 async def test_incident_skill_dynamic_plan() -> None:

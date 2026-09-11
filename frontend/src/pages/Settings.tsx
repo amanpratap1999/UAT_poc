@@ -10,10 +10,8 @@ export default function Settings() {
   return (
     <div className="flex flex-col gap-6 animate-fade-in">
       <div>
-        <h1 className="font-display text-2xl font-semibold tracking-tight text-ink-100">
-          Settings
-        </h1>
-        <p className="mt-1 text-sm text-ink-400">
+        <h1 className="page-title">Settings</h1>
+        <p className="page-subtitle">
           Account and workspace configuration
         </p>
       </div>
@@ -23,21 +21,23 @@ export default function Settings() {
         <Card>
           <CardHeader>
             <CardTitle>Account</CardTitle>
-            <SettingsIcon size={14} className="text-ink-600" aria-hidden="true" />
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink/5 text-muted">
+              <SettingsIcon size={15} aria-hidden="true" />
+            </span>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-4">
               <div>
-                <p className="data-label mb-0.5">Username</p>
-                <p className="font-mono text-sm text-ink-100">{user?.username ?? "—"}</p>
+                <p className="data-label mb-1">Username</p>
+                <p className="rounded-md bg-canvas px-2.5 py-1.5 font-mono text-sm text-ink">{user?.username ?? "—"}</p>
               </div>
               <div>
-                <p className="data-label mb-0.5">Role</p>
-                <p className="font-mono text-sm text-ink-100">{user?.role ?? "—"}</p>
+                <p className="data-label mb-1">Role</p>
+                <p className="rounded-md bg-canvas px-2.5 py-1.5 font-mono text-sm text-ink">{user?.role ?? "—"}</p>
               </div>
               <div>
-                <p className="data-label mb-0.5">Tenant</p>
-                <p className="font-mono text-xs text-ink-400">{user?.tenant_id ?? "—"}</p>
+                <p className="data-label mb-1">Tenant</p>
+                <p className="rounded-md bg-canvas px-2.5 py-1.5 font-mono text-xs text-body">{user?.tenant_id ?? "—"}</p>
               </div>
             </div>
           </CardContent>
@@ -49,16 +49,18 @@ export default function Settings() {
             <CardTitle>Backend</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-4">
               <div>
-                <p className="data-label mb-0.5">API Base URL</p>
-                <p className="font-mono text-xs text-ink-400">
+                <p className="data-label mb-1">API Base URL</p>
+                <p className="rounded-md bg-canvas px-2.5 py-1.5 font-mono text-xs text-body break-all">
                   {apiBaseUrl || "(same-origin / relative proxy)"}
                 </p>
               </div>
               <div>
-                <p className="data-label mb-0.5">Auth Method</p>
-                <p className="font-mono text-xs text-ink-400">JWT Bearer (OAuth2 password)</p>
+                <p className="data-label mb-1">Auth Method</p>
+                <p className="rounded-md bg-canvas px-2.5 py-1.5 font-mono text-xs text-body">
+                  JWT Bearer (OAuth2 password)
+                </p>
               </div>
             </div>
           </CardContent>

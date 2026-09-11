@@ -24,9 +24,9 @@ User Goal: {raw_prompt}
 
 Respond with a JSON object:
 {{
-    "intent_type": "IncidentValidation|IncidentCreation|IncidentLifecycle|GeneralValidation",
+    "intent_type": "IncidentValidation|IncidentCreation|IncidentLifecycle|GeneralValidation|UIInteraction|AuthValidation",
     "goal": "Normalized concise goal statement",
-    "target_module": "incident|problem|change",
+    "target_module": "general|auth|ui|incident|problem|change",
     "priority": "High|Normal|Low",
     "confidence": 0.95,
     "is_ambiguous": false,
@@ -67,13 +67,22 @@ class IntentManager:
                         },
                     ]
                 )
+                target_mod = response.get("target_module", "").lower()
+                # Sanity check: don't classify as incident if prompt has zero incident keywords
+                prompt_lower = raw_prompt.lower()
+                if target_mod == "incident" and not any(k in prompt_lower for k in ["inc", "incident"]):
+                    target_mod = "auth" if any(k in prompt_lower for k in ["login", "password", "auth", "sign in"]) else "general"
+
+                if not target_mod:
+                    target_mod = "incident" if any(k in prompt_lower for k in ["inc", "incident"]) else "general"
+
                 return StructuredIntent(
-                    intent_type=response.get("intent_type", "IncidentValidation"),
+                    intent_type=response.get("intent_type", "GeneralValidation"),
                     goal=response.get("goal", raw_prompt),
                     raw_prompt=raw_prompt,
                     priority=response.get("priority", "Normal"),
                     confidence=float(response.get("confidence", 0.95)),
-                    target_module=response.get("target_module", "incident"),
+                    target_module=target_mod,
                     extracted_entities=response.get("extracted_entities", {}),
                     is_ambiguous=bool(response.get("is_ambiguous", False)),
                     clarification_needed=response.get("clarification_needed"),
@@ -83,7 +92,6 @@ class IntentManager:
 
         # Heuristic rule fallback with extended Incident intent patterns
         prompt_lower = raw_prompt.lower()
-        intent_type = "IncidentValidation"
         extracted_entities: dict[str, Any] = {}
 
         import re
@@ -92,18 +100,26 @@ class IntentManager:
         if inc_match:
             extracted_entities["incident_number"] = inc_match.group(0).upper()
 
-        if "open" in prompt_lower or "view" in prompt_lower:
-            intent_type = "IncidentOpen"
-        elif "resolve" in prompt_lower or "resolution" in prompt_lower:
-            intent_type = "IncidentResolutionCheck"
-        elif "assignment" in prompt_lower or "assign" in prompt_lower:
-            intent_type = "IncidentAssignmentValidation"
-        elif "mandatory" in prompt_lower or "required" in prompt_lower:
-            intent_type = "IncidentMandatoryFieldsCheck"
-        elif "lifecycle" in prompt_lower or "transition" in prompt_lower:
-            intent_type = "IncidentLifecycle"
-        elif "create" in prompt_lower:
-            intent_type = "IncidentCreation"
+        is_incident = bool(inc_match) or "incident" in prompt_lower
+
+        if is_incident:
+            target_module = "incident"
+            intent_type = "IncidentValidation"
+            if "open" in prompt_lower or "view" in prompt_lower:
+                intent_type = "IncidentOpen"
+            elif "resolve" in prompt_lower or "resolution" in prompt_lower:
+                intent_type = "IncidentResolutionCheck"
+            elif "assignment" in prompt_lower or "assign" in prompt_lower:
+                intent_type = "IncidentAssignmentValidation"
+            elif "mandatory" in prompt_lower or "required" in prompt_lower:
+                intent_type = "IncidentMandatoryFieldsCheck"
+            elif "lifecycle" in prompt_lower or "transition" in prompt_lower:
+                intent_type = "IncidentLifecycle"
+            elif "create" in prompt_lower:
+                intent_type = "IncidentCreation"
+        else:
+            target_module = "auth" if any(k in prompt_lower for k in ["login", "password", "auth", "sign in"]) else "general"
+            intent_type = "GeneralValidation"
 
         return StructuredIntent(
             intent_type=intent_type,
@@ -111,6 +127,6 @@ class IntentManager:
             raw_prompt=raw_prompt,
             priority="Normal",
             confidence=0.95,
-            target_module="incident",
+            target_module=target_module,
             extracted_entities=extracted_entities,
         )

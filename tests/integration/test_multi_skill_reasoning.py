@@ -106,3 +106,6 @@ async def test_multi_skill_cognitive_loop():
     assert len(memory.failures) == 1
     assert memory.failures[0].error_type == "InvestigationVerifiedDefect"
     assert "hyp-inc" in memory.failures[0].error_message
+    # And the verdict was recorded for the reporting engine
+    assert len(memory.defect_verdicts) == 1
+    assert memory.defect_verdicts[0].is_defect is True

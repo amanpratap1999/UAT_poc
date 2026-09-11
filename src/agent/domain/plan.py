@@ -7,6 +7,7 @@ Each step tracks its status through the execution lifecycle.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -21,6 +22,34 @@ class PlanStep(BaseModel):
     expected_outcome: str = Field(
         default="",
         description="What we expect to see after this step succeeds",
+    )
+    preconditions: list[str] = Field(
+        default_factory=list,
+        description="Explicit preconditions required before executing this step",
+    )
+    actions: list[str] = Field(
+        default_factory=list,
+        description="Ordered action descriptors for this step",
+    )
+    postconditions: list[str] = Field(
+        default_factory=list,
+        description="Expected postconditions that must hold after execution",
+    )
+    evidence_requirements: list[str] = Field(
+        default_factory=list,
+        description="Required evidence artifacts (screenshots, dom_diff, locators)",
+    )
+    risk_level: str = Field(
+        default="Medium",
+        description="Risk level: Low, Medium, High, Critical",
+    )
+    observed_values: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Observed field/state values captured during step execution",
+    )
+    expected_values: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Expected field/state values for this step",
     )
     status: StepStatus = StepStatus.PENDING
     error: str | None = None
@@ -46,6 +75,12 @@ class PlanStep(BaseModel):
     def mark_skipped(self, reason: str = "") -> None:
         """Mark step as skipped."""
         self.status = StepStatus.SKIPPED
+        self.error = reason
+        self.completed_at = datetime.now(UTC)
+
+    def mark_blocked(self, reason: str = "") -> None:
+        """Mark step as blocked."""
+        self.status = StepStatus.BLOCKED
         self.error = reason
         self.completed_at = datetime.now(UTC)
 
@@ -80,11 +115,11 @@ class ExecutionPlan(BaseModel):
 
     @property
     def completed_steps(self) -> list[PlanStep]:
-        """All steps that have been completed (success or failed)."""
+        """All steps that have reached a terminal state."""
         return [
             s
             for s in self.steps
-            if s.status in (StepStatus.SUCCESS, StepStatus.FAILED, StepStatus.SKIPPED)
+            if s.status in (StepStatus.SUCCESS, StepStatus.FAILED, StepStatus.SKIPPED, StepStatus.BLOCKED)
         ]
 
     @property
@@ -94,27 +129,52 @@ class ExecutionPlan(BaseModel):
             return 0.0
         return len(self.completed_steps) / len(self.steps) * 100
 
-    def add_step(self, description: str, expected_outcome: str = "") -> PlanStep:
+    def add_step(
+        self,
+        description: str,
+        expected_outcome: str = "",
+        preconditions: list[str] | None = None,
+        actions: list[str] | None = None,
+        postconditions: list[str] | None = None,
+        evidence_requirements: list[str] | None = None,
+        risk_level: str = "Medium",
+        expected_values: dict[str, Any] | None = None,
+    ) -> PlanStep:
         """Add a new step to the end of the plan."""
         step = PlanStep(
             step_index=len(self.steps),
             description=description,
             expected_outcome=expected_outcome,
+            preconditions=preconditions or [],
+            actions=actions or [],
+            postconditions=postconditions or [],
+            evidence_requirements=evidence_requirements or ["screenshot_after"],
+            risk_level=risk_level,
+            expected_values=expected_values or {},
         )
         self.steps.append(step)
         return step
+
+    def skip_remaining_steps(
+        self, from_index: int | None = None, reason: str = "", **kwargs: Any
+    ) -> None:
+        """Mark all steps from from_index onwards as skipped."""
+        start_idx = from_index if from_index is not None else kwargs.get("from_step_index", 0)
+        for step in self.steps:
+            if step.step_index >= start_idx and step.status in (StepStatus.PENDING, StepStatus.IN_PROGRESS):
+                step.mark_skipped(reason)
 
     def to_summary(self) -> str:
         """Produce a compact text summary of the plan for LLM context."""
         lines = [f"Plan for: {self.goal}", f"Progress: {self.progress_pct:.0f}%", ""]
         for step in self.steps:
             status_icon = {
-                StepStatus.PENDING: "⬜",
-                StepStatus.IN_PROGRESS: "🔄",
-                StepStatus.SUCCESS: "✅",
-                StepStatus.FAILED: "❌",
-                StepStatus.SKIPPED: "⏭️",
-            }.get(step.status, "❓")
+                StepStatus.PENDING: "[ ]",
+                StepStatus.IN_PROGRESS: "[...]",
+                StepStatus.SUCCESS: "[PASS]",
+                StepStatus.FAILED: "[FAIL]",
+                StepStatus.SKIPPED: "[SKIP]",
+            }.get(step.status, "[?]")
             lines.append(f"  {status_icon} Step {step.step_index}: {step.description}")
             if step.error:
                 lines.append(f"      Error: {step.error}")

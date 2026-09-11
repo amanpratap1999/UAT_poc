@@ -113,3 +113,32 @@ async def test_compact_summary(engine: ObservationEngine) -> None:
     assert "Incident" in summary
     assert "Page:" in summary
     assert "Type:" in summary
+
+
+@pytest.mark.asyncio
+async def test_extract_password_fields(engine: ObservationEngine) -> None:
+    """Test that password inputs are extracted correctly."""
+    page = _make_mock_page()
+    
+    mock_locator = AsyncMock()
+    mock_locator.count.return_value = 1
+    
+    mock_input = AsyncMock()
+    mock_input.is_visible.return_value = True
+    mock_input.get_attribute.side_effect = lambda attr: "password" if attr == "type" else None
+    mock_input.evaluate.return_value = "input"
+    mock_input.input_value.return_value = "secret"
+    
+    mock_locator.nth = MagicMock(return_value=mock_input)
+    page.locator.return_value = mock_locator
+    
+    # Mock label detection to return a label
+    engine._get_field_label = AsyncMock(return_value="Password")
+    engine._is_field_mandatory = AsyncMock(return_value=True)
+    
+    fields = await engine._extract_fields(page)
+    
+    assert len(fields) == 1
+    assert fields[0].name == "Password"
+    assert fields[0].field_type == "password"
+    assert fields[0].value == "secret"

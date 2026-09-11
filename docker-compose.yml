@@ -1,4 +1,4 @@
-version: "3.8"
+
 
 services:
   db:
@@ -11,6 +11,11 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d servicenow_qa"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
@@ -18,19 +23,30 @@ services:
       - "6379:6379"
     volumes:
       - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   api:
     build: .
+    image: uat-poc-backend:latest
     command: uvicorn agent.main:app --host 0.0.0.0 --port 8000 --reload
     volumes:
       - ./src:/app/src
+      - ./scripts:/app/scripts
+      - ./tests:/app/tests
+      - reports_data:/app/reports
+      - screenshots_data:/app/screenshots
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgrespassword@db:5432/servicenow_qa
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - UAT_RUNTIME_MODE=${UAT_RUNTIME_MODE:-docker}
+      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://postgres:postgrespassword@db:5432/servicenow_qa}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
       - LLM_PROVIDER=${LLM_PROVIDER}
       - LLM_BASE_URL=${LLM_BASE_URL}
       - LLM_MODEL=${LLM_MODEL}
@@ -42,24 +58,44 @@ services:
       - MOONDREAM_API_KEY=${MOONDREAM_API_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - BROWSER_HEADLESS=${BROWSER_HEADLESS:-true}
+      - BROWSER_SLOW_MO=${BROWSER_SLOW_MO:-0}
+      - BROWSER_SHOW_MOUSE_CURSOR=${BROWSER_SHOW_MOUSE_CURSOR:-false}
+      - BROWSER_KEEP_BROWSER_OPEN=${BROWSER_KEEP_BROWSER_OPEN:-false}
+      - BROWSER_INTERACTIVE_TIMEOUT_SECONDS=${BROWSER_INTERACTIVE_TIMEOUT_SECONDS:-300}
       - SERVICENOW_INSTANCE_URL=${SERVICENOW_INSTANCE_URL}
       - SERVICENOW_USERNAME=${SERVICENOW_USERNAME}
       - SERVICENOW_PASSWORD=${SERVICENOW_PASSWORD}
+      - QA_ADMIN_USERNAME=${QA_ADMIN_USERNAME}
+      - QA_ADMIN_PASSWORD=${QA_ADMIN_PASSWORD}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - JWT_ALGORITHM=${JWT_ALGORITHM}
+      - REPORT_OUTPUT_DIR=${REPORT_OUTPUT_DIR:-/app/reports}
+      - SCREENSHOT_DIR=${SCREENSHOT_DIR:-/app/screenshots}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
       # DO NOT PUT REAL CREDENTIALS HERE
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   worker:
     build: .
-    command: celery -A agent.core.celery_app worker --loglevel=info
+    image: uat-poc-backend:latest
+    command: sh -c "celery -A agent.core.celery_app worker --loglevel=info 2>&1 | tee /app/worker.log"
     volumes:
       - ./src:/app/src
+      - ./worker.log:/app/worker.log
+      - ./scripts:/app/scripts
+      - reports_data:/app/reports
+      - screenshots_data:/app/screenshots
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgrespassword@db:5432/servicenow_qa
-      - REDIS_URL=redis://redis:6379/0
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - UAT_RUNTIME_MODE=${UAT_RUNTIME_MODE:-docker}
+      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://postgres:postgrespassword@db:5432/servicenow_qa}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
       - LLM_PROVIDER=${LLM_PROVIDER}
       - LLM_BASE_URL=${LLM_BASE_URL}
       - LLM_MODEL=${LLM_MODEL}
@@ -71,12 +107,26 @@ services:
       - MOONDREAM_API_KEY=${MOONDREAM_API_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - BROWSER_HEADLESS=${BROWSER_HEADLESS:-true}
+      - BROWSER_SLOW_MO=${BROWSER_SLOW_MO:-0}
+      - BROWSER_SHOW_MOUSE_CURSOR=${BROWSER_SHOW_MOUSE_CURSOR:-false}
+      - BROWSER_KEEP_BROWSER_OPEN=${BROWSER_KEEP_BROWSER_OPEN:-false}
+      - BROWSER_INTERACTIVE_TIMEOUT_SECONDS=${BROWSER_INTERACTIVE_TIMEOUT_SECONDS:-300}
       - SERVICENOW_INSTANCE_URL=${SERVICENOW_INSTANCE_URL}
       - SERVICENOW_USERNAME=${SERVICENOW_USERNAME}
       - SERVICENOW_PASSWORD=${SERVICENOW_PASSWORD}
+      - QA_ADMIN_USERNAME=${QA_ADMIN_USERNAME}
+      - QA_ADMIN_PASSWORD=${QA_ADMIN_PASSWORD}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - JWT_ALGORITHM=${JWT_ALGORITHM}
+      - REPORT_OUTPUT_DIR=${REPORT_OUTPUT_DIR:-/app/reports}
+      - SCREENSHOT_DIR=${SCREENSHOT_DIR:-/app/screenshots}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   frontend:
     build:
@@ -94,3 +144,5 @@ services:
 volumes:
   pgdata:
   redisdata:
+  reports_data:
+  screenshots_data:

@@ -90,6 +90,26 @@ class PageObservation(BaseModel):
         default=None,
         description="Number of records shown (for list views)",
     )
+    console_errors: list[str] = Field(
+        default_factory=list,
+        description="Browser console errors captured during observation",
+    )
+    network_errors: list[str] = Field(
+        default_factory=list,
+        description="Failed network requests (status >= 400) captured during observation",
+    )
+    visible_text_summary: str = Field(
+        default="",
+        description="Summary of visible headings and key text on the page",
+    )
+    dom_fingerprint: str = Field(
+        default="",
+        description="Hash of URL + button labels + field names for efficient state diffing",
+    )
+    screenshot_path: str | None = Field(
+        default=None,
+        description="Path to screenshot captured during this observation",
+    )
     raw_accessibility_tree: dict[str, Any] | None = Field(
         default=None,
         description="Raw accessibility tree snapshot (for debugging)",

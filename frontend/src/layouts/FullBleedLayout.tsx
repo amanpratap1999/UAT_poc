@@ -9,7 +9,7 @@ import { Outlet } from "react-router-dom";
  */
 export function FullBleedLayout() {
   return (
-    <div className="fixed inset-0 bg-graphite-950">
+    <div className="theme-dark fixed inset-0 bg-graphite-950">
       <Outlet />
     </div>
   );

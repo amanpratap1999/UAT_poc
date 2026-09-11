@@ -4,20 +4,20 @@ import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
   // Base styles
-  "inline-flex items-center justify-center gap-2 rounded font-body text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal-teal focus-visible:ring-offset-2 focus-visible:ring-offset-graphite-950 disabled:pointer-events-none disabled:opacity-40 select-none",
+  "inline-flex items-center justify-center gap-2 rounded-md font-body text-sm font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:pointer-events-none disabled:opacity-40 select-none",
   {
     variants: {
       variant: {
         primary:
-          "bg-signal-teal text-graphite-950 hover:bg-signal-teal/90 active:bg-signal-teal/80",
+          "bg-btn-primary text-btn-primary-fg shadow-raise hover:bg-btn-primary-hover active:scale-[0.98]",
         secondary:
-          "bg-graphite-600 text-ink-100 border border-graphite-600 hover:bg-graphite-600/80",
+          "bg-card text-ink border border-line shadow-card hover:bg-canvas hover:border-line-strong",
         ghost:
-          "text-ink-100 hover:bg-graphite-800 hover:text-ink-100",
+          "text-body hover:bg-ink/5 hover:text-ink",
         destructive:
-          "bg-status-failed/15 text-status-failed border border-status-failed/30 hover:bg-status-failed/25",
+          "bg-status-failed/10 text-status-failed border border-status-failed/30 hover:bg-status-failed/20",
         outline:
-          "border border-graphite-600 text-ink-100 hover:bg-graphite-800",
+          "border border-line-strong text-ink hover:bg-ink/5",
       },
       size: {
         sm: "h-7 px-3 text-xs",

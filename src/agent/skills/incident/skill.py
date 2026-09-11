@@ -59,7 +59,6 @@ class IncidentSkill(BaseSkill):
                 "IncidentResolutionCheck",
                 "IncidentAssignmentValidation",
                 "IncidentMandatoryFieldsCheck",
-                "GeneralValidation",
             ],
         )
 
@@ -95,11 +94,18 @@ class IncidentSkill(BaseSkill):
 
     def can_handle(self, intent: StructuredIntent) -> bool:
         """Check if intent targets incident management."""
-        if intent.target_module.lower() == "incident":
-            return True
+        intent_mod = intent.target_module.lower()
+        if intent_mod in ("incident", "incident_task"):
+            return (
+                intent.intent_type in self.manifest.supported_intents
+                or "incident" in intent.goal.lower()
+                or "inc" in intent.goal.lower()
+                or "incident" in intent.raw_prompt.lower()
+            )
         return (
-            intent.intent_type in self.manifest.supported_intents
-            or "incident" in intent.goal.lower()
+            "incident" in intent.goal.lower()
+            or "incident" in intent.raw_prompt.lower()
+            or (intent.intent_type in self.manifest.supported_intents and intent_mod != "auth" and intent_mod != "general")
         )
 
     async def plan(
@@ -113,9 +119,16 @@ class IncidentSkill(BaseSkill):
 
         goal_lower = intent.goal.lower()
 
-        if "open" in goal_lower and "inc" in goal_lower:
+        if ("state" in goal_lower or "lifecycle" in goal_lower or "in progress" in goal_lower or "on hold" in goal_lower) and "inc" in goal_lower:
+            plan.add_step("Open Target Incident Record", "Target incident form displayed")
+            plan.add_step("Validate Initial Incident State and Preconditions", "Preconditions met: incident number and initial state match expectation")
+            plan.add_step("Update State to In Progress", "State dropdown changed to In Progress (2)")
+            plan.add_step("Click Update to Persist Record", "Incident changes saved")
+            plan.add_step("Re-open and Validate Incident State", "Persisted State is In Progress (2)")
+        elif "open" in goal_lower and "inc" in goal_lower:
             plan.add_step("Navigate to Incident List", "Incident list page displayed")
             plan.add_step("Search and Open Target Incident", "Incident record opened")
+            plan.add_step("Validate Initial Incident State and Preconditions", "Incident record and initial state verified")
             plan.add_step("Verify Incident Record Details", "Incident details verified")
         elif "resolve" in goal_lower or "resolution" in goal_lower:
             plan.add_step("Open Existing Incident", "Incident record opened")
@@ -164,6 +177,40 @@ class IncidentSkill(BaseSkill):
             after,
         )
 
+        metadata = action.metadata or {}
+        is_precondition = (
+            bool(metadata.get("is_precondition_check"))
+            or getattr(action, "is_precondition_check", False)
+            or "precondition" in (action.reasoning or "").lower()
+            or "initial state" in (action.reasoning or "").lower()
+            or "verify incident record" in (action.reasoning or "").lower()
+            or "before proceeding" in (action.reasoning or "").lower()
+        )
+
+        if is_precondition:
+            import re
+            expected_rec = metadata.get("expected_record") or getattr(action, "expected_record", None)
+            expected_st = metadata.get("expected_state") or getattr(action, "expected_state", None)
+            if not expected_rec and (action.reasoning or ""):
+                rec_m = re.search(r"\b(INC\d+)\b", action.reasoning or "", re.IGNORECASE)
+                if rec_m:
+                    expected_rec = rec_m.group(1).upper()
+            if not expected_st and (action.reasoning or ""):
+                st_m = re.search(r"(?:initial\s+state|state)\s*(?:is|to|as)?\s*([A-Za-z\s]+)", action.reasoning or "", re.IGNORECASE)
+                if st_m:
+                    cand = st_m.group(1).strip().lower()
+                    for s in ("on hold", "in progress", "new", "resolved", "closed"):
+                        if s in cand:
+                            expected_st = s
+                            break
+
+            business_result = self._validator.validate_precondition(
+                incident=incident_after,
+                expected_record=expected_rec,
+                expected_state=expected_st,
+            )
+            return self._validator.to_standard_validation_result(business_result, is_precondition=True)
+
         business_result = self._validator.validate_business_outcome(
             before=incident_before,
             after=incident_after,
@@ -181,7 +228,7 @@ class IncidentSkill(BaseSkill):
             confidence_score=0.95 if business_result.passed else 0.50,
         )
 
-        return self._validator.to_standard_validation_result(business_result)
+        return self._validator.to_standard_validation_result(business_result, is_precondition=False)
 
     async def recover(self, error: Exception, context: dict[str, Any]) -> AgentAction | None:
         """Suggest domain-specific recovery action."""

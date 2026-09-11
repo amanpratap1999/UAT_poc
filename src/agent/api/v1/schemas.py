@@ -106,8 +106,101 @@ class FindingResponse(BaseModel):
     created_at: datetime
 
 
+class FindingUpdateRequest(BaseModel):
+    """Request to update or override a finding."""
+
+    capability: str | None = None
+    description: str | None = None
+    is_defect: bool | None = None
+    severity: str | None = None
+
+
 class MetricsResponse(BaseModel):
     tenant_id: str
     total_runs: int
     total_defects: int
     average_duration_seconds: float | None
+
+
+class KnowledgeRuleResponse(BaseModel):
+    rule_id: str
+    table: str
+    name: str
+    type: str  # business_rule, ui_policy, client_script, dictionary
+    description: str
+    is_active: bool = True
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class KnowledgeModelRulesResponse(BaseModel):
+    total: int
+    tables: list[str]
+    rules: list[KnowledgeRuleResponse]
+
+
+class KnowledgeDriftResponse(BaseModel):
+    has_drift: bool
+    status: str = "ok"
+    last_checked: datetime
+    drifted_tables: list[str]
+    model_version: str
+
+
+# ---------------------------------------------------------------------------
+# Interactive Control & Live Streaming Schemas
+# ---------------------------------------------------------------------------
+
+
+class PauseRequest(BaseModel):
+    reason: str = Field(default="User requested pause")
+
+
+class ResumeRequest(BaseModel):
+    message: str = Field(default="User resumed run")
+
+
+class CancelRequest(BaseModel):
+    reason: str = Field(default="User cancelled run")
+
+
+class ClarifyAnswerRequest(BaseModel):
+    request_id: str
+    answer: str
+
+
+class ApprovalDecisionRequest(BaseModel):
+    prompt_id: str
+    approved: bool
+    feedback: str | None = None
+
+
+class ActionResponse(BaseModel):
+    status: str = "success"
+    message: str
+    run_id: str
+
+
+class GenerateTestCasesRequest(BaseModel):
+    story: str | None = None
+    requirement: str | None = None
+    acceptance_criteria: list[str] = Field(default_factory=list)
+    table_name: str = "incident"
+    workflow_type: str = "incident"
+    fields: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class GeneratedTestCaseResponse(BaseModel):
+    id: str
+    title: str
+    description: str
+    preconditions: list[str] = Field(default_factory=list)
+    steps: list[dict[str, Any]] = Field(default_factory=list)
+    expected_outcomes: list[str] = Field(default_factory=list)
+    risk_level: str = "low"
+
+
+class GenerateTestCasesResponse(BaseModel):
+    story_id: str | None = None
+    test_cases: list[GeneratedTestCaseResponse]
+    count: int
+

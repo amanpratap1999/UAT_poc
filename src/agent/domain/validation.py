@@ -41,6 +41,9 @@ class ValidationResult(BaseModel):
     )
     checks: list[ValidationCheck] = Field(default_factory=list)
     overall_passed: bool = False
+    is_precondition_check: bool = False
+    precondition_failed: bool = False
+    precondition_details: dict[str, Any] = Field(default_factory=dict)
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     def add_check(self, check: ValidationCheck) -> None:
@@ -74,7 +77,7 @@ class ValidationResult(BaseModel):
             f"({passed}/{total} checks passed)"
         ]
         for check in self.checks:
-            icon = "✅" if check.passed else "❌"
+            icon = "[PASS]" if check.passed else "[FAIL]"
             lines.append(f"  {icon} {check.check_name}: {check.description}")
             if not check.passed and check.error_message:
                 lines.append(f"      Error: {check.error_message}")

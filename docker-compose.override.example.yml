@@ -1,0 +1,17 @@
+# Example Docker Compose Override
+# Usage: Copy to docker-compose.override.yml for local Docker customizations
+#
+# services:
+#   api:
+#     ports:
+#       - "8000:8000"
+#     environment:
+#       - LOG_LEVEL=DEBUG
+#
+#   worker:
+#     environment:
+#       - BROWSER_HEADLESS=false
+#       # For Linux host X11 display forwarding:
+#       # - DISPLAY=${DISPLAY:-:0}
+#     # volumes:
+#     #   - /tmp/.X11-unix:/tmp/.X11-unix

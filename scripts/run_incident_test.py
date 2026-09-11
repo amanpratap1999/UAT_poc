@@ -46,6 +46,10 @@ async def main() -> None:
     print(f"Defects Identified: {len(report.defects)}")
     print(f"Report File: {orchestrator.report_file}")
 
+    # Keep a headed local Playwright window and its visual cursor alive for
+    # manual inspection until the user closes that browser window.
+    await orchestrator.wait_for_manual_browser_close()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

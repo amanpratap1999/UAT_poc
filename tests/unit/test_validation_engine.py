@@ -155,7 +155,7 @@ async def test_validate_js_errors(
     before_observation: PageObservation,
     after_observation_success: PageObservation,
 ) -> None:
-    """Test JavaScript error detection."""
+    """Test JavaScript error detection when new errors appear."""
     action = AgentAction(
         action_type=ActionType.CLICK,
         target="button",
@@ -172,11 +172,47 @@ async def test_validate_js_errors(
     )
 
     js_check = next(
-        (c for c in validation.checks if c.check_name == "no_js_errors"),
+        (c for c in validation.checks if c.check_name == "no_new_js_errors"),
         None,
     )
     assert js_check is not None
     assert js_check.passed is False
+
+
+@pytest.mark.asyncio
+async def test_validate_baseline_js_errors_tolerated(
+    engine: ValidationEngine,
+) -> None:
+    """Test that pre-existing baseline JS errors do not fail validation."""
+    before_obs = PageObservation(
+        url="https://test.service-now.com/login.do",
+        title="Login",
+        page_type=PageType.LOGIN,
+        console_errors=["Unexpected token 'export'", "scriptLoader undefined"],
+    )
+    after_obs = PageObservation(
+        url="https://test.service-now.com/login.do",
+        title="Login",
+        page_type=PageType.LOGIN,
+        console_errors=["Unexpected token 'export'", "scriptLoader undefined"],
+    )
+    action = AgentAction(action_type=ActionType.CLICK, target="btn", reasoning="test")
+    result = ActionResult(success=True, action=action)
+
+    validation = await engine.validate_action(
+        action=action,
+        result=result,
+        before=before_obs,
+        after=after_obs,
+        console_errors=["Unexpected token 'export'", "scriptLoader undefined"],
+    )
+
+    js_check = next(
+        (c for c in validation.checks if c.check_name == "no_new_js_errors"),
+        None,
+    )
+    assert js_check is not None
+    assert js_check.passed is True
 
 
 @pytest.mark.asyncio
@@ -199,3 +235,66 @@ async def test_validation_result_summary(
     summary = validation.to_summary()
     assert "Validation" in summary
     assert "checks passed" in summary
+
+
+@pytest.mark.asyncio
+async def test_check_page_changed_field_type(engine: ValidationEngine) -> None:
+    """Test that a change in field properties (like field_type) is detected."""
+    before_obs = PageObservation(
+        url="https://test.service-now.com/login.do",
+        title="Login",
+        page_type=PageType.LOGIN,
+        visible_fields=[
+            FieldInfo(name="Password", field_type="password", value="secret"),
+        ],
+    )
+    after_obs = PageObservation(
+        url="https://test.service-now.com/login.do",
+        title="Login",
+        page_type=PageType.LOGIN,
+        visible_fields=[
+            FieldInfo(name="Password", field_type="text", value="secret"),
+        ],
+    )
+    
+    check = engine._check_page_changed(before_obs, after_obs)
+    assert check.passed is True
+    assert check.actual == "changed"
+
+
+@pytest.mark.asyncio
+async def test_platform_noise_network_errors_filtered(
+    engine: ValidationEngine,
+    before_observation: PageObservation,
+    sample_observation: PageObservation,
+) -> None:
+    """ServiceNow chat-widget/platform background 404s are not app-defect evidence.
+
+    Reproduces run 447b0f5a: the consumerAccount/unreadConversation endpoint
+    404 fired mid-action and previously failed the no_network_errors check,
+    producing a spurious "defect".
+    """
+    before = before_observation.model_copy(deep=True)
+    before.network_errors = []
+    after = sample_observation.model_copy(deep=True)
+    after.network_errors = [
+        "GET https://instance.service-now.com/api/now/v1/cs/"
+        "consumerAccount/unreadConversation?sysparm_return_only=count "
+        "returned HTTP 404"
+    ]
+
+    action = AgentAction(
+        action_type=ActionType.CLICK,
+        target="text:Update",
+        reasoning="Click Update",
+    )
+    result = ActionResult(success=True, action=action)
+
+    validation = await engine.validate_action(
+        action=action, result=result, before=before, after=after
+    )
+
+    # The platform-noise network error is filtered out — no network check is
+    # added and the validation passes.
+    assert validation.overall_passed is True
+    assert all(c.check_name != "no_network_errors" for c in validation.checks)

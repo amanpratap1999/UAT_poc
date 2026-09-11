@@ -28,11 +28,34 @@ env/
 
 # Environment variables (secrets)
 .env
+.env.local
+.env.docker
+!.env.example
+!.env.local.example
+!.env.docker.example
 
-# Generated output — reports and screenshots
+# Generated output — reports, screenshots, logs, and runtime state
 reports/
 screenshots/
+logs/
+.runtime/
+*.log
+*.local.log
+*.err.local.log
+worker.log
+
+# Local SQLite and database files
+*.db
+*.sqlite
+*.sqlite3
+dump.rdb
+
+# Binaries and downloaded dependencies
+.bin/
+*.exe
+*.pdb
 
 # OS files
 Thumbs.db
 .DS_Store
+

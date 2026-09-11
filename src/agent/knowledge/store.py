@@ -303,47 +303,57 @@ class PgVectorKnowledgeStore(KnowledgeStore):
 
     async def retrieve(self, query: str, module: str = "incident_management") -> str:
         """Retrieve relevant documents using vector similarity."""
-        await self._init_pool()
+        try:
+            await self._init_pool()
 
-        query_emb = await self._embedding_client.create_embedding(query)
+            query_emb = await self._embedding_client.create_embedding(query)
 
-        async with self._pool.acquire() as conn:  # type: ignore[union-attr]
-            # Use L2 distance (<->) or cosine (<=>). OpenAI recommends cosine.
-            records = await conn.fetch(
-                """
-                SELECT heading, content
-                FROM document_sections
-                WHERE module_name = $1
-                ORDER BY embedding <=> $2
-                LIMIT 5
-            """,
-                module,
-                query_emb,
-            )
-
-            if not records:
-                # Try across all modules if none found
+            async with self._pool.acquire() as conn:  # type: ignore[union-attr]
+                # Use L2 distance (<->) or cosine (<=>). OpenAI recommends cosine.
                 records = await conn.fetch(
                     """
                     SELECT heading, content
                     FROM document_sections
-                    ORDER BY embedding <=> $1
+                    WHERE module_name = $1
+                    ORDER BY embedding <=> $2
                     LIMIT 5
                 """,
+                    module,
                     query_emb,
                 )
 
-        if not records:
-            return ""
+                if not records:
+                    # Try across all modules if none found
+                    records = await conn.fetch(
+                        """
+                        SELECT heading, content
+                        FROM document_sections
+                        ORDER BY embedding <=> $1
+                        LIMIT 5
+                    """,
+                        query_emb,
+                    )
 
-        result = "\\n\\n".join(f"### {r['heading']}\\n{r['content']}" for r in records)
-        return result
+            if not records:
+                return ""
+
+            result = "\n\n".join(f"### {r['heading']}\n{r['content']}" for r in records)
+            return result
+        except Exception as e:
+            logger.warning("pgvector_retrieve_failed_fallback_to_in_memory", error=str(e))
+            fallback = InMemoryKnowledgeStore(self._docs_dir)
+            return await fallback.retrieve(query, module)
 
     async def get_all_modules(self) -> list[str]:
-        await self._init_pool()
-        async with self._pool.acquire() as conn:  # type: ignore[union-attr]
-            records = await conn.fetch("SELECT DISTINCT module_name FROM document_sections")
-            return [r["module_name"] for r in records]
+        try:
+            await self._init_pool()
+            async with self._pool.acquire() as conn:  # type: ignore[union-attr]
+                records = await conn.fetch("SELECT DISTINCT module_name FROM document_sections")
+                return [r["module_name"] for r in records]
+        except Exception as e:
+            logger.warning("pgvector_get_modules_failed_fallback_to_in_memory", error=str(e))
+            fallback = InMemoryKnowledgeStore(self._docs_dir)
+            return await fallback.get_all_modules()
 
     async def close(self) -> None:
         """Close the asyncpg connection pool and embedding client."""

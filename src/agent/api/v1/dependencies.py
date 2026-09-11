@@ -34,8 +34,8 @@ from agent.perception.backends import (
     GrounderBackend,
     LocalUiTarsBackend,
     MoondreamBackend,
-    PerceptionRouter,
 )
+from agent.perception.router import PerceptionRouter
 from agent.perception.verifier import BehavioralVerifier, LLMBehavioralVerifier
 from agent.planner.llm_client import OpenAILLMClient
 from agent.planner.planner import Planner
@@ -88,10 +88,12 @@ def get_llm_client(
 
 def get_planner(
     settings: Settings | None = None,
+    knowledge_model: CustomerKnowledgeModel | None = None,
 ) -> Planner:
     """Create a Planner instance."""
     llm_client = get_llm_client(settings)
-    return Planner(llm_client=llm_client)
+    km = knowledge_model or get_customer_knowledge_model()
+    return Planner(llm_client=llm_client, knowledge_model=km)
 
 
 def get_browser_manager(
@@ -135,10 +137,11 @@ def get_world_model() -> WorldModel:
     return WorldModel()
 
 
-def get_skill_registry() -> CapabilityRegistry:
+def get_skill_registry(settings: Settings | None = None) -> CapabilityRegistry:
     """Create a CapabilityRegistry pre-registered with IncidentSkill."""
+    s = settings or get_cached_settings()
     registry = CapabilityRegistry()
-    incident_skill = IncidentSkill()
+    incident_skill = IncidentSkill(base_url=s.servicenow.instance_url)
     registry.register(incident_skill, incident_skill.get_capability_definition())
     return registry
 
@@ -228,6 +231,11 @@ def get_learning_service(store: LearningStore | None = None) -> LearningService:
     return _get_cached_learning_service()
 
 
+def get_customer_knowledge_model() -> CustomerKnowledgeModel:
+    """Provide the CustomerKnowledgeModel instance."""
+    return CustomerKnowledgeModel()
+
+
 def _get_cached_strategy_selector() -> StrategySelector:
     """Internal factory for StrategySelector (no longer cached to isolate lifecycles)."""
     learning = _get_cached_learning_service()
@@ -305,13 +313,15 @@ def get_grounder_backend(settings: Settings | None = None) -> GrounderBackend:
     primary = MoondreamBackend(api_key=moondream_key)
     fallback = GeminiBackend(api_key=gemini_key)
 
-    local = None
-    if s.perception.puter_endpoint:
-        local = LocalUiTarsBackend(
-            endpoint_url=s.perception.puter_endpoint, api_key=s.perception.puter_api_key
-        )
+    conf_high = getattr(s.perception, "confidence_high", 0.85)
+    conf_med = getattr(s.perception, "confidence_medium", 0.60)
 
-    return PerceptionRouter(primary=primary, fallback=fallback, local=local)
+    return PerceptionRouter(
+        primary=primary,
+        fallback=fallback,
+        confidence_high=conf_high,
+        confidence_medium=conf_med,
+    )
 
 
 def get_behavioral_verifier(settings: Settings | None = None) -> BehavioralVerifier:

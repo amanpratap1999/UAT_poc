@@ -8,10 +8,19 @@ from agent.core.config import get_settings
 
 _settings = get_settings()
 
+broker_url = os.getenv(
+    "CELERY_BROKER_URL",
+    _settings.session.celery_broker_url or _settings.session.redis_url,
+)
+backend_url = os.getenv(
+    "CELERY_RESULT_BACKEND",
+    _settings.session.celery_result_backend or _settings.session.redis_url,
+)
+
 celery_app = Celery(
     "agent_worker",
-    broker=os.getenv("CELERY_BROKER_URL", _settings.session.redis_url),
-    backend=os.getenv("CELERY_RESULT_BACKEND", _settings.session.redis_url),
+    broker=broker_url,
+    backend=backend_url,
     include=["agent.worker.tasks"],
 )
 

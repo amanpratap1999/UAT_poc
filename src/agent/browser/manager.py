@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import os
+import sys
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
@@ -19,14 +21,55 @@ from playwright.async_api import (
     ConsoleMessage,
     Page,
     Playwright,
+    Response,
     async_playwright,
 )
 
+from agent.browser.network import NetworkEntry
 from agent.core.config import BrowserConfig, ServiceNowConfig
 from agent.core.exceptions import BrowserError, BrowserLaunchError
 from agent.core.logging import get_logger
 
 logger = get_logger(__name__)
+
+VISUAL_CURSOR_SCRIPT = """
+(() => {
+  if (document.getElementById('playwright-mouse-pointer')) return;
+  const cursor = document.createElement('div');
+  cursor.id = 'playwright-mouse-pointer';
+  cursor.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid rgba(239, 68, 68, 0.9);
+    background: rgba(239, 68, 68, 0.3);
+    pointer-events: none;
+    z-index: 2147483647;
+    transform: translate(-50%, -50%);
+    transition: transform 0.05s ease-out;
+    display: none;
+  `;
+  const style = document.createElement('style');
+  style.id = 'playwright-mouse-pointer-style';
+  style.textContent = `
+    body.pw-cursor-hidden #playwright-mouse-pointer {
+      display: none !important;
+    }
+  `;
+  document.head.appendChild(style);
+  document.body.appendChild(cursor);
+  document.addEventListener('mousemove', (e) => {
+    cursor.style.left = e.clientX + 'px';
+    cursor.style.top = e.clientY + 'px';
+    if (!document.body.classList.contains('pw-cursor-hidden')) {
+      cursor.style.display = 'block';
+    }
+  }, { passive: true });
+})();
+"""
 
 
 class BrowserManager:
@@ -59,35 +102,84 @@ class BrowserManager:
         # Log capture
         self._console_logs: list[dict[str, str]] = []
         self._page_errors: list[str] = []
+        self._network_entries: list[NetworkEntry] = []
+        self._network_errors: list[str] = []
+        self._last_console_index: int = 0
 
     async def launch(self) -> None:
         """Launch the browser with configured settings."""
         try:
             logger.info("launching_browser", headless=self._browser_config.headless)
+            if not self._browser_config.headless and sys.platform == "linux":
+                if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
+                    raise BrowserLaunchError(
+                        "Cannot launch headed browser: no graphical display server found (DISPLAY or WAYLAND_DISPLAY environment variable is not set)."
+                    )
+
             self._screenshot_dir.mkdir(parents=True, exist_ok=True)
 
             self._playwright = await async_playwright().start()
-            self._browser = await self._playwright.chromium.launch(
-                headless=self._browser_config.headless,
-                slow_mo=self._browser_config.slow_mo,
-            )
-            self._context = await self._browser.new_context(
-                viewport={
-                    "width": self._browser_config.viewport_width,
-                    "height": self._browser_config.viewport_height,
-                },
-                ignore_https_errors=True,
-            )
-            self._page = await self._context.new_page()
+
+            launch_args: list[str] = []
+            if not self._browser_config.headless:
+                launch_args = [
+                    "--start-maximized",
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                ]
+
+            if self._browser_config.user_data_dir:
+                persistent_kwargs: dict[str, Any] = {
+                    "user_data_dir": str(self._browser_config.user_data_dir),
+                    "headless": self._browser_config.headless,
+                    "slow_mo": self._browser_config.slow_mo,
+                    "viewport": {
+                        "width": self._browser_config.viewport_width,
+                        "height": self._browser_config.viewport_height,
+                    },
+                    "ignore_https_errors": True,
+                }
+                if launch_args:
+                    persistent_kwargs["args"] = launch_args
+                self._context = await self._playwright.chromium.launch_persistent_context(**persistent_kwargs)
+                pages = self._context.pages
+                self._page = pages[0] if pages else await self._context.new_page()
+            else:
+                launch_kwargs: dict[str, Any] = {
+                    "headless": self._browser_config.headless,
+                    "slow_mo": self._browser_config.slow_mo,
+                }
+                if launch_args:
+                    launch_kwargs["args"] = launch_args
+                self._browser = await self._playwright.chromium.launch(**launch_kwargs)
+                self._context = await self._browser.new_context(
+                    viewport={
+                        "width": self._browser_config.viewport_width,
+                        "height": self._browser_config.viewport_height,
+                    },
+                    ignore_https_errors=True,
+                )
+                self._page = await self._context.new_page()
 
             # Set default timeout
             self._page.set_default_timeout(self._browser_config.timeout)
 
-            # Attach log listeners
+            # Inject visual cursor if show_mouse_cursor is True
+            if self._browser_config.show_mouse_cursor:
+                await self._context.add_init_script(VISUAL_CURSOR_SCRIPT)
+
+            # Attach log and network listeners
             self._page.on("console", self._on_console_message)
             self._page.on("pageerror", self._on_page_error)
+            self._page.on("response", self._on_response)
+
+            # Ensure headed browser window is visible and on top on Windows
+            if not self._browser_config.headless:
+                self._bring_to_foreground()
 
             logger.info("browser_launched")
+        except BrowserLaunchError:
+            raise
         except Exception as e:
             raise BrowserLaunchError(
                 f"Failed to launch browser: {e}",
@@ -114,6 +206,63 @@ class BrowserManager:
             self._browser = None
             self._playwright = None
 
+    async def wait_until_closed(
+        self, timeout_seconds: float | None = None, poll_interval_ms: int = 500
+    ) -> None:
+        """Keep a headed browser session alive until the user closes it or timeout is reached."""
+        if not self._page or not self._browser_config.keep_browser_open or self._browser_config.headless:
+            return
+
+        logger.info("keeping_browser_open", timeout_seconds=timeout_seconds)
+        start_time = asyncio.get_event_loop().time()
+        while self._page and not self._page.is_closed():
+            if timeout_seconds is not None:
+                elapsed = asyncio.get_event_loop().time() - start_time
+                if elapsed >= timeout_seconds:
+                    logger.info("keep_browser_open_timeout_reached")
+                    break
+            try:
+                await asyncio.sleep(poll_interval_ms / 1000.0)
+            except (asyncio.CancelledError, KeyboardInterrupt):
+                break
+
+    def _bring_to_foreground(self) -> None:
+        """On Windows, ensure the headed browser window is visible, restored, and brought to front."""
+        if sys.platform != "win32" or self._browser_config.headless:
+            return
+        try:
+            import ctypes
+
+            user32 = ctypes.windll.user32
+
+            def enum_cb(hwnd: int, extra: int) -> bool:
+                if user32.IsWindowVisible(hwnd):
+                    length = user32.GetWindowTextLengthW(hwnd)
+                    if length > 0:
+                        buff = ctypes.create_unicode_buffer(length + 1)
+                        user32.GetWindowTextW(hwnd, buff, length + 1)
+                        title = buff.value.lower()
+                        if any(
+                            k in title
+                            for k in (
+                                "chrome for testing",
+                                "chromium",
+                                "service-now",
+                                "servicenow",
+                                "about:blank",
+                            )
+                        ):
+                            user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+                            user32.ShowWindow(hwnd, 5)  # SW_SHOW
+                            user32.SetForegroundWindow(hwnd)
+                            user32.BringWindowToTop(hwnd)
+                return True
+
+            wnd_proc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_int, ctypes.c_int)(enum_cb)
+            user32.EnumWindows(wnd_proc, 0)
+        except Exception as e:
+            logger.debug("bring_to_foreground_failed", error=str(e))
+
     def get_page(self) -> Page:
         """Get the active Playwright page.
 
@@ -127,19 +276,38 @@ class BrowserManager:
     async def navigate(self, url: str) -> None:
         """Navigate to a URL and wait for load.
 
+        Attempts domcontentloaded first; retries once with networkidle if the
+        page times out.  ServiceNow's SPA can be slow on cold starts.
+
         Args:
             url: The full URL to navigate to.
         """
-        page = self.get_page()
-        logger.info("navigating", url=url)
-        await page.goto(url, wait_until="domcontentloaded")
-        await self.wait_for_load()
+        from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
-    async def take_screenshot(self, name: str = "screenshot") -> str:
+        page = self.get_page()
+        nav_timeout = self._browser_config.timeout  # e.g. 90 000 ms
+        logger.info("navigating", url=url)
+        try:
+            await page.goto(url, wait_until="domcontentloaded", timeout=nav_timeout)
+        except PlaywrightTimeoutError:
+            logger.warning(
+                "navigation_timeout_retry",
+                url=url,
+                strategy="networkidle",
+                timeout_ms=nav_timeout,
+            )
+            # Retry: networkidle is more forgiving for heavy SPAs
+            await page.goto(url, wait_until="networkidle", timeout=nav_timeout)
+        await self.wait_for_load()
+        if not self._browser_config.headless:
+            self._bring_to_foreground()
+
+    async def take_screenshot(self, name: str = "screenshot", hide_cursor: bool = True) -> str:
         """Capture a screenshot and save to disk.
 
         Args:
             name: Filename prefix for the screenshot.
+            hide_cursor: Whether to temporarily hide the visual cursor indicator.
 
         Returns:
             The absolute file path of the saved screenshot.
@@ -148,7 +316,17 @@ class BrowserManager:
         timestamp = asyncio.get_event_loop().time()
         filename = f"{name}_{int(timestamp)}.png"
         filepath = self._screenshot_dir / filename
-        await page.screenshot(path=str(filepath), full_page=False)
+
+        if hide_cursor:
+            with suppress(Exception):
+                await page.evaluate("document.body.classList.add('pw-cursor-hidden')")
+        try:
+            await page.screenshot(path=str(filepath), full_page=False)
+        finally:
+            if hide_cursor:
+                with suppress(Exception):
+                    await page.evaluate("document.body.classList.remove('pw-cursor-hidden')")
+
         logger.debug("screenshot_captured", path=str(filepath))
         return str(filepath)
 
@@ -240,14 +418,35 @@ class BrowserManager:
         """Return all captured console log messages."""
         return list(self._console_logs)
 
+    def get_new_console_errors(self) -> list[str]:
+        """Return console error messages logged since the last call."""
+        errors = [
+            log["message"]
+            for log in self._console_logs[self._last_console_index:]
+            if log.get("level") == "error"
+        ]
+        self._last_console_index = len(self._console_logs)
+        return errors
+
     def get_page_errors(self) -> list[str]:
         """Return all captured JavaScript page errors."""
         return list(self._page_errors)
+
+    def get_network_entries(self) -> list[NetworkEntry]:
+        """Return captured network request entries."""
+        return list(self._network_entries)
+
+    def get_network_errors(self) -> list[str]:
+        """Return captured HTTP/network error messages."""
+        return list(self._network_errors)
 
     def clear_logs(self) -> None:
         """Clear captured logs."""
         self._console_logs.clear()
         self._page_errors.clear()
+        self._network_entries.clear()
+        self._network_errors.clear()
+        self._last_console_index = 0
 
     # -----------------------------------------------------------------------
     # Private event handlers
@@ -268,6 +467,32 @@ class BrowserManager:
         error_msg = str(error)
         self._page_errors.append(error_msg)
         logger.warning("js_page_error", error=error_msg)
+
+    def _on_response(self, response: Response) -> None:
+        """Capture HTTP responses for network telemetry and error tracking."""
+        try:
+            url = response.url
+            status = response.status
+            method = response.request.method if response.request else "GET"
+            is_api = NetworkEntry.is_servicenow_api(url)
+            req_type = NetworkEntry.classify_request(url)
+
+            entry = NetworkEntry(
+                url=url,
+                method=method,
+                status=status,
+                is_api_call=is_api,
+                request_type=req_type,
+            )
+            if len(self._network_entries) < 200:
+                self._network_entries.append(entry)
+
+            if status >= 400:
+                err_str = f"{method} {url} returned HTTP {status}"
+                self._network_errors.append(err_str)
+                logger.debug("network_error_captured", url=url, status=status)
+        except Exception:
+            pass
 
     # -----------------------------------------------------------------------
     # Context manager support

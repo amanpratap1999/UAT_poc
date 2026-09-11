@@ -43,25 +43,28 @@ async def init_db():
         else:
             print(f"Tenant {default_tenant_id} already exists.")
 
-        # Create user if not exists
-        user_result = await session.execute(select(User).where(User.username == username))
-        user = user_result.scalar_one_or_none()
+        # Seed/update users (both configured QA_ADMIN_USERNAME and 'admin')
+        users_to_sync = {username, "admin"}
+        hashed_password = get_password_hash(password)
 
-        if not user:
-            hashed_password = get_password_hash(password)
-            user_id = str(uuid.uuid4())
-            user = User(
-                id=user_id,
-                tenant_id=default_tenant_id,
-                username=username,
-                hashed_password=hashed_password,
-                role="QA Manager"
-            )
-            session.add(user)
-            await session.commit()
-            print(f"Created QA user: {username} (Role: QA Manager)")
-        else:
-            print(f"QA user {username} already exists.")
+        for u in users_to_sync:
+            user_result = await session.execute(select(User).where(User.username == u))
+            existing_user = user_result.scalar_one_or_none()
+            if not existing_user:
+                new_user = User(
+                    id=str(uuid.uuid4()),
+                    tenant_id=default_tenant_id,
+                    username=u,
+                    hashed_password=hashed_password,
+                    role="QA Manager" if u == username else "Admin"
+                )
+                session.add(new_user)
+                await session.commit()
+                print(f"Created user: {u}")
+            else:
+                existing_user.hashed_password = hashed_password
+                await session.commit()
+                print(f"Updated password for: {u}")
 
 if __name__ == "__main__":
     asyncio.run(init_db())

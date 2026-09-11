@@ -14,7 +14,12 @@ from typing import Any
 
 from agent.core.logging import get_logger
 from agent.core.types import Severity
+from agent.domain.defect_scope import (
+    VERIFIED_DEFECT_ERROR_TYPE,
+    classify_step_failure,
+)
 from agent.domain.report import (
+    AgentIssueReport,
     BrowserLogEntry,
     DefectReport,
     TestReport,
@@ -78,8 +83,13 @@ class ReportingEngine:
             for v in memory.completed_validations
         ]
 
-        # Identify defects from failures
-        defects = self._identify_defects(memory)
+        # Identify application defects and agent issues (scope-classified)
+        (
+            defects,
+            agent_issues,
+            agent_issue_count,
+            application_mismatch_count,
+        ) = self._identify_defects(memory)
 
         # Build browser logs
         browser_logs = self._build_browser_logs(memory)
@@ -87,18 +97,80 @@ class ReportingEngine:
         # Collect all screenshots
         screenshots = [entry.screenshot_path for entry in memory.timeline if entry.screenshot_path]
 
-        # Determine overall status
-        if memory.total_failures == 0 and failed == 0:
-            status = "passed"
-        elif memory.total_failures > 0 and passed > 0:
-            status = "partial"
-        elif memory.total_failures > 0 and passed == 0:
+        # Step evidence
+        step_evidence: list[dict[str, Any]] = []
+        for step in memory.completed_steps:
+            ev: dict[str, Any] = {
+                "step_index": step.step_index,
+                "action": step.action.action_type if hasattr(step.action, "action_type") else str(step.action),
+                "target": getattr(step.action, "target", ""),
+                "result": "success" if (hasattr(step.result, "success") and step.result.success) else "failed",
+                "screenshot_path": getattr(step.result, "screenshot_path", None),
+            }
+            if hasattr(step.result, "details") and isinstance(step.result.details, dict):
+                if "perception" in step.result.details:
+                    ev["perception"] = step.result.details["perception"]
+            step_evidence.append(ev)
+
+        # Determine overall status.
+        #
+        # Strict QA status semantics:
+        # - "precondition_failed": Required initial conditions (e.g. record number or initial state) were not met before mutation.
+        # - "failed": QA verdict is FAIL because application defects exist, acceptance criteria failed, or validation checks failed.
+        # - "blocked": Engine was blocked from starting or executing.
+        # - "error": Engine encountered an internal execution or runtime failure.
+        # - "passed": ONLY when all executed validations passed (failed == 0, passed > 0), no application defects exist, and no preconditions failed.
+        has_application_defects = len(defects) > 0
+
+        precondition_failure = (
+            getattr(memory, "precondition_failed", False)
+            or any(
+                getattr(v, "precondition_failed", False)
+                for v in memory.completed_validations
+            )
+            or any(
+                getattr(getattr(step, "validation", None), "precondition_failed", False)
+                for step in memory.completed_steps
+            )
+        )
+
+        if precondition_failure:
+            status = "precondition_failed"
+            # Hard QA rule: An application defect can ONLY exist if preconditions
+            # passed and the action was executed. Precondition failures yield 0 defects.
+            defects = []
+        elif memory.total_actions_executed == 0 and len(memory.completed_steps) == 0:
+            status = "error" if memory.total_failures > 0 else "blocked"
+        elif has_application_defects:
+            status = "failed" if passed == 0 else "partial"
+        elif failed > 0:
+            status = "failed" if passed == 0 else "partial"
+        elif memory.total_failures > 0:
             status = "failed"
+        elif passed > 0:
+            status = "passed"
         else:
-            status = "completed"
+            status = "blocked"
 
         # Calculate duration
         duration = (now - memory.started_at).total_seconds()
+
+        # Augment step_evidence with canonical plan steps if present
+        if getattr(memory, "plan", None) and memory.plan.steps:
+            existing_indices = {se.get("step_index") for se in step_evidence if isinstance(se, dict)}
+            for s in memory.plan.steps:
+                if s.step_index not in existing_indices:
+                    step_evidence.append(
+                        {
+                            "step_index": s.step_index,
+                            "action": "plan_step",
+                            "target": s.description,
+                            "result": s.status.value if hasattr(s.status, "value") else str(s.status),
+                            "error": s.error,
+                            "observed_values": s.observed_values,
+                            "expected_values": s.expected_values,
+                        }
+                    )
 
         report = TestReport(
             report_id=report_id,
@@ -113,13 +185,15 @@ class ReportingEngine:
             failed_validations=failed,
             validation_details=validation_details,
             defects=defects,
+            agent_issues=agent_issues,
             browser_logs=browser_logs,
-            console_errors=[
+            console_errors=list(getattr(memory, "console_errors", [])) + [
                 f.error_message
                 for f in memory.failures
                 if "js" in f.error_type.lower() or "console" in f.error_type.lower()
             ],
             screenshots=screenshots,
+            step_evidence=step_evidence,
             environment={
                 "session_id": memory.session_id,
                 "url": memory.current_url,
@@ -149,64 +223,198 @@ class ReportingEngine:
         """Build the execution timeline from session memory."""
         return list(memory.timeline)
 
-    def _identify_defects(self, memory: SessionMemory) -> list[DefectReport]:
-        """Identify defects from validation failures and errors.
+    def _identify_defects(
+        self, memory: SessionMemory
+    ) -> tuple[list[DefectReport], list[AgentIssueReport], int, int]:
+        """Identify APPLICATION defects and AGENT issues from session evidence.
 
-        Groups related failures and creates structured defect reports.
-        """
+        Preserves the conceptual separation between application defects and
+        agent/execution issues (see ``agent.domain.defect_scope``):
+
+        - **Application defect** — the step's interaction executed and the
+          failed checks are about the application's observed behavior, with
+          either an investigation verdict confirming a genuine defect, or no
+          verdict but application-behavior evidence (routed for review, not
+          silently discarded).
+        - **Agent issue** — the engine could not perform/observe/verify:
+          failed ActionResult, agent-capability checks (action_execution,
+          page_responded, behavioral_verification), or runtime errors. Never
+          counted as a defect, never discarded — preserved in agent_issues.
+
+        Investigation verdicts (``memory.defect_verdicts``, hypothesis-keyed)
+        supersede raw validation failures: confirmed defects are counted once;
+        cleared mismatches (false-positive customizations) are withdrawn.
+
+        Returns:
+            (defects, agent_issues, agent_issue_count, application_mismatch_count)
+        """  # noqa: D401
         defects: list[DefectReport] = []
+        agent_issues: list[AgentIssueReport] = []
+        application_mismatch_count = 0
+
+        # Authoritative investigation verdicts, keyed by step index (the
+        # cognitive loop records verdicts with the completed step's index).
+        cleared_steps: set[int] = {
+            v.step_index for v in memory.defect_verdicts if not v.is_defect
+        }
+
         defect_counter = 0
+        issue_counter = 0
+        counted_steps: set[int] = set()
 
-        # Defects from validation failures
         for step in memory.completed_steps:
-            if step.validation and not step.validation.overall_passed:
-                defect_counter += 1
-                defect_id = f"DEF-{defect_counter:03d}"
+            if not (step.validation and not step.validation.overall_passed):
+                continue
 
+            scope = classify_step_failure(step.result, step.validation)
+
+            if scope == "precondition":
+                # Initial record/environment state did not meet test prerequisites.
+                issue_counter += 1
                 failed_checks = step.validation.failed_checks
-                check_names = [c.check_name for c in failed_checks]
-                check_details = "; ".join(
-                    f"{c.check_name}: expected={c.expected}, actual={c.actual}"
-                    for c in failed_checks
-                )
-
-                severity = self._assess_severity(failed_checks)
-
-                evidence: list[str] = []
-                if step.result.screenshot_path:
-                    evidence.append(step.result.screenshot_path)
-
-                defects.append(
-                    DefectReport(
-                        defect_id=defect_id,
-                        severity=severity,
-                        title=f"Validation failure: {', '.join(check_names)}",
-                        description=check_details,
-                        expected_behavior="; ".join(c.expected for c in failed_checks),
-                        actual_behavior="; ".join(c.actual for c in failed_checks),
-                        evidence=evidence,
+                check_names = ", ".join(c.check_name for c in failed_checks) or "Precondition"
+                agent_issues.append(
+                    AgentIssueReport(
+                        issue_id=f"PRE-{issue_counter:03d}",
+                        title=f"Precondition check failed ({check_names})",
+                        description=(
+                            f"Step {step.step_index}: initial test precondition was not met. "
+                            f"{'; '.join(c.error_message or c.actual for c in failed_checks)}. "
+                            f"This is a test precondition failure, not an application defect."
+                        ),
+                        category="precondition_failed",
                         related_step_index=step.step_index,
+                        error_type="PreconditionFailedError",
                     )
                 )
+                continue
 
-        # Defects from unrecovered failures
+            if scope == "agent":
+                # The engine could not perform/observe/verify — diagnostic only.
+                issue_counter += 1
+                failed_checks = step.validation.failed_checks
+                check_names = ", ".join(c.check_name for c in failed_checks) or "unknown"
+                error_type = getattr(step.result, "error_type", None) or "AgentSideFailure"
+                agent_issues.append(
+                    AgentIssueReport(
+                        issue_id=f"AGI-{issue_counter:03d}",
+                        title=f"Agent-side validation failure ({check_names})",
+                        description=(
+                            f"Step {step.step_index}: the QA agent could not "
+                            f"perform, observe, or verify the interaction "
+                            f"({error_type}: {getattr(step.result, 'error', None) or 'no error recorded'}). "
+                            f"This is an agent/execution issue, not an application defect."
+                        ),
+                        category=self._categorize_issue(error_type, check_names),
+                        related_step_index=step.step_index,
+                        error_type=error_type,
+                    )
+                )
+                continue
+
+            if scope is None:
+                continue
+
+            # Application-scope mismatch.
+            application_mismatch_count += 1
+
+            # Investigation verdict supersedes raw validation failure: a
+            # cleared verdict (false-positive customization / learned
+            # behavior) withdraws the defect for this step.
+            if step.step_index in cleared_steps:
+                continue
+
+            defect_counter += 1
+            failed_checks = step.validation.failed_checks
+            check_names = [c.check_name for c in failed_checks]
+            check_details = "; ".join(
+                f"{c.check_name}: expected={c.expected}, actual={c.actual}"
+                for c in failed_checks
+            )
+
+            evidence: list[str] = []
+            if step.result.screenshot_path:
+                evidence.append(step.result.screenshot_path)
+
+            defects.append(
+                DefectReport(
+                    defect_id=f"DEF-{defect_counter:03d}",
+                    severity=self._assess_severity(failed_checks),
+                    title=f"Validation failure: {', '.join(check_names)}",
+                    description=check_details,
+                    expected_behavior="; ".join(c.expected for c in failed_checks),
+                    actual_behavior="; ".join(c.actual for c in failed_checks),
+                    evidence=evidence,
+                    related_step_index=step.step_index,
+                )
+            )
+            counted_steps.add(step.step_index)
+
+        # Investigated mismatches at steps not covered above (e.g. the verdict
+        # exists but the corresponding validation record is agent-scope or
+        # absent): investigation-confirmed defects are counted here, once.
+        for verdict in memory.defect_verdicts:
+            if not verdict.is_defect:
+                continue
+            if verdict.step_index in counted_steps:
+                continue
+            defect_counter += 1
+            defects.append(
+                DefectReport(
+                    defect_id=f"DEF-{defect_counter:03d}",
+                    severity=Severity.HIGH,
+                    title="Investigated application defect",
+                    description=(
+                        f"{verdict.reasoning or 'Investigation confirmed a defect'}"
+                        + (f" (hypothesis {verdict.hypothesis_id})" if verdict.hypothesis_id else "")
+                    ),
+                    actual_behavior=verdict.reasoning,
+                    related_step_index=verdict.step_index,
+                )
+            )
+            counted_steps.add(verdict.step_index)
+
+        # Runtime/planning/browser failures without a verdict — agent issues,
+        # never defects. InvestigationVerifiedDefect failures are covered by
+        # the verdict loop above (verdicts are the authority); a stale
+        # failure without a verdict is treated as an agent-side record to
+        # guarantee it can never silently inflate the defect count.
         for failure in memory.failures:
-            if not failure.recovered:
-                defect_counter += 1
-                defect_id = f"DEF-{defect_counter:03d}"
-
-                defects.append(
-                    DefectReport(
-                        defect_id=defect_id,
-                        severity=Severity.HIGH,
-                        title=f"Execution failure: {failure.error_type}",
-                        description=failure.error_message,
-                        actual_behavior=failure.error_message,
-                        related_step_index=failure.step_index,
-                    )
+            if failure.error_type == VERIFIED_DEFECT_ERROR_TYPE:
+                continue
+            issue_counter += 1
+            agent_issues.append(
+                AgentIssueReport(
+                    issue_id=f"AGI-{issue_counter:03d}",
+                    title=f"Agent failure: {failure.error_type}",
+                    description=failure.error_message,
+                    category=self._categorize_issue(failure.error_type, ""),
+                    related_step_index=failure.step_index,
+                    error_type=failure.error_type,
                 )
+            )
 
-        return defects
+        return defects, agent_issues, len(agent_issues), application_mismatch_count
+
+    def _categorize_issue(self, error_type: str, check_names: str) -> str:
+        """Categorize an agent issue for diagnostics."""
+        token = (error_type or "").lower()
+        checks = (check_names or "").lower()
+        if any(
+            k in token
+            for k in ("grounding", "perception", "moondream", "gemini", "vision")
+        ) or any(k in checks for k in ("perception", "grounding")):
+            return "perception"
+        if any(k in token for k in ("verification", "verifier")) or "behavioral" in checks:
+            return "verification"
+        if any(k in token for k in ("planner", "planning", "hypothesis", "llm")):
+            return "planning"
+        if any(
+            k in token
+            for k in ("browser", "playwright", "page", "navigation", "protocol")
+        ):
+            return "runtime"
+        return "execution"
 
     def _assess_severity(self, failed_checks: list) -> Severity:  # type: ignore[type-arg]
         """Assess defect severity based on the types of failed checks."""
@@ -222,8 +430,43 @@ class ReportingEngine:
         return Severity.MEDIUM
 
     def _build_browser_logs(self, memory: SessionMemory) -> list[BrowserLogEntry]:
-        """Compile browser log entries from failure records."""
+        """Compile browser log entries from browser telemetry, errors, and failure records."""
         logs: list[BrowserLogEntry] = []
+
+        # 1. Playwright console logs
+        for entry in getattr(memory, "browser_logs", []):
+            lvl = entry.get("level", "info")
+            msg = entry.get("message", "")
+            if msg:
+                logs.append(
+                    BrowserLogEntry(
+                        level=lvl,
+                        message=msg,
+                        source="browser",
+                    )
+                )
+
+        # 2. Page errors
+        for err in getattr(memory, "console_errors", []):
+            logs.append(
+                BrowserLogEntry(
+                    level="error",
+                    message=f"[PageError] {err}",
+                    source="browser",
+                )
+            )
+
+        # 3. Network errors
+        for net_err in getattr(memory, "network_errors", []):
+            logs.append(
+                BrowserLogEntry(
+                    level="warning",
+                    message=f"[NetworkError] {net_err}",
+                    source="network",
+                )
+            )
+
+        # 4. Memory failures
         for failure in memory.failures:
             logs.append(
                 BrowserLogEntry(
@@ -296,6 +539,30 @@ class ReportingEngine:
                 if defect.root_cause_hypothesis:
                     lines.append(f"**Root Cause Hypothesis:** {defect.root_cause_hypothesis}")
                     lines.append("")
+
+        # Agent issues (QA engine diagnostics — NOT application defects)
+        if report.agent_issues:
+            lines.extend(
+                [
+                    "---",
+                    "",
+                    "## Agent Issues (QA Engine Diagnostics)",
+                    "",
+                    "_These are problems encountered by the QA agent itself "
+                    "(element location, perception, execution, verification, "
+                    "runtime). They are **not** application defects and are "
+                    "not counted in the Defects number._",
+                    "",
+                ]
+            )
+            for issue in report.agent_issues:
+                lines.extend(
+                    [
+                        f"### {issue.issue_id}: {issue.title} ({issue.category})",
+                        f"**Description:** {issue.description}",
+                        "",
+                    ]
+                )
 
         # Timeline
         lines.extend(

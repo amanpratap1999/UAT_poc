@@ -39,39 +39,98 @@ class PageInteractor:
         Evaluates visibility, enablement, and bounding boxes for disambiguation.
         """
         locator = self._resolve_locator(selector)
-        count = await locator.count()
+
+        try:
+            count = await locator.count()
+        except Exception as e:
+            logger.warning("locator_evaluation_failed", selector=selector, error=str(e))
+            return []
+
         candidates: list[PerceptionCandidate] = []
+        seen_candidates: set[tuple[str, str, int, int, int, int]] = set()
 
         ctx = self._get_active_context()
         frame_name = getattr(ctx, "name", "main")
 
         for i in range(count):
             loc = locator.nth(i)
-            is_visible = await loc.is_visible()
-            is_enabled = await loc.is_enabled()
-            box = await loc.bounding_box()
+            try:
+                is_visible = await loc.is_visible()
+                is_enabled = await loc.is_enabled()
+                box = await loc.bounding_box()
+            except Exception:
+                continue
 
-            bbox = None
-            if box:
-                bbox = BoundingBox(
-                    x=int(box["x"]),
-                    y=int(box["y"]),
-                    width=int(box["width"]),
-                    height=int(box["height"]),
-                )
+            # Only consider elements physically visible on screen with positive dimensions
+            if not is_visible or not box or box["width"] <= 0 or box["height"] <= 0:
+                continue
 
-            tag = await loc.evaluate("el => el.tagName.toLowerCase()")
-            text = await loc.inner_text()
+            bbox = BoundingBox(
+                x=int(box["x"]),
+                y=int(box["y"]),
+                width=int(box["width"]),
+                height=int(box["height"]),
+            )
+
+            try:
+                tag = await loc.evaluate("el => el.tagName.toLowerCase()")
+            except Exception:
+                tag = "element"
+
+            try:
+                text = await loc.inner_text()
+            except Exception:
+                text = ""
+
+            el_id = ""
+            el_name = ""
+            aria_label = ""
+            try:
+                el_id = await loc.get_attribute("id") or ""
+                el_name = await loc.get_attribute("name") or ""
+                aria_label = await loc.get_attribute("aria-label") or ""
+            except Exception:
+                pass
+
+            if el_id:
+                # ServiceNow ids commonly contain dots (for example
+                # ``incident.state``).  An unescaped ``#incident.state`` is
+                # interpreted as an id plus a CSS class, so use an attribute
+                # selector instead.
+                safe_id = el_id.replace("\\", "\\\\").replace('"', '\\"')
+                loc_str = f'[id="{safe_id}"]'
+            elif el_name:
+                safe_name = el_name.replace("\\", "\\\\").replace('"', '\\"')
+                loc_str = f'[name="{safe_name}"]'
+            elif aria_label:
+                safe_label = aria_label.replace("\\", "\\\\").replace('"', '\\"')
+                loc_str = f'[aria-label="{safe_label}"]'
+            elif tag in ("button", "a") and text.strip():
+                loc_str = f"role:{tag}:{text.strip()[:30]}"
+            else:
+                loc_str = f"{selector} >> nth={i}"
+
+            candidate_key = (
+                frame_name,
+                loc_str,
+                bbox.x,
+                bbox.y,
+                bbox.width,
+                bbox.height,
+            )
+            if candidate_key in seen_candidates:
+                continue
+            seen_candidates.add(candidate_key)
 
             candidates.append(
                 PerceptionCandidate(
                     source="dom",
                     target_description=selector,
                     confidence=1.0 if is_visible else 0.5,
-                    locator_str=f"{selector} >> nth={i}",
+                    locator_str=loc_str,
                     frame_context=frame_name,
                     role=tag,
-                    label=text.strip()[:50] if text else None,
+                    label=text.strip()[:50] if text else (aria_label or None),
                     is_visible=is_visible,
                     is_enabled=is_enabled,
                     bounding_box=bbox,
@@ -79,6 +138,17 @@ class PageInteractor:
             )
 
         return candidates
+
+    async def _move_mouse_to_locator(self, locator: Locator) -> None:
+        """Visually move the mouse to the center of a locator before interacting."""
+        try:
+            box = await locator.bounding_box()
+            if box and box["width"] > 0 and box["height"] > 0:
+                cx = box["x"] + box["width"] / 2
+                cy = box["y"] + box["height"] / 2
+                await self._page.mouse.move(cx, cy, steps=5)
+        except Exception:
+            pass
 
     async def click(self, selector: str, timeout: int = 10000) -> None:
         """Click an element using smart selector resolution.
@@ -92,6 +162,7 @@ class PageInteractor:
             ElementNotInteractableError: If element exists but cannot be clicked.
         """
         locator = self._resolve_locator(selector)
+        await self._move_mouse_to_locator(locator)
         try:
             await locator.click(timeout=timeout)
             logger.debug("clicked", selector=selector)
@@ -110,6 +181,7 @@ class PageInteractor:
     async def click_coordinate(self, x: int, y: int) -> None:
         """Click at a specific coordinate (visual grounding fallback)."""
         try:
+            await self._page.mouse.move(x, y, steps=5)
             await self._page.mouse.click(x, y)
             logger.debug("clicked_coordinate", x=x, y=y)
         except Exception as e:
@@ -132,6 +204,7 @@ class PageInteractor:
 
         # Disambiguate if needed (e.g., label matching both input and button)
         locator = await self._disambiguate_locator(locator, selector, "fill", timeout)
+        await self._move_mouse_to_locator(locator)
 
         try:
             await locator.fill(value, timeout=timeout)
@@ -145,12 +218,13 @@ class PageInteractor:
                 ) from e
             raise ElementNotInteractableError(
                 f"Cannot fill field: {selector} — {error_msg}",
-                details={"selector": selector, "value": value},
+                details={"selector": selector},
             ) from e
 
     async def fill_coordinate(self, x: int, y: int, value: str) -> None:
         """Click at a coordinate and type text (visual grounding fallback)."""
         try:
+            await self._page.mouse.move(x, y, steps=5)
             await self._page.mouse.click(x, y)
             await self._page.keyboard.type(value)
             logger.debug("filled_coordinate", x=x, y=y, value=value)
@@ -160,35 +234,86 @@ class PageInteractor:
                 details={"x": x, "y": y, "value": value},
             ) from e
 
-    async def select_option(self, selector: str, value: str, timeout: int = 10000) -> None:
-        """Select an option from a dropdown.
-
-        Tries select_option first, falls back to click-based selection
-        for custom ServiceNow dropdowns.
+    async def select_option(
+        self, selector: str, value: str, timeout: int = 10000
+    ) -> None:
+        """Select a dropdown option by label or value.
 
         Args:
-            selector: Element identifier.
-            value: Option value or label to select.
+            selector: Dropdown element identifier.
+            value: Option text or value to select.
             timeout: Max wait time in ms.
         """
         locator = self._resolve_locator(selector)
+        locator = await self._disambiguate_locator(locator, selector, "select", timeout)
+        await self._move_mouse_to_locator(locator.first)
+        attempt_timeout = min(timeout, 2500)
         try:
-            # Try native select first
-            await locator.select_option(value, timeout=timeout)
-            logger.debug("selected_option", selector=selector, value=value)
-        except Exception:
-            # Fall back: click to open dropdown, then click the option
             try:
-                await locator.click(timeout=timeout)
-                await self._page.wait_for_timeout(500)
-                option_locator = self._page.get_by_text(value, exact=False)
-                await option_locator.first.click(timeout=timeout)
-                logger.debug("selected_option_via_click", selector=selector, value=value)
-            except Exception as e:
-                raise ElementNotInteractableError(
-                    f"Cannot select option '{value}' in: {selector} — {e}",
-                    details={"selector": selector, "value": value},
+                await locator.first.select_option(label=value, timeout=attempt_timeout)
+            except Exception:
+                try:
+                    await locator.first.select_option(value=value, timeout=attempt_timeout)
+                except Exception:
+                    await locator.first.select_option(label=value.title(), timeout=timeout)
+            logger.debug("selected_option", selector=selector, value=value)
+        except Exception as e:
+            error_msg = str(e)
+            if "waiting for locator" in error_msg.lower():
+                raise SelectorNotFoundError(
+                    f"Dropdown not found: {selector}",
+                    details={"selector": selector},
                 ) from e
+            raise ElementNotInteractableError(
+                f"Cannot select option on: {selector} - {error_msg}",
+                details={"selector": selector},
+            ) from e
+
+    async def is_select_value(
+        self, selector: str, value: str, timeout: int = 2500
+    ) -> bool:
+        """Return whether a select already contains the requested value.
+
+        This lets the agent treat a human-equivalent no-op as success instead
+        of asking behavioral verification to find a change that cannot exist.
+        """
+        try:
+            locator = self._resolve_locator(selector)
+            locator = await self._disambiguate_locator(
+                locator, selector, "select", timeout
+            )
+            option = locator.first
+            if await option.count() == 0:
+                return False
+            tag = await option.evaluate("el => el.tagName.toLowerCase()")
+            if tag != "select":
+                return False
+
+            expected = (value or "").strip().lower()
+            current_value = (await option.input_value()).strip().lower()
+            selected_label = ""
+            selected = option.locator("option:checked")
+            if await selected.count() > 0:
+                selected_label = (await selected.first.inner_text()).strip().lower()
+
+            state_values = {
+                "1": "new",
+                "2": "in progress",
+                "3": "on hold",
+                "6": "resolved",
+                "7": "closed",
+                "8": "canceled",
+            }
+            return (
+                expected == current_value
+                or expected == selected_label
+                or state_values.get(expected) == current_value
+                or state_values.get(expected) == selected_label
+                or state_values.get(current_value) == expected
+                or state_values.get(selected_label) == expected
+            )
+        except Exception:
+            return False
 
     async def press_key(self, key: str) -> None:
         """Press a keyboard key.
@@ -222,25 +347,25 @@ class PageInteractor:
 
         if selector:
             locator = self._resolve_locator(selector)
+            await self._move_mouse_to_locator(locator)
             await locator.evaluate(f"el => el.scrollBy({delta_x}, {delta_y})")
         else:
             await self._page.mouse.wheel(delta_x, delta_y)
 
         logger.debug("scrolled", direction=direction, amount=amount)
 
-    async def get_element_text(self, selector: str, timeout: int = 5000) -> str:
+    async def get_text(self, selector: str) -> str:
         """Get the text content of an element.
 
         Args:
             selector: Element identifier.
-            timeout: Max wait time in ms.
 
         Returns:
-            The text content of the element.
+            The element's inner text, or empty string if not found.
         """
         locator = self._resolve_locator(selector)
         try:
-            return await locator.inner_text(timeout=timeout)
+            return (await locator.inner_text()).strip()
         except Exception:
             return ""
 
@@ -321,19 +446,26 @@ class PageInteractor:
         """Resolve a selector string into a Playwright Locator.
 
         Strategy order:
-        1. If selector starts with 'role:', use getByRole
-        2. If selector starts with 'label:', use getByLabel
-        3. If selector starts with 'text:', use getByText
-        4. If selector starts with 'placeholder:', use getByPlaceholder
-        5. Otherwise, treat as CSS selector
-
-        Args:
-            selector: The selector string to resolve.
-
-        Returns:
-            A Playwright Locator for the resolved element.
+        1. Explicit nth chaining (e.g. "target >> nth=0")
+        2. Explicit prefixes (role:, label:, text:, placeholder:, title:, css:, xpath:)
+        3. ServiceNow domain field heuristics (User name, Password, Show Password)
+        4. Raw CSS/XPath (id, class, attributes)
+        5. Semantic fallback using Locator.or_()
         """
+        import re
+
         ctx = self._get_active_context()
+
+        # 1. Handle chained nth selectors e.g. "btn >> nth=0" or "text:foo >> nth=1"
+        if " >> nth=" in selector:
+            parts = selector.split(" >> nth=", 1)
+            base_sel = parts[0].strip()
+            try:
+                nth_idx = int(parts[1].strip())
+                base_loc = self._resolve_locator(base_sel)
+                return base_loc.nth(nth_idx)
+            except (ValueError, IndexError):
+                pass
 
         if selector.startswith("role:"):
             parts = selector[5:].split(":", 1)
@@ -355,8 +487,110 @@ class PageInteractor:
             placeholder = selector[12:].strip()
             return ctx.get_by_placeholder(placeholder)  # type: ignore[no-any-return]
 
-        # Default: CSS selector
-        return ctx.locator(selector)  # type: ignore[no-any-return]
+        if selector.startswith("title:"):
+            title = selector[6:].strip()
+            return ctx.get_by_title(title, exact=False)  # type: ignore[no-any-return]
+
+        if selector.startswith("css:"):
+            return ctx.locator(f"css={selector[4:].strip()}")  # type: ignore[no-any-return]
+
+        if selector.startswith("xpath:"):
+            return ctx.locator(f"xpath={selector[6:].strip()}")  # type: ignore[no-any-return]
+
+        # 2. ServiceNow Domain Heuristics for login & common targets
+        sel_lower = selector.strip().lower()
+        if sel_lower in ("user name", "username", "user_name", "user id", "user", "login id"):
+            return (
+                ctx.locator(
+                    "input#user_name, input[name='user_name'], input#userName, "
+                    "input[name='userName'], input[id*='user_name'], "
+                    "input[aria-label*='User name' i], input[placeholder*='User name' i]"
+                )
+                .or_(ctx.get_by_label("User name", exact=False))
+                .or_(ctx.get_by_placeholder("User name", exact=False))
+            )  # type: ignore[no-any-return]
+
+        if sel_lower in ("password", "user_password", "sys_password", "user password"):
+            return (
+                ctx.locator(
+                    "input#user_password, input[name='user_password'], input[type='password'], "
+                    "input#userPassword, input[name='userPassword'], input[id*='password'], "
+                    "input[aria-label*='Password' i], input[placeholder*='Password' i]"
+                )
+                .or_(ctx.get_by_label("Password", exact=False))
+                .or_(ctx.get_by_placeholder("Password", exact=False))
+            )  # type: ignore[no-any-return]
+
+        if sel_lower in ("show password", "hide password", "toggle password", "show password icon"):
+            return (
+                ctx.locator(
+                    "button[aria-label*='password' i], button[title*='password' i], "
+                    "[aria-label*='Show Password' i], [aria-label*='Hide password' i], "
+                    ".icon-view, .icon-unview, [data-original-title*='password' i], "
+                    "button:has(.icon-view), button:has(.icon-unview)"
+                )
+                .or_(ctx.get_by_role("button", name="Show Password"))
+                .or_(ctx.get_by_title("Show Password", exact=False))
+                .or_(ctx.get_by_text("Show Password", exact=False))
+            )  # type: ignore[no-any-return]
+
+        if sel_lower in ("state", "incident.state", "incident state"):
+            return (
+                ctx.locator("select[id$='.state'], select[name$='.state'], select#incident\\.state")
+                .or_(ctx.get_by_label("State", exact=False))
+            )  # type: ignore[no-any-return]
+
+        if sel_lower in ("category", "incident.category", "incident category"):
+            return (
+                ctx.locator("select[id$='.category'], select[name$='.category']")
+                .or_(ctx.get_by_label("Category", exact=False))
+            )  # type: ignore[no-any-return]
+
+        if sel_lower in ("urgency", "incident.urgency", "incident urgency"):
+            return (
+                ctx.locator("select[id$='.urgency'], select[name$='.urgency']")
+                .or_(ctx.get_by_label("Urgency", exact=False))
+            )  # type: ignore[no-any-return]
+
+        if sel_lower in ("impact", "incident.impact", "incident impact"):
+            return (
+                ctx.locator("select[id$='.impact'], select[name$='.impact']")
+                .or_(ctx.get_by_label("Impact", exact=False))
+            )  # type: ignore[no-any-return]
+
+        if sel_lower in ("on hold reason", "hold reason", "hold_reason", "incident.hold_reason"):
+            return (
+                ctx.locator("select[id$='.hold_reason'], select[name$='.hold_reason']")
+                .or_(ctx.get_by_label("On hold reason", exact=False))
+            )  # type: ignore[no-any-return]
+
+        if sel_lower in ("update", "sysverb_update", "save record", "save"):
+            return (
+                ctx.locator("button#sysverb_update, button[name='sysverb_update'], button:has-text('Update')")
+                .or_(ctx.get_by_role("button", name="Update"))
+            )  # type: ignore[no-any-return]
+
+        if sel_lower in ("resolve", "resolve incident", "resolve_incident"):
+            return (
+                ctx.locator("button#resolve_incident, button[name='resolve_incident'], button:has-text('Resolve')")
+                .or_(ctx.get_by_role("button", name="Resolve"))
+            )  # type: ignore[no-any-return]
+
+        # 3. Check if it looks like a clean CSS or XPath selector (e.g. starts with #, ., [, //)
+        if selector.startswith("#") or selector.startswith(".") or selector.startswith("[") or selector.startswith("//"):
+            return ctx.locator(selector)  # type: ignore[no-any-return]
+
+        # 4. Unprefixed semantic string fallback
+        return (
+            ctx.get_by_role("button", name=selector)
+            .or_(ctx.get_by_role("link", name=selector))
+            .or_(ctx.get_by_label(selector))
+            .or_(ctx.get_by_title(selector, exact=False))
+            .or_(ctx.get_by_text(selector, exact=False))
+            .or_(ctx.locator(f"select[name$='.{selector.lower()}']"))
+            .or_(ctx.locator(f"input[name='{selector}']"))
+            .or_(ctx.locator(f"#{selector}"))
+        )  # type: ignore[no-any-return]
 
     async def _disambiguate_locator(
         self, locator: Locator, selector: str, action_type: str, timeout: int
@@ -390,6 +624,18 @@ class PageInteractor:
                     f"Cannot fill field: {selector} — DOM ambiguity, {len(valid_locators)} editable elements found.",  # noqa: E501
                     details={"selector": selector},
                 )
+
+        if action_type == "select":
+            valid_locators = []
+            for i in range(count):
+                loc = locator.nth(i)
+                tag = await loc.evaluate("el => el.tagName.toLowerCase()")
+                if tag == "select":
+                    valid_locators.append(loc)
+
+            if len(valid_locators) >= 1:
+                logger.debug("disambiguated_select_target", selector=selector)
+                return valid_locators[0]
 
         # If we couldn't confidently disambiguate, return original to fail safely
         return locator

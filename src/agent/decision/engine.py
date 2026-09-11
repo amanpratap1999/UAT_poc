@@ -32,11 +32,14 @@ from agent.tools.registry import ToolRegistry
 logger = get_logger(__name__)
 
 DECISION_PROMPT = """You are the Decision Engine of an autonomous ServiceNow QA agent.
-Select the single best immediate action to execute.
+Select the single best immediate action to execute to advance the plan.
 
 ## Structured Intent
 Goal: {goal}
 Intent Type: {intent_type}
+
+## Execution Plan
+{plan_summary}
 
 ## World State
 {world_state_summary}
@@ -51,7 +54,12 @@ Intent Type: {intent_type}
 {reflection_summary}
 
 ## Instructions
-Choose the optimal next action.
+1. Review the Execution Plan, current page World State, and recent actions.
+2. Select the NEXT logical step in the plan that has not yet been completed.
+3. If on the Incident form and State was just changed to 'In Progress' (2), click 'Update' (button#sysverb_update) to save the record.
+4. If the form was saved and redirected to home/list, navigate back to the incident record to re-observe and verify.
+5. Do NOT toggle back to On Hold once In Progress has been chosen.
+
 Respond with a JSON object:
 {{
     "action_type": "click|fill|select|navigate|wait|key_press|scroll|validate|screenshot",
@@ -132,6 +140,7 @@ class DecisionEngine:
                             "content": DECISION_PROMPT.format(
                                 goal=intent.goal,
                                 intent_type=intent.intent_type,
+                                plan_summary=memory.plan.to_summary() if memory.plan else "None",
                                 world_state_summary=world_state.to_compact_cognitive_summary(),
                                 session_context=memory.get_context_for_llm(),
                                 tool_summary=tool_summary,

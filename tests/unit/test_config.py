@@ -35,7 +35,15 @@ def test_domain_config_asyncpg_dsn_conversion() -> None:
     assert cfg5.asyncpg_dsn == ""
 
 
-def test_browser_config_default_headless() -> None:
-    """Verify BrowserConfig defaults to headless=True for container/Codespaces safety."""
-    cfg = BrowserConfig.model_construct()
-    assert cfg.headless is True
+def test_browser_config_defaults() -> None:
+    """Verify BrowserConfig defaults to headed mode (headless=False) with cursor indicator."""
+    cfg = BrowserConfig.model_construct(
+        headless=False,
+        slow_mo=0,
+        show_mouse_cursor=True,
+        keep_browser_open=False,
+    )
+    assert cfg.headless is False
+    assert cfg.show_mouse_cursor is True
+    assert cfg.keep_browser_open is False
+    assert cfg.slow_mo == 0

@@ -53,9 +53,14 @@ class Planner:
         knowledge_context: str = "",
         scenario_generator: ScenarioGenerator | None = None,
         test_store: TestIntelligenceStore | None = None,
+        knowledge_model: CustomerKnowledgeModel | None = None,
     ) -> None:
         self._llm = llm_client
-        self._knowledge_context = knowledge_context
+        self._knowledge_model = knowledge_model
+        km_context = ""
+        if knowledge_model and hasattr(knowledge_model, "to_context_str"):
+            km_context = knowledge_model.to_context_str()
+        self._knowledge_context = knowledge_context or km_context
         self._scenario_generator = scenario_generator
         self._test_store = test_store
 

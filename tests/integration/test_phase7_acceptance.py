@@ -1,14 +1,15 @@
-import sys
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 from agent.world.model import PageType
 
-sys.modules["fastapi"] = Mock()
-sys.modules["fastapi.security"] = Mock()
-sys.modules["fastapi.routing"] = Mock()
-sys.modules["agent.api.v1.router"] = Mock(router=Mock())
+# NOTE: This module previously replaced sys.modules["fastapi"] (and friends)
+# with Mocks to dodge importing the live FastAPI app. That permanently
+# poisoned the shared interpreter for every later test importing FastAPI
+# (e.g. test_phase7_product_api) with `TypeError: 'Mock' object does not
+# support item assignment`. The app is now imported normally instead —
+# these tests construct orchestrators directly and never call the HTTP app.
 
 from agent.core.config import Settings  # noqa: E402
 from agent.core.types import ActionType  # noqa: E402

@@ -25,6 +25,7 @@ def mock_browser_manager() -> MagicMock:
     manager.wait_for_network_idle = AsyncMock()
     manager.get_page = MagicMock()
     manager.get_page_errors = MagicMock(return_value=[])
+    manager.get_url = AsyncMock(return_value="https://dev12345.service-now.com")
     return manager
 
 

@@ -180,3 +180,71 @@ async def test_tenant_isolation_metrics(async_client: AsyncClient, mocker):
     metrics_res_b = await async_client.get("/api/v1/metrics", headers=headers)
     assert metrics_res_b.status_code == 200
     assert metrics_res_b.json()["tenant_id"] == "tenant-B"
+
+
+async def test_update_finding_patch(async_client: AsyncClient):
+    """Test PATCH /api/v1/findings/:id to override/update finding properties."""
+    import uuid
+    from agent.core.db import get_db_session
+    from agent.domain.models import Finding, Run
+
+    auth_res = await async_client.post(
+        "/api/v1/token", data={"username": "admin", "password": "admin"}
+    )
+    token = auth_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Insert a test run and finding directly into DB
+    override_db = async_client._transport.app.dependency_overrides[get_db_session]
+    async for session in override_db():
+        run_id = str(uuid.uuid4())
+        finding_id = str(uuid.uuid4())
+        run = Run(id=run_id, tenant_id="tenant-0", goal="Test Goal", status="completed")
+        finding = Finding(
+            id=finding_id,
+            tenant_id="tenant-0",
+            run_id=run_id,
+            capability="Incident",
+            description="State field mismatch",
+            is_defect=True,
+            severity="high",
+        )
+        session.add(run)
+        session.add(finding)
+        await session.commit()
+        break
+
+    # Patch the finding
+    patch_res = await async_client.patch(
+        f"/api/v1/findings/{finding_id}",
+        json={"is_defect": False, "capability": "Expected Customization"},
+        headers=headers,
+    )
+    assert patch_res.status_code == 200
+    patched_data = patch_res.json()
+    assert patched_data["is_defect"] is False
+    assert patched_data["capability"] == "Expected Customization"
+
+
+async def test_knowledge_model_endpoints(async_client: AsyncClient):
+    """Test knowledge model rules and drift query endpoints."""
+    auth_res = await async_client.post(
+        "/api/v1/token", data={"username": "admin", "password": "admin"}
+    )
+    token = auth_res.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Rules endpoint
+    rules_res = await async_client.get("/api/v1/knowledge-model/rules", headers=headers)
+    assert rules_res.status_code == 200
+    rules_data = rules_res.json()
+    assert "total" in rules_data
+    assert "tables" in rules_data
+    assert "incident" in rules_data["tables"]
+
+    # Drift endpoint
+    drift_res = await async_client.get("/api/v1/knowledge-model/drift", headers=headers)
+    assert drift_res.status_code == 200
+    drift_data = drift_res.json()
+    assert "has_drift" in drift_data
+    assert drift_data["has_drift"] is False

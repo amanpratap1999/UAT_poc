@@ -1,10 +1,9 @@
 /**
  * Perception types — the data contract for the Perception Overlay.
  *
- * NOTE: The backend does not currently persist perception frames.
- * The PerceptionOverlay component is built against this contract
- * and will render real data when the backend provides it.
- * For now, it renders a "Perception data unavailable" state.
+ * The backend persists per-run perception frames as screenshot files and
+ * grounding metadata.  The overlay renders an unavailable state only when a
+ * run has not produced a frame or the API cannot retrieve one.
  */
 
 /** A single candidate bounding box from the grounding/perception step */
@@ -36,6 +35,8 @@ export interface PerceptionFrame {
   screenshot_b64?: string;
   /** URL to the screenshot if served as a file */
   screenshot_url?: string;
+  /** Authenticated API path to the screenshot (fetched with Bearer token) */
+  screenshot_path?: string;
   /** All candidate bounding boxes evaluated in this step */
   boxes: BoundingBox[];
   /** The action the agent took (click, type, navigate, etc.) */

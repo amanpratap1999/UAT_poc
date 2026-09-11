@@ -42,3 +42,13 @@ async def test_intent_manager_parse_llm() -> None:
     assert intent.goal == "Validate incident resolution workflow"
     assert intent.priority == "High"
     assert intent.confidence == 0.97
+
+
+@pytest.mark.asyncio
+async def test_intent_manager_parse_general_ui() -> None:
+    """Test heuristic parsing for general UI / login goals."""
+    manager = IntentManager(llm_client=None)
+    intent = await manager.parse_intent("Click the 'Show Password' icon on the ServiceNow login page")
+
+    assert intent.target_module in ("auth", "general")
+    assert intent.intent_type == "GeneralValidation"

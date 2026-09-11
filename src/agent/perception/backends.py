@@ -150,41 +150,80 @@ class MoondreamBackend(GrounderBackend):
         img = Image.open(io.BytesIO(screenshot_bytes)).convert("RGB")
         width, height = img.size
 
+        logger.info(
+            "perception_started",
+            provider="moondream",
+            task="ground_element",
+            target=target_description,
+        )
+
         try:
             encoded = self.model.encode_image(img)
 
             # Detect
+            logger.info("moondream_inference_started", target=target_description, task="detect")
             detect_res = self.model.detect(encoded, target_description)
             if hasattr(detect_res, "objects") and detect_res.objects:
                 obj = detect_res.objects[0]
+                bbox = BoundingBox(
+                    x=int(obj.x_min * width),
+                    y=int(obj.y_min * height),
+                    width=int((obj.x_max - obj.x_min) * width),
+                    height=int((obj.y_max - obj.y_min) * height),
+                )
+                logger.info(
+                    "moondream_detect_success",
+                    target=target_description,
+                    confidence=1.0,
+                    center_x=bbox.center_x,
+                    center_y=bbox.center_y,
+                )
+                logger.info(
+                    "perception_completed",
+                    provider="moondream",
+                    target=target_description,
+                    success=True,
+                    method="detect",
+                )
                 return PerceptionCandidate(
                     source="moondream",
                     target_description=target_description,
                     confidence=1.0,
-                    bounding_box=BoundingBox(
-                        x=int(obj.x_min * width),
-                        y=int(obj.y_min * height),
-                        width=int((obj.x_max - obj.x_min) * width),
-                        height=int((obj.y_max - obj.y_min) * height),
-                    ),
+                    bounding_box=bbox,
                     frame_context=frame_context,
                 )
             elif isinstance(detect_res, dict) and detect_res.get("objects"):
                 obj = detect_res["objects"][0]
+                bbox = BoundingBox(
+                    x=int(obj["x_min"] * width),
+                    y=int(obj["y_min"] * height),
+                    width=int((obj["x_max"] - obj["x_min"]) * width),
+                    height=int((obj["y_max"] - obj["y_min"]) * height),
+                )
+                logger.info(
+                    "moondream_detect_success",
+                    target=target_description,
+                    confidence=1.0,
+                    center_x=bbox.center_x,
+                    center_y=bbox.center_y,
+                )
+                logger.info(
+                    "perception_completed",
+                    provider="moondream",
+                    target=target_description,
+                    success=True,
+                    method="detect",
+                )
                 return PerceptionCandidate(
                     source="moondream",
                     target_description=target_description,
                     confidence=1.0,
-                    bounding_box=BoundingBox(
-                        x=int(obj["x_min"] * width),
-                        y=int(obj["y_min"] * height),
-                        width=int((obj["x_max"] - obj["x_min"]) * width),
-                        height=int((obj["y_max"] - obj["y_min"]) * height),
-                    ),
+                    bounding_box=bbox,
                     frame_context=frame_context,
                 )
 
             # Point Fallback
+            logger.info("moondream_inference_started", target=target_description, task="point")
             point_res = self.model.point(encoded, target_description)
             pt = None
             if hasattr(point_res, "points") and point_res.points:
@@ -195,6 +234,19 @@ class MoondreamBackend(GrounderBackend):
 
             if pt or (isinstance(point_res, dict) and point_res.get("points")):
                 px, py = int(x * width), int(y * height)
+                logger.info(
+                    "moondream_point_success",
+                    target=target_description,
+                    x=px,
+                    y=py,
+                )
+                logger.info(
+                    "perception_completed",
+                    provider="moondream",
+                    target=target_description,
+                    success=True,
+                    method="point",
+                )
                 return PerceptionCandidate(
                     source="moondream",
                     target_description=target_description,
@@ -203,8 +255,22 @@ class MoondreamBackend(GrounderBackend):
                     frame_context=frame_context,
                 )
         except Exception as e:
+            logger.error(
+                "perception_completed",
+                provider="moondream",
+                target=target_description,
+                success=False,
+                error=str(e),
+            )
             raise GroundingFailure(f"Moondream failed: {e}") from e
 
+        logger.info(
+            "perception_completed",
+            provider="moondream",
+            target=target_description,
+            success=False,
+            reason="no_detection_or_point",
+        )
         return None
 
 
@@ -215,10 +281,16 @@ class GeminiBackend(GrounderBackend):
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY is required")
-        import google.generativeai as genai  # type: ignore[import-untyped]
+        self.model = None
+        self._has_sdk = False
+        try:
+            import google.generativeai as genai  # type: ignore[import-untyped]
 
-        genai.configure(api_key=self.api_key)
-        self.model = genai.GenerativeModel("gemini-2.5-flash")
+            genai.configure(api_key=self.api_key)
+            self.model = genai.GenerativeModel("gemini-2.5-flash")
+            self._has_sdk = True
+        except ImportError:
+            self._has_sdk = False
 
     async def ground_element(
         self,
@@ -233,7 +305,7 @@ class GeminiBackend(GrounderBackend):
 
         # Gather candidate elements via JS
         boxes = await page.evaluate("""() => {
-            return Array.from(document.querySelectorAll('button, a, input, select, textarea, [role="button"], [role="link"], [role="tab"], [role="menuitem"]'))
+            return Array.from(document.querySelectorAll('button, a, input, select, textarea, [role="button"], [role="link"], [role="tab"], [role="menuitem"], .tabs2_tab, span.tab_caption_text, .tab_header, [data-original-title]'))
                 .map((el, idx) => {
                     const rect = el.getBoundingClientRect();
                     return {id: idx + 1, x: rect.x, y: rect.y, width: rect.width, height: rect.height};
@@ -259,20 +331,73 @@ class GeminiBackend(GrounderBackend):
         overlay_bytes = io.BytesIO()
         img.save(overlay_bytes, format="PNG")
         overlay_bytes.seek(0)
-        annotated_img = Image.open(overlay_bytes)
 
         prompt = f"Identify the ID number of the UI element corresponding to '{target_description}'. Respond with ONLY the integer."
 
+        logger.info(
+            "perception_started",
+            provider="gemini",
+            task="ground_element",
+            target=target_description,
+            overlay_elements=len(boxes),
+        )
+
         try:
-            response = await self.model.generate_content_async([prompt, annotated_img])
-            idx_str = response.text.strip()
+            if self._has_sdk and self.model:
+                annotated_img = Image.open(overlay_bytes)
+                response = await self.model.generate_content_async([prompt, annotated_img])
+                idx_str = response.text.strip()
+            else:
+                import base64
+                import httpx
+
+                img_b64 = base64.b64encode(overlay_bytes.getvalue()).decode("utf-8")
+                payload = {
+                    "contents": [
+                        {
+                            "parts": [
+                                {"text": prompt},
+                                {
+                                    "inline_data": {
+                                        "mime_type": "image/png",
+                                        "data": img_b64,
+                                    }
+                                },
+                            ]
+                        }
+                    ]
+                }
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    resp = await client.post(
+                        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={self.api_key}",
+                        json=payload,
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+                    idx_str = data["candidates"][0]["content"]["parts"][0]["text"].strip()
             m = re.search(r"\d+", idx_str)
             if not m:
+                logger.info(
+                    "perception_completed",
+                    provider="gemini",
+                    target=target_description,
+                    success=False,
+                    reason="no_id_in_response",
+                )
                 return None
 
             target_id = int(m.group())
             for b in boxes:
                 if b["id"] == target_id:
+                    logger.info(
+                        "perception_completed",
+                        provider="gemini",
+                        target=target_description,
+                        success=True,
+                        matched_id=target_id,
+                        x=int(b["x"]),
+                        y=int(b["y"]),
+                    )
                     return PerceptionCandidate(
                         source="gemini_overlay",
                         target_description=target_description,
@@ -286,6 +411,13 @@ class GeminiBackend(GrounderBackend):
                         frame_context=frame_context,
                     )
         except Exception as e:
+            logger.error(
+                "perception_completed",
+                provider="gemini",
+                target=target_description,
+                success=False,
+                error=str(e),
+            )
             raise GroundingFailure(f"Gemini failed: {e}") from e
 
         return None

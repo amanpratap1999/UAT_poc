@@ -25,6 +25,7 @@ from agent.core.exceptions import (
 from agent.core.logging import get_logger
 from agent.core.types import ActionType
 from agent.domain.actions import ActionResult, AgentAction
+from agent.execution.policy import ActionPolicy
 
 if TYPE_CHECKING:
     from agent.browser.manager import BrowserManager
@@ -48,11 +49,13 @@ class ExecutionController:
         page_interactor: PageInteractor,
         recovery_engine: RecoveryEngine | None = None,
         servicenow_config: ServiceNowConfig | None = None,
+        action_policy: ActionPolicy | None = None,
     ) -> None:
         self._browser = browser_manager
         self._interactor = page_interactor
         self._recovery = recovery_engine
         self._servicenow_config = servicenow_config or get_settings().servicenow
+        self._policy = action_policy or ActionPolicy(config=get_settings().security)
 
         # Action dispatch table
         self._handlers = {
@@ -95,6 +98,27 @@ class ExecutionController:
                 action=action,
                 error=f"Unknown action type: {action.action_type}",
                 error_type="UnknownActionType",
+            )
+
+        # Policy validation check
+        current_url = ""
+        try:
+            current_url = await self._browser.get_url()
+        except Exception:
+            pass
+
+        policy_check = self._policy.validate(action, current_url=current_url)
+        if not policy_check.is_allowed:
+            logger.warning(
+                "action_blocked_by_policy",
+                action_type=action.action_type,
+                reason=policy_check.reason,
+            )
+            return ActionResult(
+                success=False,
+                action=action,
+                error=f"Security policy blocked action: {policy_check.reason}",
+                error_type="PolicyBlockedError",
             )
 
         target_clean = action.target.strip().lower().rstrip(":")
@@ -217,12 +241,18 @@ class ExecutionController:
             x = int(action.metadata["x"])
             y = int(action.metadata["y"])
             await self._interactor.click_coordinate(x, y)
+        elif getattr(action, "coordinates", None):
+            coords = getattr(action, "coordinates")
+            await self._interactor.click_coordinate(int(coords[0]), int(coords[1]))
         else:
             await self._interactor.click(action.target)
 
     async def _handle_fill(self, action: AgentAction) -> None:
         """Handle fill actions — fill a form field with a value."""
-        target = action.metadata.get("field_label", action.target)
+        target = action.metadata.get(
+            "resolved_locator",
+            action.metadata.get("field_label", action.target),
+        )
         target_clean = target.strip().lower().rstrip(":")
 
         # Secure credential substitution for login fields
@@ -262,7 +292,18 @@ class ExecutionController:
 
     async def _handle_select(self, action: AgentAction) -> None:
         """Handle select actions — select an option from a dropdown."""
-        target = action.metadata.get("field_label", action.target)
+        target = action.metadata.get(
+            "resolved_locator",
+            action.metadata.get("field_label", action.target),
+        )
+        if await self._interactor.is_select_value(target, action.value):
+            action.metadata["no_op"] = True
+            logger.info(
+                "select_noop_skipped",
+                target=target,
+                value=action.value,
+            )
+            return
         await self._interactor.select_option(target, action.value)
 
     async def _handle_navigate(self, action: AgentAction) -> None:

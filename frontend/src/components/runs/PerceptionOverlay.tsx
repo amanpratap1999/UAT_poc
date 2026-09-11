@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { BoundingBox } from "./BoundingBox";
+import { AuthedImage } from "./AuthedImage";
 import type { PerceptionFrame, BoundingBox as BoundingBoxType } from "@/types/perception";
 import { formatConfidence } from "@/lib/utils";
 
@@ -26,7 +27,7 @@ export function PerceptionOverlay({ frame, isLive }: PerceptionOverlayProps) {
   const [overlayVisible, setOverlayVisible] = useState(true);
 
   const hasFrame = !!frame;
-  const hasScreenshot = !!(frame?.screenshot_b64 || frame?.screenshot_url);
+  const hasScreenshot = !!(frame?.screenshot_b64 || frame?.screenshot_url || frame?.screenshot_path);
   const hasBoxes = (frame?.boxes?.length ?? 0) > 0;
 
   const screenshotSrc = frame?.screenshot_b64
@@ -95,37 +96,49 @@ export function PerceptionOverlay({ frame, isLive }: PerceptionOverlayProps) {
       </div>
 
       {/* Screenshot + SVG overlay */}
-      <div className="relative flex-1 overflow-hidden">
-        <img
-          ref={imgRef}
-          src={screenshotSrc}
-          alt={`ServiceNow screenshot — step ${frame.step_index}`}
-          className="h-full w-full object-contain"
-          onLoad={(e) => {
-            const img = e.currentTarget;
-            setImgDimensions({ width: img.clientWidth, height: img.clientHeight });
-          }}
-        />
+      <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-graphite-950 p-2">
+        <div className="relative inline-flex max-h-full max-w-full items-center justify-center">
+          {frame.screenshot_path ? (
+            <AuthedImage
+              path={frame.screenshot_path}
+              alt={`ServiceNow screenshot — step ${frame.step_index}`}
+              className="max-h-[calc(100vh-14rem)] max-w-full h-auto w-auto object-contain rounded shadow-lg"
+              onLoad={(dims) => setImgDimensions(dims)}
+            />
+          ) : (
+            <img
+              ref={imgRef}
+              src={screenshotSrc}
+              alt={`ServiceNow screenshot — step ${frame.step_index}`}
+              className="max-h-[calc(100vh-14rem)] max-w-full h-auto w-auto object-contain rounded shadow-lg"
+              onLoad={(e) => {
+                const img = e.currentTarget;
+                setImgDimensions({ width: img.clientWidth, height: img.clientHeight });
+              }}
+            />
+          )}
 
-        {overlayVisible && hasBoxes && imgDimensions.width > 0 && (
-          <svg
-            className="pointer-events-all absolute inset-0 h-full w-full"
-            viewBox={`0 0 ${imgDimensions.width} ${imgDimensions.height}`}
-            aria-label="Perception overlay — candidate bounding boxes"
-            role="img"
-          >
-            {frame.boxes.map((box) => (
-              <BoundingBox
-                key={box.index}
-                box={box}
-                imageWidth={imgDimensions.width}
-                imageHeight={imgDimensions.height}
-                animatePulse={box.is_selected}
-                onSelect={setSelectedBox}
-              />
-            ))}
-          </svg>
-        )}
+          {overlayVisible && hasBoxes && imgDimensions.width > 0 && (
+            <svg
+              className="pointer-events-all absolute inset-0 h-full w-full"
+              viewBox={`0 0 ${imgDimensions.width} ${imgDimensions.height}`}
+              preserveAspectRatio="none"
+              aria-label="Perception overlay — candidate bounding boxes"
+              role="img"
+            >
+              {frame.boxes.map((box) => (
+                <BoundingBox
+                  key={box.index}
+                  box={box}
+                  imageWidth={imgDimensions.width}
+                  imageHeight={imgDimensions.height}
+                  animatePulse={box.is_selected}
+                  onSelect={setSelectedBox}
+                />
+              ))}
+            </svg>
+          )}
+        </div>
       </div>
 
       {/* Selected box detail panel */}

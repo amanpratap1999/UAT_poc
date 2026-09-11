@@ -29,10 +29,8 @@ export default function Runs() {
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-ink-100">
-            Runs
-          </h1>
-          <p className="mt-1 text-sm text-ink-400">
+          <h1 className="page-title">Runs</h1>
+          <p className="page-subtitle">
             History of all QA runs for your workspace
           </p>
         </div>
@@ -60,7 +58,11 @@ export default function Runs() {
       </div>
 
       {/* Status filter tabs */}
-      <div className="flex gap-1" role="tablist" aria-label="Filter runs by status">
+      <div
+        className="inline-flex w-fit items-center gap-1 rounded-lg border border-line bg-card p-1 shadow-card"
+        role="tablist"
+        aria-label="Filter runs by status"
+      >
         {STATUS_FILTERS.map((f) => (
           <button
             key={f.value}
@@ -68,15 +70,15 @@ export default function Runs() {
             id={`status-filter-${f.value}`}
             aria-selected={statusFilter === f.value}
             onClick={() => setStatusFilter(f.value)}
-            className={`rounded px-3 py-1.5 font-mono text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal-teal ${
+            className={`rounded-md px-3 py-1.5 font-mono text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
               statusFilter === f.value
-                ? "bg-graphite-600 text-ink-100"
-                : "text-ink-400 hover:bg-graphite-800 hover:text-ink-100"
+                ? "bg-ink text-canvas shadow-card"
+                : "text-muted hover:bg-ink/5 hover:text-ink"
             }`}
           >
             {f.label}
             {f.value !== "all" && runs && (
-              <span className="ml-1.5 opacity-60">
+              <span className={`ml-1.5 ${statusFilter === f.value ? "opacity-60" : "opacity-70"}`}>
                 ({runs.filter((r) => r.status === f.value).length})
               </span>
             )}
@@ -86,9 +88,9 @@ export default function Runs() {
 
       {/* Runs table */}
       {isLoading ? (
-        <div className="surface-card p-0 overflow-hidden">
+        <div className="surface-card overflow-hidden p-0">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="flex items-center gap-4 border-b border-graphite-600 px-4 py-3">
+            <div key={i} className="flex items-center gap-4 border-b border-line px-4 py-3">
               <Skeleton className="h-4 w-20" />
               <Skeleton className="h-4 flex-1" />
               <Skeleton className="h-5 w-20" />
@@ -103,7 +105,7 @@ export default function Runs() {
       {/* Empty state for all runs */}
       {!isLoading && (!runs || runs.length === 0) && (
         <div className="surface-card flex flex-col items-center gap-4 py-14 text-center">
-          <p className="text-sm text-ink-400">No runs yet for this workspace.</p>
+          <p className="text-sm text-body">No runs yet for this workspace.</p>
           <Button
             variant="primary"
             onClick={() => setDialogOpen(true)}

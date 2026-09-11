@@ -2,6 +2,11 @@
 
 Implements the core decision matrix for how to interact with the DOM,
 falling back to vision, and verifying outcomes.
+
+Uses the confidence-driven PerceptionRouter:
+1. DOM reliable → use directly (no vision call)
+2. Moondream PRIMARY → check confidence
+3. Gemini FALLBACK → last resort
 """
 
 from __future__ import annotations
@@ -12,7 +17,9 @@ from agent.core.logging import get_logger
 from agent.core.types import ActionType
 from agent.domain.actions import ActionResult, AgentAction
 from agent.learning.service import LearningService
+from agent.observation.page_state import PageStateFingerprint
 from agent.perception.models import GroundingFailure, PerceptionCandidate
+from agent.perception.router import PerceptionRouter
 
 if TYPE_CHECKING:
     from agent.browser.manager import BrowserManager
@@ -26,7 +33,11 @@ logger = get_logger(__name__)
 
 
 class PerceptionDecisionEngine:
-    """Coordinates structural and visual perception for action execution."""
+    """Coordinates structural and visual perception for action execution.
+
+    Uses the PerceptionRouter for confidence-driven DOM → Moondream → Gemini
+    routing. Tracks perception_route for full log traceability.
+    """
 
     def __init__(
         self,
@@ -37,6 +48,7 @@ class PerceptionDecisionEngine:
         verifier: BehavioralVerifier,
         learning_service: LearningService,
         observer: ObservationEngine,
+        perception_router: PerceptionRouter | None = None,
     ) -> None:
         self._browser = browser
         self._interactor = interactor
@@ -45,6 +57,7 @@ class PerceptionDecisionEngine:
         self._verifier = verifier
         self._learning = learning_service
         self._observer = observer
+        self._router = perception_router
 
     async def execute_with_perception(self, action: AgentAction) -> ActionResult:
         """Execute an action using perception logic and behavioral verification."""
@@ -61,7 +74,12 @@ class PerceptionDecisionEngine:
             return await self._executor.execute(action)
 
         # Before state for verification
-        await self._browser.take_screenshot("before_perception")
+        before_screenshot_path = None
+        try:
+            before_screenshot_path = await self._browser.take_screenshot("before_perception")
+        except Exception as e:
+            logger.warning("before_screenshot_failed", error=str(e))
+
         try:
             page = self._browser.get_page()
             before_obs = await self._observer.observe(page)
@@ -71,111 +89,154 @@ class PerceptionDecisionEngine:
         before_state_summary = (
             before_obs.model_dump_json(exclude={"buttons", "tabs"}) if before_obs else "Unknown"
         )
+        before_fingerprint = (
+            PageStateFingerprint.from_observation(before_obs) if before_obs else None
+        )
 
-        # 1. Check Learning Service for existing valid recoveries
         fingerprint = before_obs.url.split("?")[0] if before_obs else "unknown"
-        recovery = await self._learning.get_valid_recovery(target, fingerprint)
-
-        recovered_candidate: PerceptionCandidate | None = None
-        if recovery:
-            # We have a valid learned recovery.
-            logger.info("using_learned_recovery", target=target, recovery_id=recovery.id)
-            # Reconstruct a basic candidate
-            recovered_candidate = PerceptionCandidate(
-                source="learned",
-                confidence=recovery.confidence,
-                target_description=target,
-                locator_str=recovery.successful_locator,
-                is_visible=True,
-                is_enabled=True,
-            )
-
         final_action = action.model_copy(deep=True)
         used_vision = False
         selected_candidate = None
+        recovered_candidate: PerceptionCandidate | None = None
+        perception_route = "NONE"
 
-        if recovered_candidate:
-            selected_candidate = recovered_candidate
-            self._apply_candidate_to_action(final_action, selected_candidate)
-            # If it has a locator string, we should ideally revalidate if it still exists
-            if selected_candidate.locator_str:
+        # 1. Primary Perception Pipeline: DOM -> Moondream (Primary) -> Gemini (Fallback)
+        router = self._router or (
+            self._grounder if isinstance(self._grounder, PerceptionRouter) else None
+        )
+
+        # Resolve DOM candidates first
+        try:
+            dom_candidates = await self._interactor.resolve_candidates(target)
+        except Exception as e:
+            logger.warning("dom_resolution_failed", error=str(e))
+            dom_candidates = []
+
+        # Get screenshot bytes for vision models
+        screenshot_bytes = b""
+        try:
+            screenshot_bytes = await page.screenshot(type="png")
+        except Exception as e:
+            logger.error("vision_screenshot_failed", error=str(e))
+
+        # Check learned recovery before visual fallback
+        if not dom_candidates and not selected_candidate and self._learning:
+            recovery = await self._learning.get_valid_recovery(target, fingerprint)
+            if recovery and recovery.successful_locator:
                 try:
-                    cands = await self._interactor.resolve_candidates(
-                        selected_candidate.locator_str
-                    )
-                    if not any(c.is_visible for c in cands):
-                        logger.warning("learned_recovery_stale", target=target)
-                        selected_candidate = None  # Force re-perception
-                        if recovery:
-                            await self._learning.record_recovery_outcome(
-                                target=target,
-                                fingerprint=fingerprint,
-                                original_locator=None,
-                                successful_locator=recovery.successful_locator,
-                                is_success=False,
-                            )
+                    cands = await self._interactor.resolve_candidates(recovery.successful_locator)
+                    if any(c.is_visible for c in cands):
+                        selected_candidate = PerceptionCandidate(
+                            source="learned",
+                            confidence=recovery.confidence,
+                            target_description=target,
+                            locator_str=recovery.successful_locator,
+                            is_visible=True,
+                            is_enabled=True,
+                        )
+                        perception_route = "LEARNED"
+                        self._apply_candidate_to_action(final_action, selected_candidate)
+                        logger.info("using_learned_recovery", target=target, recovery_id=recovery.id)
                 except Exception:
-                    selected_candidate = None
+                    pass
 
-        # 2. Level 1: Structural Perception
-        if not selected_candidate:
+        if not selected_candidate and router:
             try:
-                dom_candidates = await self._interactor.resolve_candidates(target)
-            except Exception as e:
-                logger.warning("dom_resolution_failed", error=str(e))
-                dom_candidates = []
+                route_result = await router.route(
+                    target=target,
+                    screenshot_bytes=screenshot_bytes,
+                    dom_candidates=dom_candidates,
+                    page=page,
+                )
+            except GroundingFailure as e:
+                logger.error("grounding_failure", error=str(e))
+                return ActionResult(
+                    success=False,
+                    action=action,
+                    error=f"Visual grounding failed critically: {e}",
+                    error_type="GroundingFailure",
+                )
 
+            perception_route = route_result.route
+            if route_result.success:
+                selected_candidate = route_result.candidate
+                self._apply_candidate_to_action(final_action, selected_candidate)
+                used_vision = perception_route not in ("DOM", "DOM_DISAMBIGUATED")
+                logger.info(
+                    "perception_routing_complete",
+                    target=target,
+                    route=perception_route,
+                    confidence=route_result.confidence,
+                    verified=route_result.verified,
+                )
+        else:
+            # Fallback legacy routing if router not initialized
             if len(dom_candidates) == 1:
-                # Single Match
                 selected_candidate = dom_candidates[0]
+                perception_route = "DOM"
                 self._apply_candidate_to_action(final_action, selected_candidate)
                 logger.info("single_dom_candidate_found", target=target)
             elif len(dom_candidates) > 1:
-                # Multiple Matches: Disambiguate deterministically
                 selected_candidate = self._disambiguate_candidates(dom_candidates, target)
                 if selected_candidate:
+                    perception_route = "DOM_DISAMBIGUATED"
                     self._apply_candidate_to_action(final_action, selected_candidate)
                     logger.info("disambiguated_dom_candidate", target=target)
 
-            # 3. Level 2: Semantic Perception (Visual Grounding Fallback)
-            if not selected_candidate:
-                # Zero DOM matches or ambiguous -> Vision fallback
+            if not selected_candidate and screenshot_bytes:
                 logger.info("invoking_visual_grounding", target=target)
                 used_vision = True
-
-                # We need raw bytes for the vision model
-                screenshot_bytes = b""
                 try:
-                    screenshot_bytes = await page.screenshot(type="png")
-                except Exception as e:
-                    logger.error("vision_screenshot_failed", error=str(e))
+                    v_cand = await self._grounder.ground_element(
+                        screenshot_bytes=screenshot_bytes,
+                        target_description=target,
+                        page=page,
+                    )
+                    if v_cand:
+                        selected_candidate = v_cand
+                        perception_route = "MOONDREAM"
+                        self._apply_candidate_to_action(final_action, selected_candidate)
+                        logger.info(
+                            "visual_candidate_found",
+                            target=target,
+                            conf=v_cand.confidence,
+                        )
+                except GroundingFailure as e:
+                    logger.error("grounding_failure", error=str(e))
+                    return ActionResult(
+                        success=False,
+                        action=action,
+                        error=f"Visual grounding failed critically: {e}",
+                        error_type="GroundingFailure",
+                    )
 
-                if screenshot_bytes:
+        # 2. Recovery Fallback: Check Learning Service only if DOM + Vision failed
+        if not selected_candidate and self._learning:
+            fingerprint = before_obs.url.split("?")[0] if before_obs else "unknown"
+            recovery = await self._learning.get_valid_recovery(target, fingerprint)
+            if recovery:
+                logger.info("using_learned_recovery_fallback", target=target, recovery_id=recovery.id)
+                recovered_candidate = PerceptionCandidate(
+                    source="learned",
+                    confidence=recovery.confidence,
+                    target_description=target,
+                    locator_str=recovery.successful_locator,
+                    is_visible=True,
+                    is_enabled=True,
+                )
+                if recovered_candidate.locator_str:
                     try:
-                        v_cand = await self._grounder.ground_element(
-                            screenshot_bytes=screenshot_bytes,
-                            target_description=target,
-                            page=page,
+                        cands = await self._interactor.resolve_candidates(
+                            recovered_candidate.locator_str
                         )
-                        if v_cand:
-                            selected_candidate = v_cand
+                        if any(c.is_visible for c in cands):
+                            selected_candidate = recovered_candidate
+                            perception_route = "LEARNED"
                             self._apply_candidate_to_action(final_action, selected_candidate)
-                            logger.info(
-                                "visual_candidate_found",
-                                target=target,
-                                conf=v_cand.confidence,
-                            )
-                    except GroundingFailure as e:
-                        logger.error("puter_grounding_failure", error=str(e))
-                        return ActionResult(
-                            success=False,
-                            action=action,
-                            error=f"Visual grounding failed critically: {e}",
-                            error_type="GroundingFailure",
-                        )
+                    except Exception:
+                        pass
 
         if not selected_candidate:
-            # We failed to find anything structurally or visually
             logger.error("perception_failed_all_tiers", target=target)
             return ActionResult(
                 success=False,
@@ -184,33 +245,133 @@ class PerceptionDecisionEngine:
                 error_type="PerceptionFailure",
             )
 
+        # A coordinate identifies a point to click, not an option inside a
+        # native/select control.  Never pretend that a visual click selected a
+        # value; require a deterministic locator for SELECT actions.
+        if (
+            ActionType(action.action_type) == ActionType.SELECT
+            and not selected_candidate.locator_str
+        ):
+            logger.error("select_requires_dom_locator", target=target)
+            return ActionResult(
+                success=False,
+                action=action,
+                error=f"Select target '{target}' was only visually grounded; a DOM locator is required",
+                error_type="PerceptionFailure",
+            )
+
         # 4. Execute the action
         exec_result = await self._executor.execute(final_action)
+
+        # Selecting the value already present is a valid human no-op.  The
+        # final value assertion will verify the business state; behavioral
+        # verification must not require a visual change for this case.
+        if final_action.metadata.get("no_op"):
+            exec_result.details["no_op"] = True
+            exec_result.details["perception_verification_skipped"] = True
+            return exec_result
+
+        # Dynamic Escalation: If DOM execution failed, immediately escalate to Moondream Visual Grounding
+        if not exec_result.success and perception_route in ("DOM", "DOM_DISAMBIGUATED", "NONE"):
+            logger.warning(
+                "dom_execution_failed_escalating_to_vision",
+                target=target,
+                error=exec_result.error,
+                attempted_locator=final_action.target,
+            )
+            # Re-capture screenshot and invoke Moondream visual grounding
+            screenshot_bytes = b""
+            try:
+                screenshot_bytes = await page.screenshot(type="png")
+            except Exception:
+                pass
+
+            if screenshot_bytes:
+                try:
+                    if router:
+                        # Call router with empty dom_candidates to trigger the vision tier
+                        route_result = await router.route(
+                            target=target,
+                            screenshot_bytes=screenshot_bytes,
+                            dom_candidates=[],
+                            page=page,
+                        )
+                        if route_result.success and route_result.candidate:
+                            selected_candidate = route_result.candidate
+                            perception_route = route_result.route
+                            used_vision = True
+                            final_action = action.model_copy(deep=True)
+                            self._apply_candidate_to_action(final_action, selected_candidate)
+                            exec_result = await self._executor.execute(final_action)
+                    elif self._grounder:
+                        v_cand = await self._grounder.ground_element(
+                            screenshot_bytes=screenshot_bytes,
+                            target_description=target,
+                            page=page,
+                        )
+                        if v_cand:
+                            selected_candidate = v_cand
+                            perception_route = "MOONDREAM"
+                            used_vision = True
+                            final_action = action.model_copy(deep=True)
+                            self._apply_candidate_to_action(final_action, selected_candidate)
+                            exec_result = await self._executor.execute(final_action)
+                except Exception as e:
+                    logger.error("vision_escalation_failed", target=target, error=str(e))
+
         if not exec_result.success:
             return exec_result
 
         # 5. Level 3: Behavioral Verification
-        # Only verify if we used vision or if it's a recovered mapping being reused
-        if used_vision or recovered_candidate:
-            await self._browser.take_screenshot("after_perception")
+        if self._verifier and perception_route != "NONE":
+            after_screenshot_path = None
+            try:
+                after_screenshot_path = await self._browser.take_screenshot("after_perception")
+            except Exception as e:
+                logger.warning("after_screenshot_failed", error=str(e))
+
             try:
                 after_obs = await self._observer.observe(page)
             except Exception:
                 after_obs = None
             after_state_summary = (
-                after_obs.model_dump_json(exclude={"buttons", "tabs"}) if after_obs else "Unknown"
+                after_obs.model_dump_json(exclude={"buttons", "tabs"})
+                if after_obs
+                else "Unknown"
             )
+
+            # Compute DOM diff for richer verification context
+            dom_diff_summary = ""
+            after_fingerprint = (
+                PageStateFingerprint.from_observation(after_obs) if after_obs else None
+            )
+            if before_fingerprint and after_fingerprint:
+                diff = before_fingerprint.diff(after_fingerprint)
+                dom_diff_summary = diff.to_summary()
+
+            # Console errors that occurred during the action
+            console_errors_during: list[str] = []
+            if after_obs:
+                console_errors_during = after_obs.console_errors
 
             verification = await self._verifier.verify_action(
                 action_description=f"{action.action_type} on '{target}'",
                 expected_outcome="Interaction successful, page navigated or state changed",
                 before_state_summary=before_state_summary,
                 after_state_summary=after_state_summary,
+                before_screenshot_path=before_screenshot_path,
+                after_screenshot_path=after_screenshot_path,
+                dom_diff_summary=dom_diff_summary,
+                console_errors=console_errors_during,
             )
 
             if verification.is_verified:
-                logger.info("behavioral_verification_passed", target=target)
-                # Persist learning
+                logger.info(
+                    "behavioral_verification_passed",
+                    target=target,
+                    perception_route=perception_route,
+                    dom_diff=dom_diff_summary[:100] if dom_diff_summary else "none",
+                )
                 await self._learning.record_recovery_outcome(
                     target=target,
                     fingerprint=fingerprint,
@@ -224,9 +385,10 @@ class PerceptionDecisionEngine:
                 logger.warning(
                     "behavioral_verification_failed",
                     target=target,
+                    perception_route=perception_route,
                     reasoning=verification.reasoning,
+                    console_errors=len(console_errors_during),
                 )
-                # Penalize learning
                 await self._learning.record_recovery_outcome(
                     target=target,
                     fingerprint=fingerprint,
@@ -240,6 +402,17 @@ class PerceptionDecisionEngine:
                 exec_result.success = False
                 exec_result.error = "Behavioral verification failed after execution"
                 exec_result.error_type = "VerificationFailure"
+
+        if selected_candidate:
+            exec_result.details["perception"] = {
+                "route": perception_route,
+                "confidence": selected_candidate.confidence,
+                "target": target,
+                "bounding_box": selected_candidate.bounding_box.model_dump() if selected_candidate.bounding_box else None,
+                "locator": selected_candidate.locator_str,
+                "before_screenshot": before_screenshot_path,
+                "after_screenshot": after_screenshot_path if "after_screenshot_path" in locals() else None,
+            }
 
         return exec_result
 
@@ -275,6 +448,7 @@ class PerceptionDecisionEngine:
         """Modify the action to target the precise candidate."""
         if candidate.locator_str:
             action.target = candidate.locator_str
+            action.metadata["resolved_locator"] = candidate.locator_str
         elif candidate.bounding_box:
             action.metadata["is_coordinate"] = True
             action.metadata["x"] = candidate.bounding_box.center_x

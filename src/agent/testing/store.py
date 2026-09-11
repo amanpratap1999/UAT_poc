@@ -19,12 +19,154 @@ logger = get_logger(__name__)
 
 
 class TestIntelligenceStore:
-    """Persists scenarios, execution records, and findings to Postgres."""
+    """Persists scenarios, execution records, and findings to Postgres and memory."""
 
     def __init__(self, config: DomainConfig) -> None:
         self._config = config
         self._pool: asyncpg.Pool | None = None
         self._initialized = False
+        self._memory_cases: dict[str, dict[str, Any]] = {}
+
+    def save_test_case(self, test_case: Any, tenant_id: str = "unknown") -> str:
+        """Save a generated structured test case with tenant scoping."""
+        import uuid as _uuid
+
+        if isinstance(test_case, dict):
+            tc_id = test_case.get("id") or str(_uuid.uuid4())
+            raw_steps = test_case.get("ordered_steps") or test_case.get("steps") or []
+            raw_assertions = test_case.get("final_assertions") or []
+            raw_cleanup = test_case.get("cleanup_steps") or test_case.get("cleanup_requirements") or []
+            title = test_case.get("title") or test_case.get("name") or f"Test Case {tc_id}"
+            description = test_case.get("description", "")
+            target_record = test_case.get("target_record")
+            initial_state = test_case.get("expected_initial_state")
+            preconditions = list(test_case.get("preconditions") or [])
+            expected_outcomes = list(test_case.get("expected_outcomes") or [])
+            risk_level = str(test_case.get("risk_level", "Medium"))
+            acceptance_criteria = list(test_case.get("acceptance_criteria") or [])
+            story_id = test_case.get("story_id")
+        else:
+            tc_id = getattr(test_case, "id", None) or str(_uuid.uuid4())
+            raw_steps = getattr(test_case, "ordered_steps", None) or getattr(test_case, "steps", [])
+            raw_assertions = getattr(test_case, "final_assertions", [])
+            raw_cleanup = getattr(test_case, "cleanup_steps", []) or getattr(test_case, "cleanup_requirements", [])
+            title = getattr(test_case, "title", None) or getattr(test_case, "name", f"Test Case {tc_id}")
+            description = getattr(test_case, "description", "")
+            target_record = getattr(test_case, "target_record", None)
+            initial_state = getattr(test_case, "expected_initial_state", None)
+            preconditions = list(getattr(test_case, "preconditions", []))
+            expected_outcomes = list(getattr(test_case, "expected_outcomes", []))
+            risk_level = str(getattr(test_case, "risk_level", "Medium"))
+            acceptance_criteria = list(getattr(test_case, "acceptance_criteria", []))
+            story_id = getattr(test_case, "story_id", None)
+
+        steps_dump = []
+        for s in raw_steps:
+            if hasattr(s, "model_dump"):
+                steps_dump.append(s.model_dump())
+            elif isinstance(s, dict):
+                steps_dump.append(s)
+            else:
+                steps_dump.append({"description": str(s)})
+
+        assertions_dump = [
+            a.model_dump() if hasattr(a, "model_dump") else a for a in raw_assertions
+        ]
+        cleanup_dump = [
+            c.model_dump() if hasattr(c, "model_dump") else c for c in raw_cleanup
+        ]
+
+        record = {
+            "id": tc_id,
+            "tenant_id": tenant_id,
+            "story_id": story_id,
+            "title": title,
+            "description": description,
+            "target_record": target_record,
+            "expected_initial_state": initial_state,
+            "preconditions": preconditions,
+            "steps": steps_dump,
+            "ordered_steps": steps_dump,
+            "final_assertions": assertions_dump,
+            "cleanup_steps": cleanup_dump,
+            "expected_outcomes": expected_outcomes,
+            "risk_level": risk_level,
+            "acceptance_criteria": acceptance_criteria,
+        }
+        self._memory_cases[tc_id] = record
+
+        # Persist to Postgres in the background if an event loop is running
+        try:
+            import asyncio
+            loop = asyncio.get_running_loop()
+            loop.create_task(self._persist_case_db(record))
+        except RuntimeError:
+            pass
+
+        return tc_id
+
+    async def _persist_case_db(self, record: dict[str, Any]) -> None:
+        """Persist a test case record to PostgreSQL."""
+        await self._init_pool()
+        if not self._pool:
+            return
+        try:
+            async with self._pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO test_cases (
+                        id, tenant_id, story_id, title, description,
+                        target_record, expected_initial_state, preconditions,
+                        steps, final_assertions, cleanup_steps, acceptance_criteria,
+                        risk_level
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                    ON CONFLICT (id) DO UPDATE SET
+                        title = EXCLUDED.title,
+                        description = EXCLUDED.description,
+                        target_record = EXCLUDED.target_record,
+                        expected_initial_state = EXCLUDED.expected_initial_state,
+                        preconditions = EXCLUDED.preconditions,
+                        steps = EXCLUDED.steps,
+                        final_assertions = EXCLUDED.final_assertions,
+                        cleanup_steps = EXCLUDED.cleanup_steps,
+                        acceptance_criteria = EXCLUDED.acceptance_criteria,
+                        risk_level = EXCLUDED.risk_level
+                """,
+                    record["id"],
+                    record["tenant_id"],
+                    record.get("story_id"),
+                    record["title"],
+                    record["description"],
+                    record.get("target_record"),
+                    record.get("expected_initial_state"),
+                    json.dumps(record.get("preconditions") or []),
+                    json.dumps(record.get("steps") or []),
+                    json.dumps(record.get("final_assertions") or []),
+                    json.dumps(record.get("cleanup_steps") or []),
+                    json.dumps(record.get("acceptance_criteria") or []),
+                    record.get("risk_level", "Medium"),
+                )
+        except Exception as e:
+            logger.debug("failed_to_persist_test_case_db", error=str(e), id=record.get("id"))
+
+    def get_test_case(
+        self, test_case_id: str, tenant_id: str | None = None
+    ) -> dict[str, Any] | None:
+        """Retrieve a stored test case, enforcing tenant isolation when tenant_id is given."""
+        case = self._memory_cases.get(test_case_id)
+        if not case:
+            return None
+        if tenant_id and case.get("tenant_id") not in (tenant_id, "unknown"):
+            return None
+        return case
+
+    def list_test_cases(self, tenant_id: str | None = None) -> list[dict[str, Any]]:
+        """List all test cases for a tenant."""
+        return [
+            c
+            for c in self._memory_cases.values()
+            if not tenant_id or c.get("tenant_id") in (tenant_id, "unknown")
+        ]
 
     async def _init_pool(self) -> None:
         if self._initialized or not HAS_POSTGRES or not self._config.postgres_url:

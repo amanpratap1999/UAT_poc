@@ -28,6 +28,10 @@ class LearningStore:
         self._config = config
         self._pool: asyncpg.Pool | None = None
         self._initialized = False
+        self._memory_recoveries: dict[tuple[str, str], LearnedRecovery] = {}
+        self._memory_strategies: dict[tuple, LearnedStrategyEffectiveness] = {}
+        self._memory_explorations: dict[tuple, LearnedExplorationOutcome] = {}
+        self._memory_experiences: list[LearnedExperience] = []
 
     async def _init_pool(self) -> None:
         if self._initialized or not HAS_POSTGRES or not self._config.postgres_url:
@@ -96,7 +100,9 @@ class LearningStore:
             self._initialized = True
             logger.info("learning_store_initialized")
         except Exception as e:
-            logger.error("learning_store_init_failed", error=str(e))
+            self._initialized = True
+            self._pool = None
+            logger.warning("learning_store_using_in_memory_fallback", error=str(e))
 
     # --- Recoveries ---
 
@@ -105,7 +111,7 @@ class LearningStore:
     ) -> LearnedRecovery | None:
         await self._init_pool()
         if not self._pool:
-            return None
+            return self._memory_recoveries.get((page_fingerprint, target_description))
 
         try:
             async with self._pool.acquire() as conn:
@@ -122,9 +128,10 @@ class LearningStore:
                     return LearnedRecovery(**dict(row))
         except Exception as e:
             logger.error("failed_to_get_recovery", error=str(e))
-        return None
+        return self._memory_recoveries.get((page_fingerprint, target_description))
 
     async def save_recovery(self, recovery: LearnedRecovery) -> None:
+        self._memory_recoveries[(recovery.page_fingerprint, recovery.target_description)] = recovery
         await self._init_pool()
         if not self._pool:
             return

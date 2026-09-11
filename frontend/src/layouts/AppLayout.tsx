@@ -4,7 +4,7 @@ import { MobileNav } from "@/components/nav/MobileNav";
 import { useAuth } from "@/hooks/use-auth";
 
 /**
- * Standard application layout — left rail + main content canvas.
+ * Standard application layout — dark left rail + light main content canvas.
  * Every screen except the Live Run view uses this layout.
  */
 export function AppLayout() {
@@ -13,20 +13,20 @@ export function AppLayout() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-graphite-950">
+    <div className="min-h-screen bg-canvas">
       {/* Desktop left rail */}
       <LeftRail user={user} />
 
       {/* Main content — offset by rail width on desktop */}
       <main
         id="main-content"
-        className="min-h-screen lg:ml-56"
+        className="workspace-canvas min-h-screen lg:ml-56"
         tabIndex={-1}
       >
         {/* Skip to content link for keyboard users */}
         <a
           href="#main-content"
-          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-signal-teal focus:px-3 focus:py-2 focus:text-graphite-950"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-ink focus:px-3 focus:py-2 focus:text-canvas"
         >
           Skip to main content
         </a>
