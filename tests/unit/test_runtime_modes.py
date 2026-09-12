@@ -1,6 +1,5 @@
 """Unit tests for Local and Docker runtime modes, environment loading, and path resolution."""
 
-import os
 from pathlib import Path
 
 import pytest
@@ -8,7 +7,6 @@ import pytest
 from agent.core.config import (
     REPO_ROOT,
     BrowserConfig,
-    DomainConfig,
     SessionConfig,
     Settings,
     get_active_env_file,
@@ -32,7 +30,10 @@ def test_local_settings_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     assert safe["runtime_mode"] == "local"
     assert safe["report_output_dir"] == str(s.report_output_dir)
     assert safe["screenshot_dir"] == str(s.screenshot_dir)
-    assert "***" in safe["database_url"]
+    # Password masking applies to credential-bearing URLs (PostgreSQL etc.);
+    # SQLite file URLs carry no credentials, so there is nothing to mask.
+    if "://" in safe["database_url"] and "@" in safe["database_url"]:
+        assert "***" in safe["database_url"]
 
 
 def test_docker_settings_simulation(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -43,6 +44,10 @@ def test_docker_settings_simulation(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://postgres:secret@db:5432/servicenow_qa")
     monkeypatch.setenv("REDIS_URL", "redis://redis:6379/0")
     monkeypatch.setenv("BROWSER_HEADLESS", "true")
+    # P0 security contract: docker/production runtimes require an explicit
+    # strong JWT secret — the config validator rejects startup without one.
+    monkeypatch.setenv("JWT_SECRET_KEY", "docker-test-strong-secret-0123456789abcdef0123456789")
+    monkeypatch.setenv("ENVIRONMENT", "production")
 
     s = Settings()
     assert s.runtime_mode == "docker"

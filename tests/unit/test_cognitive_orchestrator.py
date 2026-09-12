@@ -78,9 +78,6 @@ def orchestrator():
     validation_engine.validate_action.return_value = validation
 
     observation_engine = AsyncMock()
-    from agent.core.types import PageType
-    from agent.domain.observation import PageObservation
-
     mock_obs = PageObservation(
         page_type=PageType.FORM,
         url="https://test",

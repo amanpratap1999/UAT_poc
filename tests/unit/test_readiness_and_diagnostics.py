@@ -70,7 +70,12 @@ async def test_readiness_probe_healthy() -> None:
     data = response.json()
     assert data["status"] == "ready"
     assert data["checks"]["database"]["status"] == "ok"
-    assert data["checks"]["database"]["pgvector"] is True
+    # pgvector only applies to the PostgreSQL backend; SQLite has no extension.
+    if data["checks"]["database"]["backend"] == "postgresql":
+        assert data["checks"]["database"]["pgvector"] is True
+    else:
+        assert data["checks"]["database"]["backend"] == "sqlite"
+        assert data["checks"]["database"]["pgvector"] is False
     assert data["checks"]["redis"]["status"] == "ok"
     assert data["checks"]["directories"]["status"] == "ok"
     assert data["checks"]["embedding_client"]["status"] == "ok"

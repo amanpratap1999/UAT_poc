@@ -14,7 +14,7 @@ from agent.cognition.investigation import InvestigationEngine
 from agent.cognition.models import TestHypothesis
 from agent.core.logging import get_logger
 from agent.core.types import ActionType, AgentState, RunEventType, StepStatus
-from agent.domain.plan import ExecutionPlan, PlanStep
+from agent.domain.plan import ExecutionPlan
 from agent.domain.validation import ValidationResult
 from agent.domain.knowledge_model import CustomerKnowledgeModel
 from agent.memory.session import SessionMemory

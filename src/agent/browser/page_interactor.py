@@ -452,7 +452,6 @@ class PageInteractor:
         4. Raw CSS/XPath (id, class, attributes)
         5. Semantic fallback using Locator.or_()
         """
-        import re
 
         ctx = self._get_active_context()
 

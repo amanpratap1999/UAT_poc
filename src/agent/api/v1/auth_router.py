@@ -1,6 +1,5 @@
 """Authentication router for generating tokens."""
 
-import uuid
 from datetime import timedelta
 from typing import Annotated, Any
 
@@ -13,11 +12,10 @@ from agent.api.v1.auth import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     Token,
     create_access_token,
-    get_password_hash,
     verify_password,
 )
 from agent.core.db import get_db_session
-from agent.domain.models import Tenant, User
+from agent.domain.models import User
 
 router = APIRouter(tags=["auth"])
 

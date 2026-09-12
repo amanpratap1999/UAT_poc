@@ -41,7 +41,7 @@ from agent.api.v1.schemas import (
     RunResponse,
 )
 from agent.core.db import get_db_session
-from agent.domain.models import Finding, Run, Screenshot, TestCaseModel
+from agent.domain.models import Finding, Run, Screenshot
 from agent.worker.tasks import execute_run
 
 router = APIRouter(prefix="/api/v1", tags=["agent"])
@@ -122,7 +122,6 @@ async def readiness_check() -> JSONResponse:
     import os
     import redis.asyncio as aioredis
     from agent.api.v1.dependencies import get_embedding_client
-    from agent.core.config import REPO_ROOT
 
     settings = get_cached_settings()
     checks: dict[str, Any] = {}

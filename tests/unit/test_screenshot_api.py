@@ -7,7 +7,6 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from agent.api.v1.auth import create_access_token
-from agent.core.config import Settings
 from agent.core.db import Base, get_db_session
 from agent.domain.models import Run
 from agent.main import app

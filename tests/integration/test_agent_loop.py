@@ -66,8 +66,17 @@ def _make_observation(step: int) -> PageObservation:
 
 
 @pytest.fixture
-def mock_settings(tmp_path: Path) -> Settings:
-    """Test settings."""
+def mock_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Settings:
+    """Test settings (browser prefs pinned via env so .env.local can't leak in).
+
+    NOTE: BaseSubConfig binds to the developer's active env file (.env.local),
+    and pydantic-settings lets env-file values win over constructor kwargs —
+    so a developer machine with BROWSER_KEEP_BROWSER_OPEN=true would otherwise
+    break the browser-close assertion below. Pin via process env, which takes
+    precedence over env files.
+    """
+    monkeypatch.setenv("BROWSER_HEADLESS", "true")
+    monkeypatch.setenv("BROWSER_KEEP_BROWSER_OPEN", "false")
     return Settings(
         llm=LLMConfig(provider="openai", api_key="test", model="test"),
         servicenow=ServiceNowConfig(

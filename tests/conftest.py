@@ -39,7 +39,7 @@ def test_settings() -> Settings:
             username="admin",
             password="test",
         ),
-        browser=BrowserConfig(headless=True),
+        browser=BrowserConfig(headless=True, keep_browser_open=False),
         agent=AgentConfig(max_steps=10, max_retries=2, observation_window=5),
         log_level="DEBUG",
     )

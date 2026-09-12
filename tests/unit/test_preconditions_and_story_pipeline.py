@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 
 from agent.cognition.investigation import InvestigationEngine
-from agent.core.types import ActionType, AgentState
+from agent.core.types import ActionType
 from agent.domain.actions import ActionResult, AgentAction
 from agent.domain.defect_scope import classify_step_failure
 from agent.domain.validation import ValidationCheck, ValidationResult

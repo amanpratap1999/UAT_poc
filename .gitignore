@@ -42,7 +42,13 @@ logs/
 *.log
 *.local.log
 *.err.local.log
+api.log
 worker.log
+dump.rdb
+
+# Runtime SQLite DBs (dev/test artifacts, not source)
+servicenow_qa.db
+test_qa.db
 
 # Local SQLite and database files
 *.db

@@ -32,7 +32,6 @@ from agent.observation.engine import ObservationEngine
 from agent.perception.backends import (
     GeminiBackend,
     GrounderBackend,
-    LocalUiTarsBackend,
     MoondreamBackend,
 )
 from agent.perception.router import PerceptionRouter

@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from dotenv import load_dotenv
-from pydantic import AliasChoices, Field, field_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
@@ -392,6 +392,45 @@ class Settings(BaseSubConfig):
         if not v.is_absolute():
             return (REPO_ROOT / v).resolve()
         return v
+
+    @model_validator(mode="after")
+    def _validate_jwt_secret_for_runtime(self) -> "Settings":
+        """Fail fast on insecure JWT secrets outside local development.
+
+        Security invariant (P0): a production/container runtime must never start
+        with the well-known development fallback secret, an empty secret, or a
+        trivially short secret — any of those would let an attacker forge
+        auth tokens. Local development on a developer machine may retain the
+        explicit development fallback so `scripts/start-local.ps1` keeps working.
+        """
+        secret = (self.jwt_secret_key or "").strip()
+        fallback = "super-secret-local-development-key"
+
+        is_local = self.runtime_mode == "local" and self.environment in (
+            "development", "dev", "local",
+        )
+
+        if is_local:
+            # Local development: permitted, but loudly warn on the fallback.
+            if secret == fallback:
+                import warnings
+
+                warnings.warn(
+                    "JWT_SECRET_KEY not set — using the development fallback secret. "
+                    "This is only acceptable for local development; set JWT_SECRET_KEY "
+                    "explicitly for docker/production deployments.",
+                    stacklevel=2,
+                )
+            return self
+
+        if not secret or secret == fallback or len(secret) < 32:
+            raise ValueError(
+                "Refusing to start: JWT_SECRET_KEY must be set to a strong secret "
+                "(>= 32 chars) when UAT_RUNTIME_MODE != 'local' or ENVIRONMENT is "
+                "not development. Generate one with: "
+                "python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+            )
+        return self
 
     def ensure_directories(self) -> None:
         """Create output directories if they don't exist."""

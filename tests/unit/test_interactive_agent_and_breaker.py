@@ -153,7 +153,6 @@ async def test_reporting_engine_captures_canonical_steps_and_browser_telemetry(t
 @pytest.mark.asyncio
 async def test_canonical_event_publisher_protocol():
     """Event publisher emits canonical envelope with sequence and caches history."""
-    from unittest.mock import MagicMock
     from agent.events.publisher import RunEventPublisher
     from agent.core.types import RunEventType
 
@@ -186,7 +185,6 @@ async def test_canonical_event_publisher_protocol():
 async def test_run_control_receiver_fail_closed_and_lowercase():
     """Approval defaults to fail-closed False on Redis failure; statuses are lowercase."""
     from agent.events.publisher import RunControlReceiver
-    from agent.core.types import RunControlStatus
 
     receiver = RunControlReceiver(redis_url="redis://invalid:9999", run_id="run-offline")
     # Redis unavailable

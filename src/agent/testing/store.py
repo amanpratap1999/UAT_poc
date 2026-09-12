@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from agent.core.config import DomainConfig
 from agent.core.logging import get_logger
