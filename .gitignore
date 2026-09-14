@@ -28,8 +28,9 @@ env/
 
 # Environment variables (secrets)
 .env
-.env.local
-.env.docker
+.env.*
+.env*.bak
+*.bak
 !.env.example
 !.env.local.example
 !.env.docker.example

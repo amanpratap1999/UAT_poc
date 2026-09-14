@@ -26,6 +26,7 @@ class IncidentValidator:
         before: Incident,
         after: Incident,
         expected_step: str = "",
+        expected_state: str | None = None,
     ) -> IncidentValidationResult:
         """Validate business outcome between before and after Incident states.
 
@@ -33,6 +34,9 @@ class IncidentValidator:
             before: Incident model before action.
             after: Incident model after action.
             expected_step: Description of business step being verified.
+            expected_state: Explicit expected post-action state. When given
+                (e.g. from a select action's value), it is authoritative and
+                free-text inference from ``expected_step`` is skipped.
 
         Returns:
             An IncidentValidationResult.
@@ -49,22 +53,52 @@ class IncidentValidator:
             passed = False
             error_msg = f"Priority calculation mismatch: expected {expected_priority.name}, actual {after.priority.name}"  # noqa: E501
 
-        # Step specific validations
         step_lower = expected_step.lower()
+
+        # --- Expected-state determination -------------------------------------
+        # 1. An explicit expected_state (from the action's value/metadata) is
+        #    authoritative: verify it directly against the observed state.
+        # 2. Otherwise, infer from the step text ONLY when a single state
+        #    keyword is unambiguously present. Free text like "the current
+        #    state is On Hold; change it to In Progress" contains BOTH the
+        #    from-state and the to-state — inferring from such text produces
+        #    false failures, so when multiple candidate states appear we skip
+        #    the keyword inference (the deterministic field_update /
+        #    state_change checks in ValidationEngine still cover the action).
+        inferred_expected: IncidentState | None = None
+        if expected_state:
+            inferred_expected = IncidentState.from_string(expected_state)
+        else:
+            candidates: list[IncidentState] = []
+            for kw, st in (
+                ("in progress", IncidentState.IN_PROGRESS),
+                ("on hold", IncidentState.ON_HOLD),
+                ("hold", IncidentState.ON_HOLD),
+                ("new", IncidentState.NEW),
+                ("resolve", IncidentState.RESOLVED),
+                ("close", IncidentState.CLOSED),
+                ("cancel", IncidentState.CANCELED),
+            ):
+                if kw in step_lower and st not in candidates:
+                    candidates.append(st)
+            if len(candidates) == 1:
+                inferred_expected = candidates[0]
+            elif len(candidates) > 1:
+                logger.info(
+                    "ambiguous_expected_state_skipping_inference",
+                    candidates=[c.name for c in candidates],
+                )
+
         if "assignment" in step_lower and not after.assignment.group:
             passed = False
             error_msg = "Assignment Group was not populated"
 
-        if "state" in step_lower or "in progress" in step_lower or "hold" in step_lower:
-            if "in progress" in step_lower and after.state != IncidentState.IN_PROGRESS:
-                passed = False
-                error_msg = f"State mismatch: expected IN_PROGRESS (2), actual {after.state.name} ({after.state.value})"
-            elif "hold" in step_lower and after.state != IncidentState.ON_HOLD:
-                passed = False
-                error_msg = f"State mismatch: expected ON_HOLD (3), actual {after.state.name} ({after.state.value})"
-            elif "new" in step_lower and after.state != IncidentState.NEW:
-                passed = False
-                error_msg = f"State mismatch: expected NEW (1), actual {after.state.name} ({after.state.value})"
+        if inferred_expected is not None and after.state != inferred_expected:
+            passed = False
+            error_msg = (
+                f"State mismatch: expected {inferred_expected.name} "
+                f"({inferred_expected.value}), actual {after.state.name} ({after.state.value})"
+            )
 
         if "resolve" in step_lower:
             if after.state.value != "6":

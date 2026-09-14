@@ -211,10 +211,22 @@ class IncidentSkill(BaseSkill):
             )
             return self._validator.to_standard_validation_result(business_result, is_precondition=True)
 
+        # Explicit expected state: a select action's value is the authoritative
+        # post-action state ("2" / "In Progress"). Prefer action.value, then
+        # metadata. Never guess from free-text reasoning when an explicit
+        # value exists — that caused false positives when the reasoning
+        # mentioned the from-state ("On Hold") alongside the to-state.
+        expected_state: str | None = None
+        if action.action_type.lower() == "select":
+            expected_state = (action.value or "").strip() or None
+        if not expected_state:
+            expected_state = (metadata.get("expected_state") or "").strip() or None
+
         business_result = self._validator.validate_business_outcome(
             before=incident_before,
             after=incident_after,
             expected_step=action.reasoning or action.action_type,
+            expected_state=expected_state,
         )
 
         # Record evidence item

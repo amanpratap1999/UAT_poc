@@ -201,39 +201,63 @@ class OpenAILLMClient(BaseLLMClient):
     ) -> dict[str, Any]:
         """Send a completion request expecting JSON output.
 
-        Uses response_format to force JSON output.
+        Uses response_format to force JSON output. Retries the request on
+        malformed JSON because reasoning models occasionally emit invalid
+        JSON on a single sample (observed live with Nemotron).
 
         Returns:
             Parsed JSON dictionary.
         """
-        try:
-            kwargs: dict[str, Any] = {
-                "model": self._config.model,
-                "messages": messages,
-                "temperature": temperature or self._config.temperature,
-                "max_tokens": max_tokens or self._config.max_tokens,
-                "response_format": {"type": "json_object"},
-            }
+        max_attempts = 3
+        last_error: Exception | None = None
 
-            response = await self._execute_with_backoff(**kwargs)
+        for attempt in range(1, max_attempts + 1):
+            try:
+                kwargs: dict[str, Any] = {
+                    "model": self._config.model,
+                    "messages": messages,
+                    "temperature": temperature or self._config.temperature,
+                    "max_tokens": max_tokens or self._config.max_tokens,
+                    "response_format": {"type": "json_object"},
+                }
 
-            if response.usage:
-                self._total_tokens_used += response.usage.total_tokens
+                response = await self._execute_with_backoff(**kwargs)
 
-            raw_content = (response.choices[0].message.content or "{}").strip()
-            fence_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", raw_content)
-            content = fence_match.group(1).strip() if fence_match else raw_content
-            return json.loads(content)  # type: ignore[no-any-return]
+                if response.usage:
+                    self._total_tokens_used += response.usage.total_tokens
 
-        except json.JSONDecodeError as e:
-            raise LLMResponseParseError(f"LLM response is not valid JSON: {e}") from e
-        except Exception as e:
-            if isinstance(e, LLMResponseParseError):
-                raise
-            raise LLMConnectionError(
-                f"LLM JSON request failed: {e}",
-                details={"provider": self._config.provider},
-            ) from e
+                raw_content = (response.choices[0].message.content or "").strip()
+                fence_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", raw_content)
+                content = fence_match.group(1).strip() if fence_match else raw_content
+                if not content:
+                    # Empty content is a retryable failure — silently treating
+                    # it as {} would let a planning call return an empty plan.
+                    raise json.JSONDecodeError("empty LLM response", content, 0)
+                return json.loads(content)  # type: ignore[no-any-return]
+
+            except json.JSONDecodeError as e:
+                last_error = e
+                if attempt < max_attempts:
+                    logger.warning(
+                        "llm_json_parse_failed_retrying",
+                        attempt=attempt,
+                        max_attempts=max_attempts,
+                        error=str(e),
+                        snippet=raw_content[:200] if raw_content else "",
+                    )
+                    continue
+            except Exception as e:
+                if isinstance(e, LLMResponseParseError):
+                    raise
+                raise LLMConnectionError(
+                    f"LLM JSON request failed: {e}",
+                    details={"provider": self._config.provider},
+                ) from e
+
+        raise LLMResponseParseError(
+            f"LLM response is not valid JSON after {max_attempts} attempts: {last_error}",
+            details={"snippet": raw_content[:200] if raw_content else ""},
+        ) from last_error
 
     @property
     def total_tokens_used(self) -> int:
