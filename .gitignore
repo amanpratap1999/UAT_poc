@@ -40,6 +40,8 @@ reports/
 screenshots/
 logs/
 .runtime/
+!assets/
+!assets/**
 *.log
 *.local.log
 *.err.local.log
