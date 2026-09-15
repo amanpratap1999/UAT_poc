@@ -1,6 +1,29 @@
 # ServiceNow QA Agent — Autonomous AI-Powered Testing Runtime
 
+[![CI](https://github.com/amanpratap1999/UAT_poc/actions/workflows/ci.yml/badge.svg)](https://github.com/amanpratap1999/UAT_poc/actions)
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?logo=fastapi&logoColor=white)
+![Playwright](https://img.shields.io/badge/Playwright-Automated_Browsing-2EAD33?logo=playwright&logoColor=white)
+![React](https://img.shields.io/badge/React-Vite-61DAFB?logo=react&logoColor=black)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-336791?logo=postgresql&logoColor=white)
+![Celery](https://img.shields.io/badge/Celery-Distributed_Workers-37814A?logo=celery&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-Job_Queue-DC382D?logo=redis&logoColor=white)
+
+> **Recruiter & Engineering Lead TL;DR:**
+> - **What it is:** Production-grade autonomous QA agent runtime designed for end-to-end ServiceNow Incident Management testing.
+> - **Core Engineering:** Users provide high-level natural language QA goals; the system decomposes goals into structured execution plans, drives Playwright browsers with visual observation engines, automatically validates field changes & DOM state, and executes automated recovery routines on transient errors.
+> - **Architectural Discipline:** Strictly decoupled LLM planner from browser execution—the planner emits structured typed action primitives; execution controllers translate them into Playwright browser events.
+> - **Live Execution Capture:** [View Automated Test Capture](#-live-servicenow-inspection-run) • **Architecture:** [View Component Architecture](#architecture) • **Quickstart:** [Local Execution Guide](#-local-execution)
+
 An AI-first autonomous QA agent for ServiceNow Incident Management. Users provide business-level goals; the agent autonomously plans, browses, validates, recovers, and reports.
+
+---
+
+## 🎯 Live ServiceNow Inspection Run
+
+![ServiceNow Live Incident Verification Form](assets/screenshots/execution.png)
+
+---
 
 ## Architecture
 
