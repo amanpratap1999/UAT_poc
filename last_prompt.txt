@@ -1,0 +1,1563 @@
+<USER_REQUEST>
+You are the principal engineer responsible for stabilizing and completing the existing
+ServiceNow Autonomous UAT / Hybrid Browser Agent repository.
+
+Your mission is to inspect the CURRENT repository, understand what is already implemented,
+and then autonomously implement, test, troubleshoot, and verify the P0 → P3 work described
+below.
+
+THIS IS AN EXECUTION MANDATE, NOT A DESIGN DISCUSSION.
+
+Do not simply tell me what should be changed.
+
+You must:
+
+    inspect
+    → understand
+    → identify root cause
+    → implement
+    → test
+    → run
+    → inspect logs
+    → diagnose
+    → fix
+    → regression test
+    → repeat
+
+until the acceptance criteria are genuinely satisfied.
+
+============================================================
+0. ABSOLUTE RULES
+============================================================
+
+RULE 1 — DO NOT REDESIGN THE ARCHITECTURE
+
+The existing architecture is intentional.
+
+PRESERVE:
+
+    NVIDIA Nemotron
+        ↓
+    Intent Manager
+        ↓
+    Cognitive Orchestrator
+        ↓
+    Observation Engine
+        ↓
+    DOM Fast Path
+        ↓
+    Moondream PRIMARY
+        ↓
+    Gemini FALLBACK
+        ↓
+    Action Policy
+        ↓
+    Playwright
+        ↓
+    Behavioral Verification
+        ↓
+    Validation Engine
+        ↓
+    Evidence
+        ↓
+    Findings
+        ↓
+    Reporting
+        ↓
+    UI
+
+Do not replace this architecture.
+
+Do not introduce another orchestration framework.
+
+Do not replace Playwright.
+
+Do not replace Nemotron.
+
+DO NOT replace Moondream with Gemini.
+
+Moondream MUST remain the PRIMARY visual grounding model.
+
+Gemini MUST remain fallback / secondary capability.
+
+DOM MUST remain the preferred deterministic path when it is reliable.
+
+============================================================
+RULE 2 — NO NEW PLUGINS
+============================================================
+
+DO NOT:
+
+- install plugins
+- change plugins
+- replace plugins
+- add browser extensions
+- modify Antigravity plugins
+- introduce external SaaS dependencies
+- change the existing environment unnecessarily
+
+Instance stability is more important than convenience.
+
+Use the dependencies and infrastructure already present.
+
+============================================================
+RULE 3 — NO CHEATING
+============================================================
+
+Never:
+
+- suppress errors
+- delete failing assertions
+- weaken validation
+- lower confidence thresholds simply to obtain PASS
+- manufacture findings
+- hide findings
+- manipulate defect counters
+- mark a test PASS because the browser reached a page
+- mark a test PASS because no exception was thrown
+- mark a test PASS because actions > 0
+- skip final verification
+- convert infrastructure failures into PASS
+- modify expected results to match actual results
+
+A PASS must be earned through evidence.
+
+============================================================
+RULE 4 — INSPECT THE REPOSITORY FIRST
+============================================================
+
+Before modifying anything:
+
+1. Inspect repository structure.
+2. Inspect current git status.
+3. Inspect configuration.
+4. Inspect:
+   - src/agent/domain
+   - src/agent/intent
+   - src/agent/cognition
+   - src/agent/observation
+   - src/agent/perception
+   - src/agent/browser
+   - src/agent/execution
+   - src/agent/validation
+   - src/agent/reporting
+   - src/agent/skills
+   - src/agent/worker
+   - src/agent/api
+   - frontend
+   - tests
+5. Locate existing:
+   - GeneratedTestCase
+   - StorySpecification
+   - AcceptanceCriterion
+   - IncidentSkill
+   - LearningService
+   - PageStateFingerprint
+   - PerceptionRouter
+   - PerceptionDecisionEngine
+   - ReportingEngine
+   - ValidationEngine
+6. Inspect Docker configuration.
+7. Inspect CI configuration.
+8. Inspect current tests.
+9. Establish the current baseline before modifying anything.
+
+Do not assume something is missing until you verify the repository.
+
+============================================================
+RULE 5 — READ EXISTING TEST DESIGN
+============================================================
+
+The human-authored test design is the quality bar.
+
+The agent must eventually support test cases structured around:
+
+- Test Case ID
+- User Story Reference
+- Scenario
+- Description
+- Preconditions
+- Steps
+- Test Data
+- Expected Result
+- Test Type
+- Priority
+- Actual Result
+- Status
+- Remarks
+
+Also preserve the richer existing internal structures if already available:
+
+- preconditions
+- test_data
+- actor_role
+- acceptance_criteria
+- final_assertions
+- risk_level
+
+Do not throw away the existing domain model.
+
+Extend it where necessary.
+
+============================================================
+P0 — CORE CORRECTNESS
+============================================================
+
+P0 means:
+
+THE SYSTEM CANNOT BE CONSIDERED FUNCTIONALLY COMPLETE UNTIL THESE WORK.
+
+------------------------------------------------------------
+P0.1 REAL TEST CASE IMPORT
+------------------------------------------------------------
+
+Implement support for ingesting the existing human-authored test case format.
+
+Inspect the repository first.
+
+If no XLSX importer exists, implement one using the project's existing dependency strategy.
+
+Do NOT invent a new test-case format.
+
+The importer must map the human test-case structure into the existing domain model.
+
+Expected conceptual mapping:
+
+Excel Test Case
+        ↓
+StorySpecification / GeneratedTestCase
+        ↓
+Preconditions
+Test Data
+Ordered Steps
+Expected Results
+Test Type
+Priority
+Acceptance Criteria
+Final Assertions
+
+The imported test case must retain:
+
+- original test case ID
+- story reference
+- scenario
+- description
+- preconditions
+- steps
+- test data
+- expected result
+- test type
+- priority
+
+No information may silently disappear during import.
+
+Add automated tests for:
+
+- valid workbook
+- missing required columns
+- malformed row
+- empty test case
+- multiple test cases
+- duplicate test case IDs
+- unsupported test type
+- missing expected result
+
+------------------------------------------------------------
+P0.2 SCRIPTED TEST EXECUTION MODE
+------------------------------------------------------------
+
+When a test case already contains explicit ordered steps:
+
+DO NOT ask the LLM to reinvent the step.
+
+For example:
+
+Human test case:
+
+    Step 1:
+    Open INC0000007
+
+    Step 2:
+    Verify State = On Hold
+
+    Step 3:
+    Verify Hold Reason = Awaiting Caller
+
+    Step 4:
+    Change State to In Progress
+
+    Step 5:
+    Click Update
+
+    Step 6:
+    Re-open INC0000007
+
+    Step 7:
+    Verify State = In Progress
+
+The agent must execute those steps.
+
+Do NOT transform them into a completely new autonomous plan.
+
+The existing perception architecture MUST still operate underneath:
+
+    Step
+      ↓
+    DOM
+      ↓
+    Moondream if DOM insufficient
+      ↓
+    Gemini if Moondream fails
+      ↓
+    ActionPolicy
+      ↓
+    Playwright
+      ↓
+    Verification
+      ↓
+    Validation
+
+The difference is:
+
+PLANNING is skipped when the human has already supplied the executable test intent.
+
+This reduces unnecessary LLM calls and increases reproducibility.
+
+------------------------------------------------------------
+P0.3 STEP → ACTION CACHE
+------------------------------------------------------------
+
+Extend the existing LearningService / PageStateFingerprint mechanism.
+
+Current learning/recovery must NOT be bypassed.
+
+Add a safe cache concept:
+
+    page_state_fingerprint
+    +
+    normalized_test_step
+    +
+    application/context
+        ↓
+    previously verified action/locator
+
+Example:
+
+    fingerprint = ABC123
+    step = "Click Update"
+        ↓
+    verified selector = #sysverb_update
+
+On the next identical execution:
+
+    same page fingerprint
+    +
+    same step
+        ↓
+    reuse verified action
+
+IMPORTANT:
+
+The cache MUST NOT blindly trust stale selectors.
+
+Before executing cached actions:
+
+- verify page context
+- verify selector still exists
+- verify visibility/executability
+- invalidate stale cache entries
+- fall back to DOM
+- then Moondream
+- then Gemini
+
+The cache is an optimization.
+
+It must NEVER bypass safety or perception validation.
+
+------------------------------------------------------------
+P0.4 INCIDENT LIFECYCLE — PRIMARY ACCEPTANCE TEST
+------------------------------------------------------------
+
+The primary real-world acceptance test is:
+
+INC0000007
+
+Initial conditions:
+
+    Incident Number:
+    INC0000007
+
+    State:
+    On Hold
+
+    Hold Reason:
+    Awaiting Caller
+
+Required actions:
+
+    Change State → In Progress
+
+    Click Update
+
+Then:
+
+    Re-open INC0000007
+
+Final condition:
+
+    Incident Number = INC0000007
+
+    State = In Progress
+
+DO NOT:
+
+- create another incident
+- close the incident
+- modify unrelated fields
+- change priority
+- change assignment
+- change description
+- change caller
+- change category
+- execute unrelated setup actions
+
+The test must independently verify the final persisted state.
+
+Do not infer persistence from the pre-update page.
+
+The agent MUST:
+
+    open record
+      ↓
+    verify record identity
+      ↓
+    verify initial state
+      ↓
+    verify hold reason
+      ↓
+    modify state
+      ↓
+    update
+      ↓
+    reopen same record
+      ↓
+    independently read persisted state
+      ↓
+    verify In Progress
+
+If reopening fails:
+
+DO NOT mark PASS.
+
+Trace and fix the navigation/root cause.
+
+------------------------------------------------------------
+P0.5 NAVIGATION IDENTITY SAFETY
+------------------------------------------------------------
+
+The previous system encountered invalid ServiceNow relative URLs.
+
+Investigate all ServiceNow URL construction.
+
+Never blindly call:
+
+    page.goto(relative_url)
+
+if Playwright requires an absolute URL.
+
+Use the existing browser/base URL architecture.
+
+Prefer stable record identity:
+
+    sys_id
+    incident number
+
+over fragile list/navigation URLs whenever possible.
+
+Verify that:
+
+    INC0000007
+        ↓
+    correct sys_id
+        ↓
+    correct incident record
+
+is maintained throughout the workflow.
+
+Add regression tests around:
+
+- absolute ServiceNow URL
+- relative URL resolution
+- record URL generation
+- incident list URL
+- incident form URL
+- malformed URL
+- wrong/missing base URL
+
+------------------------------------------------------------
+P0.6 FINAL VERIFICATION
+------------------------------------------------------------
+
+Final verification MUST be independent.
+
+The final result cannot be:
+
+    "we clicked Update successfully"
+
+It must be:
+
+    "we reopened INC0000007 and observed State = In Progress"
+
+The verification must operate on fresh browser state.
+
+If possible:
+
+    reload/reopen
+        ↓
+    observe
+        ↓
+    verify
+
+Do not use cached state for final assertions.
+
+------------------------------------------------------------
+P0.7 FALSE-PASS PREVENTION
+------------------------------------------------------------
+
+The following are NOT sufficient for PASS:
+
+- state machine reached COMPLETED
+- actions > 0
+- defects = 0
+- browser click succeeded
+- no exception occurred
+
+PASS requires:
+
+    required steps executed
+    +
+    expected results verified
+    +
+    final assertions verified
+    +
+    no unresolved defects
+    +
+    evidence exists
+
+If any required assertion is missing:
+
+    NOT PASS
+
+------------------------------------------------------------
+P0.8 FINDING / DEFECT CONSISTENCY
+------------------------------------------------------------
+
+Ensure:
+
+    Run.defect_count
+    Run.findings_count
+    Finding records
+    TestReport
+    UI
+
+all agree.
+
+For a genuine successful acceptance test:
+
+    defects = 0
+    findings = 0
+
+If there is a real defect:
+
+    persist it
+
+Do not manipulate counters.
+
+Deduplicate identical underlying failures.
+
+============================================================
+P1 — HIGH PRIORITY PERFORMANCE / RELIABILITY
+============================================================
+
+After P0 is stable, implement P1.
+
+------------------------------------------------------------
+P1.1 LLM RATE LIMITING
+------------------------------------------------------------
+
+Inspect the existing global LLM rate limiter.
+
+If all providers/purposes currently share one global lock:
+
+split logically by provider/purpose.
+
+At minimum distinguish:
+
+    planner
+    Moondream
+    Gemini
+    verification
+
+Do NOT violate provider limits.
+
+Goal:
+
+An unrelated planner call should not unnecessarily block a vision call.
+
+Measure before/after latency.
+
+------------------------------------------------------------
+P1.2 SCREENSHOT DEDUPLICATION
+------------------------------------------------------------
+
+Inspect the current screenshot lifecycle.
+
+Avoid unnecessary sequences such as:
+
+    before_perception
+    vision screenshot
+    escalation screenshot
+    after_perception
+
+when the browser state has not changed.
+
+Reuse the same screenshot where safe.
+
+IMPORTANT:
+
+Never reuse an image after the browser state has materially changed.
+
+Evidence correctness is more important than saving one screenshot.
+
+------------------------------------------------------------
+P1.3 VISION CALL BUDGET
+------------------------------------------------------------
+
+Introduce an action-level model call budget.
+
+A failed action must not explode into:
+
+    DOM
+    → Moondream
+    → Gemini
+    → retry
+    → Moondream
+    → Gemini
+    → verifier
+    → recovery
+    → verifier
+    ...
+
+Track:
+
+    planner calls
+    Moondream calls
+    Gemini calls
+    verification calls
+
+per action and per run.
+
+Expose this telemetry in logs/reporting.
+
+Do not silently skip required verification.
+
+------------------------------------------------------------
+P1.4 PAGE-STATE GROUNDING CACHE
+------------------------------------------------------------
+
+Extend PageStateFingerprint to cache successful first-pass grounding.
+
+Example:
+
+    fingerprint X
+    target "Update"
+        ↓
+    DOM selector #sysverb_update
+
+Next occurrence:
+
+    fingerprint X
+    target "Update"
+        ↓
+    reuse verified grounding
+
+If fingerprint changes materially:
+
+    invalidate/re-evaluate
+
+This must remain compatible with:
+
+    DOM → Moondream → Gemini
+
+------------------------------------------------------------
+P1.5 PROMPT EFFICIENCY
+------------------------------------------------------------
+
+Inspect repeated system prompts.
+
+Where provider APIs support caching, use the existing supported mechanism.
+
+Do not implement fake caching.
+
+Reduce repeated static context where safely possible.
+
+Do not remove important instructions just to reduce tokens.
+
+------------------------------------------------------------
+P1.6 CELERY CONCURRENCY
+------------------------------------------------------------
+
+Inspect current worker configuration.
+
+If currently:
+
+    --pool=solo
+
+determine whether the runtime environment permits a safer concurrent configuration.
+
+Do not blindly change it.
+
+Test worker behavior first.
+
+If concurrency is introduced:
+
+- make it configurable
+- ensure browser sessions remain isolated
+- ensure one UAT run cannot affect another
+- ensure database state is safe
+- ensure logs remain attributable to the correct run
+
+Do not sacrifice browser isolation for throughput.
+
+------------------------------------------------------------
+P1.7 BROWSER WARMING
+------------------------------------------------------------
+
+Investigate browser startup cost.
+
+If safely possible within existing architecture:
+
+reuse browser process/context where appropriate.
+
+DO NOT share state between unrelated UAT sessions.
+
+Authentication/session isolation must remain intact.
+
+============================================================
+P1.8 TEST DESIGN COVERAGE
+============================================================
+
+The human test design includes more than happy-path tests.
+
+Extend the existing testing strategy taxonomy to support:
+
+    Functional
+    Boundary
+    Equivalence
+    Decision Table
+    State Transition
+    Security / RBAC
+    Idempotency
+    Audit / Logging
+    Error Isolation
+    End-to-End
+
+Do not remove existing strategies.
+
+Add a `test_type` or equivalent field only if the current model requires it.
+
+Ensure the planner/importer can preserve the test type.
+
+============================================================
+P1.9 ROLE / PERSONA EXECUTION
+============================================================
+
+Inspect existing actor_role support.
+
+Implement role-sweep capability only if it fits the existing architecture.
+
+Example:
+
+    Test Case
+       ↓
+    PM
+       ↓
+    Program Manager
+       ↓
+    PMO
+
+For each role:
+
+- authenticate correctly
+- execute the same relevant test
+- verify expected visibility/editability
+- isolate browser/session state
+- report results separately
+
+Do not assume every test needs every role.
+
+Role execution must be explicitly defined by the test case.
+
+============================================================
+P1.10 XLSX RESULT EXPORT
+============================================================
+
+The human tester works in a structured spreadsheet.
+
+The agent must eventually be able to export execution results back into the same conceptual schema:
+
+    Test Case ID
+    User Story Ref
+    Scenario
+    Description
+    Preconditions
+    Steps
+    Test Data
+    Expected Result
+    Test Type
+    Priority
+    Actual Result
+    Status
+    Remarks
+
+Actual Result must contain factual execution information.
+
+Example:
+
+    "Incident INC0000007 was reopened after Update.
+     State was observed as In Progress."
+
+Do not output vague statements such as:
+
+    "Test completed successfully."
+
+============================================================
+P2 — PRODUCTION HARDENING
+============================================================
+
+------------------------------------------------------------
+P2.1 SECURITY CONFIGURATION
+------------------------------------------------------------
+
+Inspect JWT configuration.
+
+If a well-known default JWT secret can be used outside local development:
+
+fix this.
+
+Non-local/production runtime must require an explicit secret.
+
+Do not break intentional local development behavior.
+
+Add startup validation.
+
+------------------------------------------------------------
+P2.2 DOCKER HARDENING
+------------------------------------------------------------
+
+Inspect Dockerfiles.
+
+Where safe:
+
+- non-root runtime user
+- multi-stage build
+- remove unnecessary build dependencies
+- healthcheck
+- explicit runtime configuration
+
+Do not modify Docker architecture unnecessarily.
+
+Run actual containers after changes.
+
+Inspect:
+
+    docker compose ps
+
+and relevant logs.
+
+------------------------------------------------------------
+P2.3 OBSERVABILITY
+------------------------------------------------------------
+
+Every action should be traceable.
+
+A useful execution chain should look conceptually like:
+
+    run_id
+      ↓
+    step_id
+      ↓
+    action_id
+      ↓
+    perception
+      ↓
+    execution
+      ↓
+    verification
+      ↓
+    validation
+      ↓
+    evidence
+      ↓
+    finding
+
+Use existing logging conventions where possible.
+
+Do not create an entirely new logging architecture.
+
+------------------------------------------------------------
+P2.4 MODEL FAILURE VS PRODUCT FAILURE
+------------------------------------------------------------
+
+Separate:
+
+    NVIDIA API failure
+    Moondream failure
+    Gemini failure
+    browser failure
+    ServiceNow application defect
+    validation failure
+
+Example:
+
+NVIDIA returns HTTP 503.
+
+That is NOT automatically:
+
+    ServiceNow defect.
+
+Likewise:
+
+Playwright selector fails.
+
+That is not automatically:
+
+    ServiceNow application defect.
+
+The reporting layer must distinguish infrastructure/model/browser problems from actual UAT defects.
+
+------------------------------------------------------------
+P2.5 NETWORK DELTA VALIDATION
+------------------------------------------------------------
+
+Apply the baseline/delta principle used for console errors.
+
+Avoid treating unrelated pre-existing network issues as defects.
+
+Detect genuinely new failures caused by the current action where possible.
+
+------------------------------------------------------------
+P2.6 LEARNING SAFETY
+------------------------------------------------------------
+
+Ensure learned recovery never becomes an unsafe shortcut.
+
+Required order remains:
+
+    DOM
+      ↓
+    Moondream
+      ↓
+    Gemini
+      ↓
+    learned recovery where appropriate
+
+or the equivalent existing safe recovery design.
+
+A learned selector must be executable and context-valid before use.
+
+============================================================
+P2.7 PERCEPTION EVIDENCE
+============================================================
+
+Ensure the actual runtime perception information survives:
+
+    perception
+       ↓
+    ActionResult
+       ↓
+    StepEvidence
+       ↓
+    TestReport
+       ↓
+    persistence
+       ↓
+    API
+       ↓
+    UI
+
+If DOM was used:
+
+    route = DOM
+
+If Moondream was used:
+
+    provider = Moondream
+
+If Gemini was used:
+
+    provider = Gemini
+
+Never fabricate perception records.
+
+============================================================
+P2.8 KNOWLEDGE MODEL
+============================================================
+
+Inspect the existing Knowledge Model implementation.
+
+Verify whether:
+
+    GET /api/v1/knowledge-model/rules
+    GET /api/v1/knowledge-model/rules/{rule_id}
+    GET /api/v1/knowledge-model/drift
+
+are implemented and correctly connected to the existing CustomerKnowledgeModel.
+
+If already implemented:
+
+fix the integration/UI issue.
+
+If genuinely missing:
+
+implement the smallest compatible API.
+
+Do not redesign the Knowledge Model.
+
+Do not fabricate rules.
+
+============================================================
+P2.9 REGRESSION TESTING
+============================================================
+
+Protect the existing baseline.
+
+Previously established baseline:
+
+    175 passed
+    7 skipped
+    0 failed
+
+If current repository has a different baseline, record the actual baseline first.
+
+After every significant change:
+
+    targeted tests
+
+Then:
+
+    relevant regression suite
+
+At the end:
+
+    full regression suite
+
+Never delete or weaken tests simply because they fail after your change.
+
+============================================================
+P3 — MAINTAINABILITY / QUALITY
+============================================================
+
+------------------------------------------------------------
+P3.1 DOCUMENTATION
+------------------------------------------------------------
+
+Create/update:
+
+    docs/architecture_decision_records/
+
+Include an ADR explaining:
+
+    Why DOM is preferred
+    Why Moondream is PRIMARY vision
+    Why Gemini is fallback
+    Why Playwright performs execution
+    Why AI does not directly control unrestricted browser actions
+
+------------------------------------------------------------
+P3.2 CONTRIBUTING
+------------------------------------------------------------
+
+Add/update:
+
+    CONTRIBUTING.md
+
+Explain:
+
+- local setup
+- Docker setup
+- tests
+- logs
+- architecture
+- model configuration
+- safe modification rules
+
+------------------------------------------------------------
+P3.3 TROUBLESHOOTING RUNBOOK
+------------------------------------------------------------
+
+Create:
+
+    docs/troubleshooting.md
+
+Cover:
+
+    Docker failure
+    browser startup failure
+    Playwright selector failure
+    Moondream failure
+    Gemini fallback
+    NVIDIA 503
+    validation failure
+    evidence missing
+    findings mismatch
+    ServiceNow navigation failure
+    authentication failure
+
+------------------------------------------------------------
+P3.4 ROOT REPOSITORY HYGIENE
+------------------------------------------------------------
+
+Inspect tracked files.
+
+Runtime artifacts such as:
+
+    api.log
+    worker.log
+
+must not be committed.
+
+Diagnostic scripts should be organized appropriately.
+
+Do NOT blindly rewrite Git history.
+
+If history rewriting would be destructive:
+
+STOP and document the issue rather than performing a dangerous history rewrite.
+
+============================================================
+P3.5 ACTUAL RESULT NARRATIVE
+============================================================
+
+Generate a human-readable Actual Result only once per completed test case where possible.
+
+Do not make every step invoke an LLM just to generate prose.
+
+Actual Result should be factual.
+
+Example:
+
+    "INC0000007 was initially observed in On Hold with
+     Hold Reason Awaiting Caller. The State was changed to
+     In Progress and Update was executed. The incident was
+     reopened and independently verified as In Progress."
+
+============================================================
+P3.6 COST / PERFORMANCE TELEMETRY
+============================================================
+
+Track per run:
+
+    total actions
+    DOM actions
+    Moondream calls
+    Gemini calls
+    planner calls
+    verification calls
+    screenshots
+    average action latency
+    model latency
+    total runtime
+
+This allows future optimization based on measurements rather than guesses.
+
+============================================================
+AUTONOMOUS EXECUTION LOOP
+============================================================
+
+You are explicitly authorized to iterate.
+
+For every discovered issue:
+
+1. Identify symptom.
+2. Find exact code path.
+3. Find root cause.
+4. Implement smallest correct fix.
+5. Add/adjust regression test.
+6. Run targeted test.
+7. Run relevant integration test.
+8. If runtime behavior matters:
+       run the actual system.
+9. Inspect logs yourself.
+10. Compare actual behavior against acceptance criteria.
+11. If anything fails:
+       continue.
+12. Repeat.
+
+DO NOT stop merely because one layer works.
+
+============================================================
+SELF-ROAST PROTOCOL
+============================================================
+
+Before declaring anything fixed, aggressively challenge your own result.
+
+Ask:
+
+    Did I actually test the runtime?
+
+    Did I only inspect the code?
+
+    Did Playwright really perform the action?
+
+    Did ServiceNow actually persist the change?
+
+    Did I reopen the same record?
+
+    Did I independently verify the final state?
+
+    Did the expected result come from the test case?
+
+    Did I accidentally let the planner invent extra actions?
+
+    Did I bypass Moondream?
+
+    Did Gemini become primary accidentally?
+
+    Did I weaken validation?
+
+    Did I suppress an exception?
+
+    Did I manipulate defect counters?
+
+    Did I make the report look better instead of making
+    the system better?
+
+    Did the UI receive real evidence?
+
+    Could this still be a false PASS?
+
+If the answer to any question is uncertain:
+
+    CONTINUE.
+
+============================================================
+FINAL ACCEPTANCE TEST
+============================================================
+
+The following must be executed against the actual ServiceNow environment.
+
+TEST:
+
+    INC0000007 Incident Lifecycle
+
+PRECONDITION:
+
+    Incident exists.
+
+INITIAL ASSERTIONS:
+
+    Incident Number = INC0000007
+    State = On Hold
+    Hold Reason = Awaiting Caller
+
+ACTION:
+
+    Change State to In Progress
+    Click Update
+
+POST-ACTION:
+
+    Reopen INC0000007
+
+FINAL ASSERTIONS:
+
+    Incident Number = INC0000007
+    State = In Progress
+
+NEGATIVE ASSERTIONS:
+
+    No unrelated fields modified.
+    No new incident created.
+    Incident not closed.
+    Wrong record not opened.
+    No unrelated actions executed.
+
+PERCEPTION ASSERTIONS:
+
+    DOM used when reliable.
+    Moondream used when DOM insufficient.
+    Gemini only used as fallback where necessary.
+
+VALIDATION ASSERTIONS:
+
+    Browser action succeeded.
+    Expected state transition occurred.
+    Final state independently verified.
+    No unexpected new JS errors.
+    No unexpected action-caused network failures.
+    Behavioral verification passed or valid deterministic fallback passed.
+
+REPORTING ASSERTIONS:
+
+    action count correct.
+    finding count correct.
+    defect count correct.
+    evidence persisted.
+    perception evidence persisted where applicable.
+    final report matches actual execution.
+
+============================================================
+FINAL REGRESSION GATE
+============================================================
+
+Run the complete test suite.
+
+Record exact:
+
+    collected
+    passed
+    skipped
+    failed
+
+No unexplained regression is acceptable.
+
+============================================================
+FINAL MASTER REPORT
+============================================================
+
+Create/update ONE report:
+
+    docs/final_autonomous_stabilization_report.md
+
+Do not create dozens of scattered reports.
+
+The report MUST contain:
+
+1. Executive Summary
+
+2. Repository Baseline
+
+3. Current Architecture
+
+4. P0 Work
+
+5. P1 Work
+
+6. P2 Work
+
+7. P3 Work
+
+8. Every Issue Discovered
+
+For every issue:
+
+    symptom
+    log evidence
+    root cause
+    affected files
+    fix
+    tests
+    result
+
+9. Runtime Iteration History
+
+    Iteration
+    Problem
+    Root Cause
+    Fix
+    Test
+    Result
+
+10. Incident Acceptance Evidence
+
+    INC0000007
+    Initial State
+    Initial Hold Reason
+    State Change
+    Update
+    Reopen
+    Final State
+
+11. Perception Evidence
+
+    DOM
+    Moondream
+    Gemini
+
+including actual confidence/coordinates/locators where available.
+
+12. Model Usage
+
+    Nemotron calls
+    Moondream calls
+    Gemini calls
+    verification calls
+
+13. Performance
+
+    runtime
+    action latency
+    model latency
+    screenshot count
+
+14. Regression Results
+
+15. Remaining Issues
+
+16. Security Findings
+
+17. Final Verdict
+
+Use EXACTLY:
+
+    PASS — ALL ACCEPTANCE CRITERIA VERIFIED
+
+or:
+
+    FAIL — ACCEPTANCE CRITERIA NOT FULLY VERIFIED
+
+Never use:
+
+    "mostly passed"
+    "almost done"
+    "looks good"
+    "production ready"
+
+unless the evidence genuinely supports it.
+
+============================================================
+ORDER OF EXECUTION
+============================================================
+
+Do NOT attack everything randomly.
+
+Execute in this order:
+
+PHASE 0
+Repository inspection + baseline
+
+        ↓
+
+PHASE 1
+P0 security/correctness blockers
+
+        ↓
+
+PHASE 2
+Real test-case import
+
+        ↓
+
+PHASE 3
+Scripted execution mode
+
+        ↓
+
+PHASE 4
+INC0000007 end-to-end lifecycle
+
+        ↓
+
+PHASE 5
+Final verification + evidence + findings
+
+        ↓
+
+PHASE 6
+P1 performance/cost/reliability
+
+        ↓
+
+PHASE 7
+P2 production hardening
+
+        ↓
+
+PHASE 8
+P3 documentation/product quality
+
+        ↓
+
+PHASE 9
+Full regression suite
+
+        ↓
+
+PHASE 10
+Repeat failed areas until green
+
+        ↓
+
+FINAL MASTER REPORT
+
+============================================================
+ULTIMATE RULE
+============================================================
+
+DO NOT STOP UNTIL THE SYSTEM HAS ACTUALLY DEMONSTRATED THE TARGET.
+
+The target is NOT:
+
+"the code looks correct."
+
+The target is NOT:
+
+"tests passed."
+
+The target is NOT:
+
+"the UI says completed."
+
+The target is:
+
+    HUMAN TEST CASE
+          ↓
+    IMPORTED CORRECTLY
+          ↓
+    EXECUTED CORRECTLY
+          ↓
+    SERVICE NOW ACTUALLY CHANGED
+          ↓
+    RECORD REOPENED
+          ↓
+    FINAL STATE INDEPENDENTLY VERIFIED
+          ↓
+    EVIDENCE PERSISTED
+          ↓
+    FINDINGS CORRECT
+          ↓
+    REPORT CORRECT
+          ↓
+    REGRESSION SUITE GREEN
+          ↓
+    GENUINE PASS
+
+Be surgical.
+
+Be skeptical.
+
+Be autonomous.
+
+Read your own logs.
+
+Fix your own mistakes.
+
+Never hide a failure.
+
+Never cheat the acceptance criteria.
+
+Never change the architecture simply because an implementation is difficult.
+
+The existing Hybrid Browser Agent architecture is the product.
+
+Your job is to make it reliable.
+
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-09-15T12:54:05+05:30.
+</ADDITIONAL_METADATA>
+<USER_SETTINGS_CHANGE>
+The user changed setting `Model Selection` from Gemini 3.8 Flash (High) to Gemini 3.1 Pro (High). No need to comment on this change if the user doesn't ask about it. If reporting what model you are, please use a human readable name instead of the exact string.
+</USER_SETTINGS_CHANGE>

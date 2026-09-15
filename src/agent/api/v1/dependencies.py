@@ -72,17 +72,18 @@ def get_session_store(
     return InMemorySessionStore()
 
 
-def _get_cached_llm_client() -> OpenAILLMClient:
+def _get_cached_llm_client(purpose: str = "general") -> OpenAILLMClient:
     """Internal factory for OpenAILLMClient (no longer cached to isolate lifecycles)."""
     config = get_cached_settings()
-    return OpenAILLMClient(config=config.llm)
+    return OpenAILLMClient(config=config.llm, purpose=purpose)
 
 
 def get_llm_client(
     settings: Settings | None = None,
+    purpose: str = "general",
 ) -> OpenAILLMClient:
     """Create an LLM client instance."""
-    return _get_cached_llm_client()
+    return _get_cached_llm_client(purpose)
 
 
 def get_planner(
@@ -90,7 +91,7 @@ def get_planner(
     knowledge_model: CustomerKnowledgeModel | None = None,
 ) -> Planner:
     """Create a Planner instance."""
-    llm_client = get_llm_client(settings)
+    llm_client = get_llm_client(settings, purpose="planner")
     km = knowledge_model or get_customer_knowledge_model()
     return Planner(llm_client=llm_client, knowledge_model=km)
 
@@ -326,5 +327,5 @@ def get_grounder_backend(settings: Settings | None = None) -> GrounderBackend:
 def get_behavioral_verifier(settings: Settings | None = None) -> BehavioralVerifier:
     """Create a BehavioralVerifier instance."""
     s = settings or get_cached_settings()
-    llm = get_llm_client(s)
+    llm = get_llm_client(s, purpose="verification")
     return LLMBehavioralVerifier(llm_client=llm)

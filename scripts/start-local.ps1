@@ -201,6 +201,11 @@ $WorkerPidFile = Join-Path $RuntimeDir "worker.pid"
 
 $workerProcess = $null
 if ($VisibleWindows) {
+    # P1.6: Celery Concurrency Documentation
+    # Playwright headed browsers are stateful and tightly coupled to the OS GUI session. 
+    # Using thread/gevent pools will cause asyncio/event loop conflicts with Playwright.
+    # Using prefork (multiprocessing) on Windows causes issues with GUI focus and zombie Chromium processes.
+    # Therefore, --pool=solo is enforced to ensure 1:1 binding between the worker process and the browser window.
     $workerCmd = "`$env:PYTHONPATH='$SrcDir'; `$env:UAT_RUNTIME_MODE='local'; `$env:UAT_ENV_FILE='$EnvLocal'; & '$PythonExe' -m celery -A agent.core.celery_app worker --loglevel=info --pool=solo 2>&1 | Tee-Object -FilePath '$WorkerLog'"
     $workerProcess = Start-Process powershell -ArgumentList "-NoExit", "-Command", $workerCmd -PassThru
 } else {

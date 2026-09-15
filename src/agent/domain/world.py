@@ -69,3 +69,35 @@ class SemanticWorldState(BaseModel):
             lines.append(f"Validation Errors: {'; '.join(self.validation_errors)}")
 
         return "\n".join(lines)
+
+    def get_field_value(self, field_name: str) -> str | None:
+        """Look up a field value from the semantic world state.
+
+        Checks well-known structured fields first, then falls back to
+        searching the raw observation data if attached.
+        """
+        fn = field_name.lower().replace("_", " ").strip()
+
+        # Direct attribute mapping
+        if fn in ("state", "incident state", "record state"):
+            return self.record_state
+        if fn in ("record number", "number"):
+            return self.record_number
+        if fn in ("title", "short description"):
+            return self.title
+        if fn in ("url",):
+            return self.url
+        if fn in ("page type", "page semantic type"):
+            return self.page_semantic_type
+
+        # Check raw observation data if attached
+        raw_obs = getattr(self, "_raw_observation", None)
+        if raw_obs:
+            # Try form_fields if present
+            form_fields = getattr(raw_obs, "form_fields", None) or {}
+            if isinstance(form_fields, dict):
+                for key, val in form_fields.items():
+                    if key.lower().replace("_", " ").strip() == fn:
+                        return str(val) if val is not None else None
+
+        return None

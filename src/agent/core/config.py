@@ -135,6 +135,23 @@ class ServiceNowConfig(BaseSubConfig):
     username: str = Field(default="admin", description="Login username")
     password: str = Field(default="", description="Login password")
 
+    # P1.9 Role/Persona Execution
+    personas: dict[str, dict[str, str]] = Field(
+        default_factory=dict,
+        description="Dictionary mapping persona names to credentials (e.g. {'itil_user': {'username': 'u1', 'password': 'p1'}})"
+    )
+    active_persona: str | None = Field(
+        default=None, 
+        description="The currently active persona name, if any"
+    )
+
+    def get_active_credentials(self) -> tuple[str, str]:
+        """Get credentials for the active persona, falling back to defaults."""
+        if self.active_persona and self.personas and self.active_persona in self.personas:
+            p = self.personas[self.active_persona]
+            return p.get("username", self.username), p.get("password", self.password)
+        return self.username, self.password
+
 
 class BrowserConfig(BaseSubConfig):
     """Playwright browser configuration."""

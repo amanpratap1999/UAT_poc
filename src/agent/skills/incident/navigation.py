@@ -44,7 +44,7 @@ class IncidentNavigator:
 
     def navigate_to_incident_number(self, incident_number: str) -> AgentAction:
         """Create action to navigate to specific Incident by number or query."""
-        url = f"{self._base_url}/incident_list.do?sysparm_query=number={incident_number}"
+        url = f"{self._base_url}/incident.do?sysparm_query=number={incident_number}"
         return AgentAction(
             action_type=ActionType.NAVIGATE,
             target=f"Incident {incident_number}",

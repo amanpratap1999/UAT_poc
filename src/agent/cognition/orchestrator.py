@@ -402,6 +402,8 @@ class CognitiveOrchestrator:
                 ]
             return []
 
+
+
     async def run_cognitive_loop(self, memory: SessionMemory, objective: str) -> None:
         """The dynamic reasoning loop replacing the fixed single-skill loop."""
         max_steps = self._settings.agent.max_steps if self._settings else 20
@@ -724,14 +726,83 @@ class CognitiveOrchestrator:
 
             # 3. Decision
             self._transition(AgentState.DECISION, f"Deciding action for: {step.description}")
-            decision = await self._decision_engine.decide_next_action(  # type: ignore[union-attr]
-                intent=memory.structured_intent,
-                world_state=world_state,
-                memory=memory,
-                latest_reflection=None,
-            )
-            action = decision.action
+            
+            # P0.2 SCRIPTED TEST EXECUTION MODE bypass
+            action = None
+            if step.expected_values and "action_type" in step.expected_values:
+                # Build AgentAction from the explicitly mapped step
+                action = AgentAction(
+                    action_type=ActionType(step.expected_values["action_type"].upper()),
+                    target=step.expected_values.get("target", ""),
+                    value=step.expected_values.get("value", ""),
+                    reasoning=f"Explicitly scripted step: {step.description}",
+                    metadata={"is_scripted": True}
+                )
+                logger.info("decision_engine_bypassed", reason="Scripted test execution mode active")
+            else:
+                decision = await self._decision_engine.decide_next_action(  # type: ignore[union-attr]
+                    intent=memory.structured_intent,
+                    world_state=world_state,
+                    memory=memory,
+                    latest_reflection=None,
+                )
+                action = decision.action
+            
             self._annotate_initial_precondition(action, objective, memory)
+
+            # P0.4 Incident Lifecycle Gate
+            # If this is a state-change action, validate against lifecycle rules
+            if skill and hasattr(skill, "_lifecycle_engine"):
+                try:
+                    action_type_str = str(action.action_type).lower()
+                    target_str = str(action.target).lower()
+                    value_str = str(action.value).lower() if action.value else ""
+                    
+                    is_state_change = (
+                        action_type_str in ("select", "fill")
+                        and ("state" in target_str or "incident_state" in target_str)
+                        and value_str
+                    )
+                    
+                    if is_state_change:
+                        from agent.skills.incident.domain.models import IncidentState
+                        
+                        # Map common display values to IncidentState
+                        state_map = {
+                            "new": IncidentState.NEW,
+                            "in progress": IncidentState.IN_PROGRESS,
+                            "on hold": IncidentState.ON_HOLD,
+                            "resolved": IncidentState.RESOLVED,
+                            "closed": IncidentState.CLOSED,
+                            "canceled": IncidentState.CANCELED,
+                            "1": IncidentState.NEW,
+                            "2": IncidentState.IN_PROGRESS,
+                            "3": IncidentState.ON_HOLD,
+                            "6": IncidentState.RESOLVED,
+                            "7": IncidentState.CLOSED,
+                            "8": IncidentState.CANCELED,
+                        }
+                        
+                        target_state = state_map.get(value_str.strip())
+                        if target_state:
+                            # Get current state from world state
+                            current_state_raw = world_state.get_field_value("state") or world_state.get_field_value("incident_state") or ""
+                            current_state = state_map.get(current_state_raw.strip().lower())
+                            
+                            if current_state and current_state != target_state:
+                                from agent.skills.incident.knowledge.rules import IncidentLifecycle
+                                if not IncidentLifecycle.is_valid_transition(current_state, target_state):
+                                    logger.warning(
+                                        "lifecycle_gate_blocked",
+                                        from_state=current_state.name,
+                                        to_state=target_state.name,
+                                    )
+                                    step.mark_failed(
+                                        f"Lifecycle violation: {current_state.name} -> {target_state.name} is not a valid transition"
+                                    )
+                                    continue
+                except Exception as lc_err:
+                    logger.debug("lifecycle_gate_check_error", error=str(lc_err))
 
             # 4. Human Approval Gate for High Risk Actions
             threshold = (
@@ -833,6 +904,21 @@ class CognitiveOrchestrator:
                 duration_ms=result.duration_ms,
                 screenshot_path=result.screenshot_path,
             )
+
+            # P0.3 Save successful action to StepCache
+            if validation.overall_passed and not (hasattr(action, "metadata") and action.metadata and action.metadata.get("is_scripted")):
+                if memory.plan and memory.plan.current_step and self._decision_engine and hasattr(self._decision_engine, "_step_cache"):
+                    try:
+                        intent_type_str = str(memory.structured_intent.intent_type.value) if hasattr(memory.structured_intent.intent_type, "value") else str(memory.structured_intent.intent_type)
+                        self._decision_engine._step_cache.save_action(
+                            goal=objective,
+                            intent_type=intent_type_str,
+                            step_desc=memory.plan.current_step.description,
+                            expected=memory.plan.current_step.expected_outcome,
+                            action=action
+                        )
+                    except Exception as cache_err:
+                        logger.warning("cache_save_failed", error=str(cache_err))
 
             if hasattr(self, "_on_step_complete") and callable(self._on_step_complete):
                 try:
@@ -989,10 +1075,107 @@ class CognitiveOrchestrator:
                         },
                     )
 
+        # P0.6 FINAL VERIFICATION — Independent assertion pass on fresh browser state
+        final_assertions = getattr(memory, "final_assertions", None) or []
+        final_verification_passed = True
+        final_verification_ran = False
+        
+        if final_assertions and not memory.precondition_failed:
+            logger.info("final_verification_start", assertion_count=len(final_assertions))
+            self._transition(AgentState.VALIDATING, "Running final verification assertions")
+            
+            try:
+                # Get fresh page observation — do NOT use cached state
+                page = self._browser_manager.get_page()  # type: ignore[union-attr]
+                fresh_obs = await self._observation_engine.observe(page)  # type: ignore[union-attr]
+                fresh_world = self._world_model.build_semantic_state(fresh_obs)
+                
+                for assertion in final_assertions:
+                    final_verification_ran = True
+                    
+                    # Handle both dict and ExpectedAssertion objects
+                    if isinstance(assertion, dict):
+                        field = assertion.get("field", "")
+                        expected = assertion.get("expected_value", "")
+                        operator = assertion.get("operator", "equals")
+                        desc = assertion.get("description", f"Assert {field} {operator} {expected}")
+                    elif isinstance(assertion, str):
+                        # Plain string assertion — pass to LLM validation
+                        field = ""
+                        expected = assertion
+                        operator = "contains"
+                        desc = assertion
+                    else:
+                        field = getattr(assertion, "field", "")
+                        expected = getattr(assertion, "expected_value", "")
+                        operator = getattr(assertion, "operator", "equals")
+                        desc = getattr(assertion, "description", f"Assert {field} {operator} {expected}")
+                    
+                    # Check assertion against fresh world state
+                    actual_value = ""
+                    if field:
+                        actual_value = str(fresh_world.get_field_value(field) or "")
+                    
+                    assertion_passed = False
+                    if operator == "equals":
+                        assertion_passed = actual_value.strip().lower() == str(expected).strip().lower()
+                    elif operator == "contains":
+                        assertion_passed = str(expected).strip().lower() in actual_value.strip().lower()
+                    elif operator == "not_empty":
+                        assertion_passed = bool(actual_value.strip())
+                    else:
+                        # Default: case-insensitive equality
+                        assertion_passed = actual_value.strip().lower() == str(expected).strip().lower()
+                    
+                    if not assertion_passed:
+                        final_verification_passed = False
+                        logger.warning(
+                            "final_assertion_failed",
+                            field=field,
+                            expected=str(expected),
+                            actual=actual_value,
+                            operator=operator,
+                        )
+                        memory.add_failure(
+                            error_type="FinalAssertionFailed",
+                            error_message=f"{desc}: expected={expected}, actual={actual_value}",
+                        )
+                    else:
+                        logger.info("final_assertion_passed", field=field, desc=desc)
+                        
+            except Exception as fv_err:
+                logger.error("final_verification_error", error=str(fv_err))
+                final_verification_passed = False
+                memory.add_failure(
+                    error_type="FinalVerificationError",
+                    error_message=f"Final verification failed with error: {fv_err}",
+                )
+
+        # P0.7 FALSE-PASS PREVENTION
+        # A run with zero validated assertions must not be marked PASSED
+        steps_actually_validated = sum(
+            1 for s in plan.steps if s.status == StepStatus.SUCCESS
+        )
+
         # Mark complete if all executed without hard failure
         if all(
             s.status in (StepStatus.SUCCESS, StepStatus.SKIPPED)
             for s in plan.steps
         ):
-            plan.is_complete = True
-            await self._publish_event(RunEventType.RUN_FINISHED, {"goal": plan.goal})
+            if final_verification_ran and not final_verification_passed:
+                # Final assertions failed — do NOT mark as passed
+                logger.warning("false_pass_prevented", reason="Final assertions failed")
+                await self._publish_event(
+                    RunEventType.RUN_FINISHED,
+                    {"goal": plan.goal, "status": "failed", "reason": "Final verification assertions failed"},
+                )
+            elif steps_actually_validated == 0 and not plan.steps:
+                # No steps executed at all — cannot be a pass
+                logger.warning("false_pass_prevented", reason="Zero steps validated")
+                await self._publish_event(
+                    RunEventType.RUN_FINISHED,
+                    {"goal": plan.goal, "status": "failed", "reason": "No steps were validated"},
+                )
+            else:
+                plan.is_complete = True
+                await self._publish_event(RunEventType.RUN_FINISHED, {"goal": plan.goal})

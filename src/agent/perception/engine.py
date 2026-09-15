@@ -112,12 +112,20 @@ class PerceptionDecisionEngine:
             logger.warning("dom_resolution_failed", error=str(e))
             dom_candidates = []
 
-        # Get screenshot bytes for vision models
+        # Get screenshot bytes for vision models (P1.2 Deduplication)
         screenshot_bytes = b""
-        try:
-            screenshot_bytes = await page.screenshot(type="png")
-        except Exception as e:
-            logger.error("vision_screenshot_failed", error=str(e))
+        if before_screenshot_path:
+            try:
+                with open(before_screenshot_path, "rb") as f:
+                    screenshot_bytes = f.read()
+            except Exception as e:
+                logger.warning("failed_to_read_cached_screenshot", error=str(e))
+        
+        if not screenshot_bytes:
+            try:
+                screenshot_bytes = await page.screenshot(type="png")
+            except Exception as e:
+                logger.error("vision_screenshot_failed", error=str(e))
 
         # Check learned recovery before visual fallback
         if not dom_candidates and not selected_candidate and self._learning:

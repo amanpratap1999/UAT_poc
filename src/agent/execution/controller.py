@@ -309,6 +309,9 @@ class ExecutionController:
     async def _handle_navigate(self, action: AgentAction) -> None:
         """Handle navigate actions — navigate to a URL."""
         url = action.metadata.get("url", action.value or action.target)
+        if not url.startswith("http"):
+            base_url = self._servicenow_config.instance_url.rstrip("/")
+            url = f"{base_url}/{url.lstrip('/')}"
         await self._browser.navigate(url)
 
     async def _handle_wait(self, action: AgentAction) -> None:

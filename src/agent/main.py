@@ -236,6 +236,49 @@ class AgentOrchestrator:
         if hasattr(self, "_cognitive_orchestrator") and self._cognitive_orchestrator:
             self._cognitive_orchestrator.request_stop()
 
+    def set_test_case(self, tc_data: dict[str, Any]) -> None:
+        """Inject a structured test case into the orchestrator memory (P0.2)."""
+        from agent.domain.plan import ExecutionPlan, PlanStep
+        
+        goal = tc_data.get("title") or tc_data.get("description") or "Execute Test Case"
+        plan = ExecutionPlan(goal=goal)
+        
+        for idx, step_data in enumerate(tc_data.get("ordered_steps", [])):
+            if isinstance(step_data, dict):
+                # Check for explicit action
+                desc = step_data.get("description") or step_data.get("action") or ""
+                
+                # If we have raw TestStep dicts (action_type, target, value)
+                if "action_type" in step_data:
+                    at = step_data["action_type"]
+                    tgt = step_data.get("target", "")
+                    val = step_data.get("value", "")
+                    if not desc:
+                        desc = f"{at} {tgt}"
+                        if val:
+                            desc += f" with '{val}'"
+                
+                step = PlanStep(
+                    step_index=idx + 1,
+                    description=desc.strip() or f"Step {idx+1}",
+                    expected_outcome=step_data.get("expected_outcome", ""),
+                )
+                
+                # Store the explicit action for the bypass
+                if "action_type" in step_data:
+                    step.expected_values = step_data
+                
+                plan.steps.append(step)
+                
+        self._memory.plan = plan
+        
+        # P0.6 FINAL VERIFICATION: Store final assertions in memory for later
+        final_assertions = tc_data.get("final_assertions", [])
+        if final_assertions:
+            setattr(self._memory, "final_assertions", final_assertions)
+        
+        logger.info("test_case_loaded_as_plan", steps=len(plan.steps))
+
     async def _ensure_authenticated(self) -> None:
         """Log in to ServiceNow if the initial navigation lands on a login screen."""
         if not self._browser_manager:
@@ -245,8 +288,7 @@ class AgentOrchestrator:
             user_input = page.locator("input#user_name, input[name='user_name']")
             if await user_input.count() > 0:
                 logger.info("authenticating_servicenow_session")
-                username = self._settings.servicenow.username
-                password = self._settings.servicenow.password
+                username, password = self._settings.servicenow.get_active_credentials()
                 if username and password:
                     await user_input.first.fill(username)
                     pass_input = page.locator("input#user_password, input[name='user_password']")
@@ -293,9 +335,12 @@ class AgentOrchestrator:
             table_name=table_name,
         )
 
-    async def run(self, goal: str) -> TestReport:
+    async def run(self, goal: str, persona: str | None = None) -> TestReport:
         """Execute the full autonomous cognitive agent loop."""
-        logger.info("agent_run_started", goal=goal, session_id=self.session_id)
+        logger.info("agent_run_started", goal=goal, session_id=self.session_id, persona=persona)
+        
+        if persona:
+            self._settings.servicenow.active_persona = persona
 
         self._memory.goal = goal
         await self._save_session()
@@ -361,14 +406,17 @@ class AgentOrchestrator:
 
             if skill:
                 plan = await skill.plan(structured_intent)
-            else:
+                self._memory.plan = plan
+            elif not self._memory.plan:
                 plan = await self._planner.create_plan(goal, combined_context)
-
-            self._memory.plan = plan
-            self._memory.add_timeline_entry(
-                action=f"Plan created with {len(plan.steps)} steps",
-                result="success",
-            )
+                self._memory.plan = plan
+            
+            plan = self._memory.plan
+            if plan:
+                self._memory.add_timeline_entry(
+                    action=f"Plan exists with {len(plan.steps)} steps",
+                    result="success",
+                )
 
             if self._memory.plan:
                 # 4. EXECUTE COGNITIVE LOOP (Dynamic Phase 7 Orchestrator)

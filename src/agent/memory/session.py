@@ -102,6 +102,7 @@ class SessionMemory(BaseModel):
     goal: str = ""
     structured_intent: StructuredIntent | None = None
     plan: ExecutionPlan | None = None
+    final_assertions: list[Any] = Field(default_factory=list)
     reasoning_trace: ReasoningTrace = Field(default_factory=ReasoningTrace)
 
     @field_serializer("reasoning_trace")
@@ -144,6 +145,12 @@ class SessionMemory(BaseModel):
     total_validations_run: int = 0
     total_failures: int = 0
     total_recoveries: int = 0
+
+    # Model Telemetry (P1.3 Vision Call Budget)
+    planner_calls: int = 0
+    moondream_calls: int = 0
+    gemini_calls: int = 0
+    verification_calls: int = 0
 
     def add_observation(self, observation: PageObservation) -> None:
         """Add a page observation, maintaining the rolling window."""

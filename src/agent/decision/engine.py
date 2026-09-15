@@ -95,6 +95,9 @@ class DecisionEngine:
         self._confidence_engine = confidence_engine or ConfidenceEngine()
         self._reflection_engine = reflection_engine or ReflectionEngine(llm_client)
         self._tool_registry = tool_registry
+        
+        from agent.cognition.step_cache import StepCache
+        self._step_cache = StepCache()
 
     async def decide_next_action(
         self,
@@ -123,11 +126,26 @@ class DecisionEngine:
         )
         reflection_summary = latest_reflection.model_dump_json() if latest_reflection else "None"
 
-        chosen_action: AgentAction
+        chosen_action: AgentAction | None = None
         rationale = ""
         expected = ""
 
-        if self._llm:
+        # Check step cache first
+        plan_desc = ""
+        plan_expected = ""
+        if memory.plan and memory.plan.current_step:
+            plan_desc = memory.plan.current_step.description
+            plan_expected = memory.plan.current_step.expected_outcome
+
+        if plan_desc:
+            intent_type_str = str(intent.intent_type.value) if hasattr(intent.intent_type, "value") else str(intent.intent_type)
+            cached = self._step_cache.get_action(intent.goal, intent_type_str, plan_desc, plan_expected)
+            if cached:
+                chosen_action = cached
+                rationale = "Retrieved from StepCache"
+                expected = plan_expected
+
+        if not chosen_action and self._llm:
             try:
                 response = await self._llm.complete_json(
                     messages=[

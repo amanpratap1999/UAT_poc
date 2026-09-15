@@ -72,6 +72,19 @@ VISUAL_CURSOR_SCRIPT = """
 """
 
 
+_GLOBAL_PLAYWRIGHT: Playwright | None = None
+_GLOBAL_BROWSER: Browser | None = None
+_GLOBAL_CONTEXT: BrowserContext | None = None
+
+
+def reset_browser_globals() -> None:
+    """Reset global browser instances (useful for testing)."""
+    global _GLOBAL_PLAYWRIGHT, _GLOBAL_BROWSER, _GLOBAL_CONTEXT
+    _GLOBAL_PLAYWRIGHT = None
+    _GLOBAL_BROWSER = None
+    _GLOBAL_CONTEXT = None
+
+
 class BrowserManager:
     """Manages the Playwright browser lifecycle and provides page access.
 
@@ -94,20 +107,28 @@ class BrowserManager:
         self._servicenow_config = servicenow_config
         self._screenshot_dir = screenshot_dir
 
-        self._playwright: Playwright | None = None
-        self._browser: Browser | None = None
         self._context: BrowserContext | None = None
         self._page: Page | None = None
 
         # Log capture
         self._console_logs: list[dict[str, str]] = []
+        self._console_errors: list[str] = []
         self._page_errors: list[str] = []
         self._network_entries: list[NetworkEntry] = []
         self._network_errors: list[str] = []
         self._last_console_index: int = 0
 
+    @property
+    def _playwright(self) -> Playwright | None:
+        return _GLOBAL_PLAYWRIGHT
+
+    @property
+    def _browser(self) -> Browser | None:
+        return _GLOBAL_BROWSER
+
     async def launch(self) -> None:
-        """Launch the browser with configured settings."""
+        """Launch the browser with configured settings, keeping process warm across runs."""
+        global _GLOBAL_PLAYWRIGHT, _GLOBAL_BROWSER, _GLOBAL_CONTEXT
         try:
             logger.info("launching_browser", headless=self._browser_config.headless)
             if not self._browser_config.headless and sys.platform == "linux":
@@ -118,7 +139,8 @@ class BrowserManager:
 
             self._screenshot_dir.mkdir(parents=True, exist_ok=True)
 
-            self._playwright = await async_playwright().start()
+            if not _GLOBAL_PLAYWRIGHT:
+                _GLOBAL_PLAYWRIGHT = await async_playwright().start()
 
             launch_args: list[str] = []
             if not self._browser_config.headless:
@@ -129,19 +151,21 @@ class BrowserManager:
                 ]
 
             if self._browser_config.user_data_dir:
-                persistent_kwargs: dict[str, Any] = {
-                    "user_data_dir": str(self._browser_config.user_data_dir),
-                    "headless": self._browser_config.headless,
-                    "slow_mo": self._browser_config.slow_mo,
-                    "viewport": {
-                        "width": self._browser_config.viewport_width,
-                        "height": self._browser_config.viewport_height,
-                    },
-                    "ignore_https_errors": True,
-                }
-                if launch_args:
-                    persistent_kwargs["args"] = launch_args
-                self._context = await self._playwright.chromium.launch_persistent_context(**persistent_kwargs)
+                if not _GLOBAL_CONTEXT:
+                    persistent_kwargs: dict[str, Any] = {
+                        "user_data_dir": str(self._browser_config.user_data_dir),
+                        "headless": self._browser_config.headless,
+                        "slow_mo": self._browser_config.slow_mo,
+                        "viewport": {
+                            "width": self._browser_config.viewport_width,
+                            "height": self._browser_config.viewport_height,
+                        },
+                        "ignore_https_errors": True,
+                    }
+                    if launch_args:
+                        persistent_kwargs["args"] = launch_args
+                    _GLOBAL_CONTEXT = await self._playwright.chromium.launch_persistent_context(**persistent_kwargs)
+                self._context = _GLOBAL_CONTEXT
                 pages = self._context.pages
                 self._page = pages[0] if pages else await self._context.new_page()
             else:
@@ -151,7 +175,10 @@ class BrowserManager:
                 }
                 if launch_args:
                     launch_kwargs["args"] = launch_args
-                self._browser = await self._playwright.chromium.launch(**launch_kwargs)
+                
+                if not _GLOBAL_BROWSER:
+                    _GLOBAL_BROWSER = await self._playwright.chromium.launch(**launch_kwargs)
+                
                 self._context = await self._browser.new_context(
                     viewport={
                         "width": self._browser_config.viewport_width,
@@ -187,24 +214,20 @@ class BrowserManager:
             ) from e
 
     async def close(self) -> None:
-        """Close browser and clean up resources."""
-        logger.info("closing_browser")
+        """Close browser context/page, keeping process warm."""
+        logger.info("closing_browser_context")
         try:
             if self._page:
                 await self._page.close()
             if self._context:
-                await self._context.close()
-            if self._browser:
-                await self._browser.close()
-            if self._playwright:
-                await self._playwright.stop()
+                if self._context != _GLOBAL_CONTEXT:
+                    await self._context.close()
+            # Do NOT close _GLOBAL_BROWSER or _GLOBAL_PLAYWRIGHT to keep them warm
         except Exception as e:
             logger.warning("browser_close_error", error=str(e))
         finally:
             self._page = None
             self._context = None
-            self._browser = None
-            self._playwright = None
 
     async def wait_until_closed(
         self, timeout_seconds: float | None = None, poll_interval_ms: int = 500

@@ -46,6 +46,7 @@ async def test_cross_skill_intelligence_sharing(registry):
     mock_grounder = AsyncMock()
     mock_verifier = AsyncMock()
     mock_learning = MagicMock(spec=LearningService)
+    mock_learning.get_strategy_priority = AsyncMock(return_value=1.0)
     mock_observer = AsyncMock()
 
     PerceptionDecisionEngine(

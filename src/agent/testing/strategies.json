@@ -1,17 +1,19 @@
 {
   "field_strategies": {
-    "numeric": ["Boundary Value Analysis"],
-    "date": ["Boundary Value Analysis", "Invalid Date Combinations"],
-    "dropdown": ["Equivalence Partitioning"],
-    "checkbox": ["Decision Table"],
-    "mandatory": ["Negative Testing"],
-    "reference": ["Relationship Testing"],
-    "attachment": ["File Type Boundaries", "File Size Boundaries"],
-    "free_text": ["Error Guessing", "Injection", "Length Boundaries"]
+    "numeric": ["Boundary Value Analysis", "Equivalence Partitioning", "Negative Testing"],
+    "date": ["Boundary Value Analysis", "Invalid Date Combinations", "Negative Testing"],
+    "dropdown": ["Equivalence Partitioning", "State Transition Testing (Dropdown)"],
+    "checkbox": ["Decision Table", "Equivalence Partitioning"],
+    "mandatory": ["Negative Testing (Empty Submission)"],
+    "reference": ["Relationship Testing", "RBAC Visibility Check"],
+    "attachment": ["File Type Boundaries", "File Size Boundaries", "Negative Testing"],
+    "free_text": ["Error Guessing", "Injection (XSS/SQL)", "Length Boundaries", "Functional Character Sets"]
   },
   "workflow_strategies": {
-    "wizard": ["State Transition Testing"],
-    "sla": ["Time Transition Testing", "State Transition Testing"],
-    "approval": ["Decision Table", "State Transition Testing"]
+    "wizard": ["State Transition Testing", "Functional Navigation Testing"],
+    "sla": ["Time Transition Testing", "State Transition Testing", "Boundary Timing"],
+    "approval": ["Decision Table", "State Transition Testing", "RBAC Authority Verification"],
+    "rbac": ["RBAC Data Visibility", "RBAC Action Restrictions", "Negative Testing (Unauthorized Access)"],
+    "state_machine": ["State Transition Testing", "Invalid State Transitions", "Functional Path Testing"]
   }
 }

@@ -66,6 +66,9 @@ class BaseLLMClient(ABC):
         """
 
 
+_RATE_LIMIT_LOCKS: dict[str, asyncio.Lock] = {}
+_LAST_REQUEST_TIMES: dict[str, float] = {}
+
 class OpenAILLMClient(BaseLLMClient):
     """LLM client using the OpenAI-compatible API.
 
@@ -80,8 +83,9 @@ class OpenAILLMClient(BaseLLMClient):
         "anthropic": "https://api.anthropic.com/v1",
     }
 
-    def __init__(self, config: LLMConfig) -> None:
+    def __init__(self, config: LLMConfig, purpose: str = "general") -> None:
         self._config = config
+        self._purpose = purpose
         self._total_tokens_used = 0
 
         base_url = self._config.base_url or self._PROVIDER_URLS.get(
@@ -94,8 +98,11 @@ class OpenAILLMClient(BaseLLMClient):
             max_retries=0,
         )
 
-        self._rate_limit_lock = asyncio.Lock()
-        self._last_request_time = 0.0
+        self._rl_key = f"{config.provider}_{purpose}"
+        if self._rl_key not in _RATE_LIMIT_LOCKS:
+            _RATE_LIMIT_LOCKS[self._rl_key] = asyncio.Lock()
+            _LAST_REQUEST_TIMES[self._rl_key] = 0.0
+
         self._min_interval = 1.75  # ~34 RPM
 
         logger.info(
@@ -108,14 +115,14 @@ class OpenAILLMClient(BaseLLMClient):
         """Execute request with custom rate limiting and backoff."""
         max_retries = 1
         for attempt in range(max_retries + 1):
-            async with self._rate_limit_lock:
+            async with _RATE_LIMIT_LOCKS[self._rl_key]:
                 now = time.time()
-                elapsed = now - self._last_request_time
+                elapsed = now - _LAST_REQUEST_TIMES[self._rl_key]
                 if elapsed < self._min_interval:
                     await asyncio.sleep(self._min_interval - elapsed)
 
                 # Update time just before executing to account for sleep
-                self._last_request_time = time.time()
+                _LAST_REQUEST_TIMES[self._rl_key] = time.time()
 
             try:
                 return await self._client.chat.completions.create(**kwargs)
