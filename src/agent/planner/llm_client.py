@@ -150,9 +150,17 @@ class OpenAILLMClient(BaseLLMClient):
             Dict with 'content' (str) and optionally 'tool_calls' (list).
         """
         try:
+            import copy
+            messages_copy = copy.deepcopy(messages)
+            # P2 Req 15: Add cache control for system prompts
+            for msg in messages_copy:
+                if msg.get('role') == 'system':
+                    if isinstance(msg.get('content'), str):
+                        msg['content'] = [{'type': 'text', 'text': msg['content'], 'cache_control': {'type': 'ephemeral'}}]
+
             kwargs: dict[str, Any] = {
                 "model": self._config.model,
-                "messages": messages,
+                "messages": messages_copy,
                 "temperature": temperature or self._config.temperature,
                 "max_tokens": max_tokens or self._config.max_tokens,
             }
@@ -220,9 +228,17 @@ class OpenAILLMClient(BaseLLMClient):
 
         for attempt in range(1, max_attempts + 1):
             try:
+                import copy
+                messages_copy = copy.deepcopy(messages)
+                # P2 Req 15: Add cache control for system prompts
+                for msg in messages_copy:
+                    if msg.get('role') == 'system':
+                        if isinstance(msg.get('content'), str):
+                            msg['content'] = [{'type': 'text', 'text': msg['content'], 'cache_control': {'type': 'ephemeral'}}]
+
                 kwargs: dict[str, Any] = {
                     "model": self._config.model,
-                    "messages": messages,
+                    "messages": messages_copy,
                     "temperature": temperature or self._config.temperature,
                     "max_tokens": max_tokens or self._config.max_tokens,
                     "response_format": {"type": "json_object"},
@@ -270,3 +286,5 @@ class OpenAILLMClient(BaseLLMClient):
     def total_tokens_used(self) -> int:
         """Total tokens consumed across all requests."""
         return self._total_tokens_used
+
+

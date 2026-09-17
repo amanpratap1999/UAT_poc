@@ -111,9 +111,13 @@ def get_browser_manager(
 def get_recovery_engine(
     settings: Settings | None = None,
 ) -> RecoveryEngine:
-    """Create a RecoveryEngine instance."""
+    """Create a RecoveryEngine instance with bounded retry/recovery limits."""
     s = settings or get_cached_settings()
-    return RecoveryEngine(max_retries=s.agent.max_retries)
+    return RecoveryEngine(
+        max_retries=s.agent.max_retries,
+        max_recovery_depth=s.agent.max_recovery_depth,
+        max_backoff=s.agent.max_backoff_delay,
+    )
 
 
 def get_observation_engine() -> ObservationEngine:
@@ -265,6 +269,7 @@ def get_scenario_generator(
     return _get_cached_scenario_generator()
 
 
+@lru_cache
 def _get_cached_test_intelligence_store() -> TestIntelligenceStore:
     config = get_cached_settings()
     return TestIntelligenceStore(config=config.domain)
@@ -281,7 +286,7 @@ def get_knowledge_memory() -> KnowledgeMemory:
 
 def get_decision_engine(settings: Settings | None = None) -> DecisionEngine:
     """Create a DecisionEngine instance."""
-    llm = get_llm_client(settings)
+    llm = get_llm_client(settings, purpose='decision')
     return DecisionEngine(
         llm_client=llm,
         confidence_engine=get_confidence_engine(),
@@ -329,3 +334,5 @@ def get_behavioral_verifier(settings: Settings | None = None) -> BehavioralVerif
     s = settings or get_cached_settings()
     llm = get_llm_client(s, purpose="verification")
     return LLMBehavioralVerifier(llm_client=llm)
+
+

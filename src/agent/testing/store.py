@@ -38,7 +38,7 @@ class TestIntelligenceStore:
             raw_assertions = test_case.get("final_assertions") or []
             raw_cleanup = test_case.get("cleanup_steps") or test_case.get("cleanup_requirements") or []
             title = test_case.get("title") or test_case.get("name") or f"Test Case {tc_id}"
-            description = test_case.get("description", "")
+            description = test_case.get("description") or test_case.get("source_user_story") or ""
             target_record = test_case.get("target_record")
             initial_state = test_case.get("expected_initial_state")
             preconditions = list(test_case.get("preconditions") or [])
@@ -46,20 +46,31 @@ class TestIntelligenceStore:
             risk_level = str(test_case.get("risk_level", "Medium"))
             acceptance_criteria = list(test_case.get("acceptance_criteria") or [])
             story_id = test_case.get("story_id")
+            test_type = str(test_case.get("test_type", "Functional"))
+            test_data = test_case.get("test_data") or {}
+            story_context = test_case.get("story_context") or {}
         else:
             tc_id = getattr(test_case, "id", None) or str(_uuid.uuid4())
             raw_steps = getattr(test_case, "ordered_steps", None) or getattr(test_case, "steps", [])
             raw_assertions = getattr(test_case, "final_assertions", [])
             raw_cleanup = getattr(test_case, "cleanup_steps", []) or getattr(test_case, "cleanup_requirements", [])
             title = getattr(test_case, "title", None) or getattr(test_case, "name", f"Test Case {tc_id}")
-            description = getattr(test_case, "description", "")
+            description = getattr(test_case, "description", "") or getattr(test_case, "source_user_story", "") or ""
             target_record = getattr(test_case, "target_record", None)
             initial_state = getattr(test_case, "expected_initial_state", None)
-            preconditions = list(getattr(test_case, "preconditions", []))
-            expected_outcomes = list(getattr(test_case, "expected_outcomes", []))
+            preconditions = list(getattr(test_case, "preconditions", []) or [])
+            expected_outcomes = list(getattr(test_case, "expected_outcomes", []) or [])
             risk_level = str(getattr(test_case, "risk_level", "Medium"))
-            acceptance_criteria = list(getattr(test_case, "acceptance_criteria", []))
+            acceptance_criteria = list(getattr(test_case, "acceptance_criteria", []) or [])
             story_id = getattr(test_case, "story_id", None)
+            test_type = str(getattr(test_case, "test_type", "Functional") or "Functional")
+            test_data = getattr(test_case, "test_data", {}) or {}
+            story_context = getattr(test_case, "story_context", {}) or {}
+
+        if not isinstance(test_data, dict):
+            test_data = {"raw": str(test_data)}
+        if not isinstance(story_context, dict):
+            story_context = {}
 
         steps_dump = []
         for s in raw_steps:
@@ -93,6 +104,9 @@ class TestIntelligenceStore:
             "expected_outcomes": expected_outcomes,
             "risk_level": risk_level,
             "acceptance_criteria": acceptance_criteria,
+            "test_type": test_type,
+            "test_data": test_data,
+            "story_context": story_context,
         }
         self._memory_cases[tc_id] = record
 
@@ -119,8 +133,8 @@ class TestIntelligenceStore:
                         id, tenant_id, story_id, title, description,
                         target_record, expected_initial_state, preconditions,
                         steps, final_assertions, cleanup_steps, acceptance_criteria,
-                        risk_level
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                        risk_level, test_type, test_data, story_context
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
                     ON CONFLICT (id) DO UPDATE SET
                         title = EXCLUDED.title,
                         description = EXCLUDED.description,
@@ -131,7 +145,10 @@ class TestIntelligenceStore:
                         final_assertions = EXCLUDED.final_assertions,
                         cleanup_steps = EXCLUDED.cleanup_steps,
                         acceptance_criteria = EXCLUDED.acceptance_criteria,
-                        risk_level = EXCLUDED.risk_level
+                        risk_level = EXCLUDED.risk_level,
+                        test_type = EXCLUDED.test_type,
+                        test_data = EXCLUDED.test_data,
+                        story_context = EXCLUDED.story_context
                 """,
                     record["id"],
                     record["tenant_id"],
@@ -146,6 +163,9 @@ class TestIntelligenceStore:
                     json.dumps(record.get("cleanup_steps") or []),
                     json.dumps(record.get("acceptance_criteria") or []),
                     record.get("risk_level", "Medium"),
+                    record.get("test_type", "Functional"),
+                    json.dumps(record.get("test_data") or {}),
+                    json.dumps(record.get("story_context") or {}),
                 )
         except Exception as e:
             logger.debug("failed_to_persist_test_case_db", error=str(e), id=record.get("id"))
@@ -160,6 +180,42 @@ class TestIntelligenceStore:
         if tenant_id and case.get("tenant_id") not in (tenant_id, "unknown"):
             return None
         return case
+
+    async def get_test_case_async(self, test_case_id: str, tenant_id: str | None = None) -> dict | None:
+        case = self._memory_cases.get(test_case_id)
+        if case:
+            if tenant_id and case.get("tenant_id") not in (tenant_id, "unknown"): return None
+            return case
+        
+        await self._init_pool()
+        if not self._pool: return None
+        try:
+            async with self._pool.acquire() as conn:
+                row = await conn.fetchrow("SELECT * FROM test_cases WHERE id = $1", test_case_id)
+                if not row: return None
+                if tenant_id and row["tenant_id"] not in (tenant_id, "unknown"): return None
+                import json
+                return {
+                    "id": row["id"],
+                    "tenant_id": row["tenant_id"],
+                    "story_id": row["story_id"],
+                    "title": row["title"],
+                    "description": row["description"],
+                    "target_record": row["target_record"],
+                    "expected_initial_state": row["expected_initial_state"],
+                    "preconditions": json.loads(row["preconditions"] or "[]"),
+                    "steps": json.loads(row["steps"] or "[]"),
+                    "ordered_steps": json.loads(row["steps"] or "[]"),
+                    "final_assertions": json.loads(row["final_assertions"] or "[]"),
+                    "cleanup_steps": json.loads(row["cleanup_steps"] or "[]"),
+                    "acceptance_criteria": json.loads(row["acceptance_criteria"] or "[]"),
+                    "risk_level": row["risk_level"],
+                    "test_type": row.get("test_type") or "Functional",
+                    "test_data": json.loads(row["test_data"] or "{}") if "test_data" in row.keys() else {},
+                    "story_context": json.loads(row["story_context"] or "{}") if "story_context" in row.keys() else {},
+                }
+        except Exception:
+            return None
 
     def list_test_cases(self, tenant_id: str | None = None) -> list[dict[str, Any]]:
         """List all test cases for a tenant."""
@@ -177,6 +233,28 @@ class TestIntelligenceStore:
             self._pool = await asyncpg.create_pool(self._config.asyncpg_dsn)
 
             async with self._pool.acquire() as conn:
+                # Test cases table (imported & generated structured cases)
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS test_cases (
+                        id VARCHAR(255) PRIMARY KEY,
+                        tenant_id VARCHAR(255),
+                        story_id VARCHAR(255),
+                        title TEXT,
+                        description TEXT,
+                        target_record VARCHAR(255),
+                        expected_initial_state VARCHAR(255),
+                        preconditions JSONB DEFAULT '[]',
+                        steps JSONB DEFAULT '[]',
+                        final_assertions JSONB DEFAULT '[]',
+                        cleanup_steps JSONB DEFAULT '[]',
+                        acceptance_criteria JSONB DEFAULT '[]',
+                        risk_level VARCHAR(50) DEFAULT 'Medium',
+                        test_type VARCHAR(100) DEFAULT 'Functional',
+                        test_data JSONB DEFAULT '{}',
+                        story_context JSONB DEFAULT '{}',
+                        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
                 # Scenarios table
                 await conn.execute("""
                     CREATE TABLE IF NOT EXISTS test_scenarios (

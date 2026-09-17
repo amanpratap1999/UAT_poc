@@ -275,7 +275,8 @@ class AgentOrchestrator:
         # P0.6 FINAL VERIFICATION: Store final assertions in memory for later
         final_assertions = tc_data.get("final_assertions", [])
         if final_assertions:
-            setattr(self._memory, "final_assertions", final_assertions)
+            setattr(self._memory, 'final_assertions', final_assertions)
+        self._memory.test_case_data = tc_data
         
         logger.info("test_case_loaded_as_plan", steps=len(plan.steps))
 
@@ -338,11 +339,16 @@ class AgentOrchestrator:
     async def run(self, goal: str, persona: str | None = None) -> TestReport:
         """Execute the full autonomous cognitive agent loop."""
         logger.info("agent_run_started", goal=goal, session_id=self.session_id, persona=persona)
-        
+
         if persona:
+            # Persona isolation (P1.9): use a per-run copy of the ServiceNow
+            # config so concurrent multi-persona sweeps never mutate the
+            # process-wide cached settings and leak credentials between runs.
+            self._settings = self._settings.model_copy(deep=True)
             self._settings.servicenow.active_persona = persona
 
         self._memory.goal = goal
+        self._memory.persona = persona
         await self._save_session()
 
         if self._stop_requested:
@@ -400,11 +406,26 @@ class AgentOrchestrator:
 
             # 3. PLANNING
             self._transition(AgentState.PLANNING, "Creating execution plan")
-            knowledge = await self._knowledge_store.retrieve(goal)
+            story_id = self._memory.test_case_data.get('story_id') if self._memory.test_case_data else None
+
+            # Story-scoped knowledge grounding (P0.8): load the imported
+            # story's business rules, dependencies, preconditions, acceptance
+            # criteria, and test data into the knowledge store BEFORE planning.
+            # Scoped under story_id so one story can never bleed into another.
+            if story_id and self._memory.test_case_data:
+                story_ctx = self._memory.test_case_data.get("story_context") or {}
+                if isinstance(story_ctx, dict) and story_ctx:
+                    try:
+                        await self._knowledge_store.index_story_context(story_id, story_ctx)
+                        logger.info("story_context_grounded", story_id=story_id)
+                    except Exception as ctx_err:
+                        logger.warning("story_context_grounding_failed", error=str(ctx_err))
+
+            knowledge = await self._knowledge_store.retrieve(goal, story_id=story_id)
             long_term_context = self._knowledge_memory.get_prompt_summary(goal)
             combined_context = f"{knowledge}\n{long_term_context}".strip()
 
-            if skill:
+            if skill and not self._memory.plan:
                 plan = await skill.plan(structured_intent)
                 self._memory.plan = plan
             elif not self._memory.plan:
@@ -543,7 +564,9 @@ class AgentOrchestrator:
 
         try:
             self._report_file = await self._reporting_engine.save_report(report, format="markdown")
-            await self._reporting_engine.save_report(report, format="json")
+            await self._reporting_engine.save_report(report, format='json')
+            if hasattr(self._reporting_engine, 'save_xlsx_report'):
+                await self._reporting_engine.save_xlsx_report(report, self._memory)
         except Exception as e:
             logger.warning("report_save_failed", error=str(e))
 
@@ -668,5 +691,9 @@ async def root_health_check() -> HealthResponse:
 async def root_readiness_check() -> Any:
     """Root readiness check alias for /api/v1/ready."""
     return await readiness_check()
+
+
+
+
 
 

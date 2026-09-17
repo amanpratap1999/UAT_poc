@@ -30,7 +30,7 @@ class KnowledgeStore(ABC):
     """Retrieves relevant ServiceNow documentation for the planner."""
 
     @abstractmethod
-    async def retrieve(self, query: str, module: str = "incident_management") -> str:
+    async def retrieve(self, query: str, module: str = 'incident_management', story_id: str | None = None) -> str:
         """Retrieve relevant documentation sections for a query."""
         pass
 
@@ -43,6 +43,16 @@ class KnowledgeStore(ABC):
     async def index_documents(self) -> None:
         """Index all documents in the store."""
         pass
+
+    async def index_story_context(self, story_id: str, context: dict) -> str:
+        """Load story-specific information into the store, scoped to this story.
+
+        Default implementation renders the context as sections under the
+        story's module name so later ``retrieve(..., story_id=...)`` calls see
+        it. Information from one story never leaks into another because
+        retrieval is keyed by story_id.
+        """
+        return ""
 
     @abstractmethod
     async def close(self) -> None:
@@ -121,11 +131,55 @@ class InMemoryKnowledgeStore(KnowledgeStore):
         """Index documents (in memory, this just loads them)."""
         self._load_docs()
 
+    async def index_story_context(self, story_id: str, context: dict) -> str:
+        """Load story-specific information into memory, scoped to this story.
+
+        Sections are stored under the story_id key so retrieval with the same
+        story_id sees them — and only them (plus the shared module docs).
+        Re-indexing the same story replaces its previous context so stale
+        facts from an older run of the same story never accumulate.
+        """
+        if not story_id or not isinstance(context, dict):
+            return ""
+        sections = self._render_story_sections(context)
+        if not sections:
+            return ""
+        self._sections[story_id] = sections
+        logger.info("story_context_indexed", story_id=story_id, sections=len(sections))
+        return story_id
+
+    @staticmethod
+    def _render_story_sections(context: dict) -> list[tuple[str, str]]:
+        """Render a story-context dict into (heading, content) sections."""
+        sections: list[tuple[str, str]] = []
+        label_map = [
+            ("user_story_ref", "User Story Ref"),
+            ("business_rules", "Business Rules"),
+            ("dependencies", "Dependencies"),
+            ("preconditions", "Preconditions"),
+            ("acceptance_criteria", "Acceptance Criteria"),
+            ("test_data", "Test Data"),
+            ("context", "Story Context"),
+        ]
+        for key, label in label_map:
+            value = context.get(key)
+            if value is None:
+                continue
+            if isinstance(value, (list, tuple)):
+                text = "\n".join(f"- {item}" for item in value if str(item).strip())
+            elif isinstance(value, dict):
+                text = "\n".join(f"- {k}: {v}" for k, v in value.items())
+            else:
+                text = str(value).strip()
+            if text:
+                sections.append((label, text))
+        return sections
+
     async def close(self) -> None:
         """Close resources (no-op for in-memory)."""
         pass
 
-    async def retrieve(self, query: str, module: str = "incident_management") -> str:
+    async def retrieve(self, query: str, module: str = 'incident_management', story_id: str | None = None) -> str:
         """Retrieve relevant documentation sections for a query.
 
         Uses keyword matching to find sections that are relevant to
@@ -145,6 +199,8 @@ class InMemoryKnowledgeStore(KnowledgeStore):
 
         # Get sections for the specified module
         module_sections = self._sections.get(module, [])
+        if story_id:
+            module_sections.extend(self._sections.get(story_id, []))
 
         if not module_sections:
             # Try all modules if specific one not found
@@ -301,7 +357,7 @@ class PgVectorKnowledgeStore(KnowledgeStore):
 
             logger.info("indexed_module_in_pgvector", module=module_name, sections=len(sections))
 
-    async def retrieve(self, query: str, module: str = "incident_management") -> str:
+    async def retrieve(self, query: str, module: str = 'incident_management', story_id: str | None = None) -> str:
         """Retrieve relevant documents using vector similarity."""
         try:
             await self._init_pool()
@@ -310,17 +366,18 @@ class PgVectorKnowledgeStore(KnowledgeStore):
 
             async with self._pool.acquire() as conn:  # type: ignore[union-attr]
                 # Use L2 distance (<->) or cosine (<=>). OpenAI recommends cosine.
-                records = await conn.fetch(
-                    """
-                    SELECT heading, content
-                    FROM document_sections
-                    WHERE module_name = $1
-                    ORDER BY embedding <=> $2
-                    LIMIT 5
-                """,
-                    module,
-                    query_emb,
-                )
+                if story_id:
+                    records = await conn.fetch(
+                        """
+                        SELECT heading, content FROM document_sections WHERE (module_name = $1 OR module_name = $3) ORDER BY embedding <=> $2 LIMIT 5
+                    """,
+                        module, query_emb, story_id)
+                else:
+                    records = await conn.fetch(
+                        """
+                        SELECT heading, content FROM document_sections WHERE module_name = $1 ORDER BY embedding <=> $2 LIMIT 5
+                    """,
+                        module, query_emb)
 
                 if not records:
                     # Try across all modules if none found
@@ -342,7 +399,50 @@ class PgVectorKnowledgeStore(KnowledgeStore):
         except Exception as e:
             logger.warning("pgvector_retrieve_failed_fallback_to_in_memory", error=str(e))
             fallback = InMemoryKnowledgeStore(self._docs_dir)
-            return await fallback.retrieve(query, module)
+            return await fallback.retrieve(query, module, story_id=story_id)
+
+    async def index_story_context(self, story_id: str, context: dict) -> str:
+        """Index story-specific context rows, scoped under the story_id.
+
+        Rows are keyed by module_name = story_id, replacing any previous
+        context for the same story (no cross-story leakage, no stale
+        accumulation). Falls back silently when embeddings/DB are unavailable
+        — story grounding is best-effort and must never block a run.
+        """
+        if not story_id or not isinstance(context, dict):
+            return ""
+        try:
+            sections = InMemoryKnowledgeStore._render_story_sections(context)
+            if not sections:
+                return ""
+
+            await self._init_pool()
+            if not self._pool:
+                return ""
+
+            texts = [f"{h} {c}" for h, c in sections]
+            embeddings = await self._embedding_client.create_embeddings(texts)
+
+            async with self._pool.acquire() as conn:  # type: ignore[union-attr]
+                await conn.execute(
+                    "DELETE FROM document_sections WHERE module_name = $1", story_id
+                )
+                for (heading, content), emb in zip(sections, embeddings, strict=False):
+                    await conn.execute(
+                        """
+                        INSERT INTO document_sections (module_name, heading, content, embedding)
+                        VALUES ($1, $2, $3, $4)
+                    """,
+                        story_id,
+                        heading,
+                        content,
+                        emb,
+                    )
+            logger.info("story_context_indexed_pgvector", story_id=story_id, sections=len(sections))
+            return story_id
+        except Exception as e:
+            logger.warning("story_context_index_failed", story_id=story_id, error=str(e))
+            return ""
 
     async def get_all_modules(self) -> list[str]:
         try:
@@ -362,3 +462,5 @@ class PgVectorKnowledgeStore(KnowledgeStore):
             self._pool = None
         if hasattr(self, "_embedding_client") and self._embedding_client:
             await self._embedding_client.close()
+
+

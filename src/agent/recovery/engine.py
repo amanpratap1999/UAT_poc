@@ -7,6 +7,7 @@ the session memory.
 """
 
 from __future__ import annotations
+import asyncio
 
 import contextlib
 from dataclasses import dataclass
@@ -53,8 +54,11 @@ class RecoveryEngine:
     when all strategies have been tried.
     """
 
-    def __init__(self, max_retries: int = 3) -> None:
+    def __init__(self, max_retries: int = 3, max_recovery_depth: int = 3, max_backoff: float = 10.0) -> None:
         self._max_retries = max_retries
+        self._max_recovery_depth = max_recovery_depth
+        self._max_backoff = max_backoff
+        self._action_failures: dict[str, int] = {}
 
         # Map exception types to applicable recovery strategies
         self._strategy_map: dict[type, list[RecoveryStrategy]] = {
@@ -69,15 +73,14 @@ class RecoveryEngine:
                 RecoveryStrategy.WAIT_AND_RETRY,
                 RecoveryStrategy.SCROLL_INTO_VIEW,
                 RecoveryStrategy.DISMISS_DIALOG,
-                RecoveryStrategy.REFRESH_PAGE,
             ],
             ElementStaleError: [
+                RecoveryStrategy.RELOCATE_ELEMENT,
                 RecoveryStrategy.WAIT_AND_RETRY,
-                RecoveryStrategy.REFRESH_PAGE,
             ],
             NavigationTimeoutError: [
-                RecoveryStrategy.WAIT_AND_RETRY,
                 RecoveryStrategy.REFRESH_PAGE,
+                RecoveryStrategy.WAIT_AND_RETRY,
             ],
         }
 
@@ -87,20 +90,19 @@ class RecoveryEngine:
         action: AgentAction,
         page: Page,
     ) -> RecoveryResult:
-        """Attempt to recover from an error using ordered strategies.
-
-        Args:
-            error: The exception that triggered recovery.
-            action: The action that failed.
-            page: The current Playwright page.
-
-        Returns:
-            RecoveryResult indicating success/failure.
-
-        Raises:
-            RecoveryExhaustedError: When all strategies have been exhausted.
-        """
         error_type = type(error)
+        action_key = f"{action.action_type}:{action.target}"
+        self._action_failures[action_key] = self._action_failures.get(action_key, 0) + 1
+
+        if self._action_failures[action_key] > self._max_recovery_depth:
+            logger.error("recovery_depth_exceeded", action=action_key, depth=self._action_failures[action_key])
+            raise RecoveryExhaustedError(
+                f"Terminal failure: Action {action_key} exceeded max recovery depth of {self._max_recovery_depth}",
+                original_error=error,
+                attempts=self._action_failures[action_key],
+                details={"action_key": action_key, "depth": self._action_failures[action_key]},
+            )
+
         strategies = self._strategy_map.get(
             error_type,
             [RecoveryStrategy.WAIT_AND_RETRY, RecoveryStrategy.REFRESH_PAGE],
@@ -112,6 +114,7 @@ class RecoveryEngine:
             strategies=[s.value for s in strategies],
         )
 
+        last_details = ""
         for attempt, strategy in enumerate(strategies[: self._max_retries], 1):
             logger.info(
                 "trying_recovery_strategy",
@@ -119,32 +122,34 @@ class RecoveryEngine:
                 attempt=attempt,
             )
 
+            backoff = min(self._max_backoff, float(2 ** attempt))
+            await asyncio.sleep(backoff)
+
+            result: RecoveryResult | None = None
             try:
                 result = await self._execute_strategy(strategy, action, page)
-                if result.success:
-                    logger.info(
-                        "recovery_succeeded",
-                        strategy=strategy.value,
-                        attempt=attempt,
-                    )
-                    result.attempts = attempt
-                    return result
-                logger.info(
-                    "recovery_strategy_failed",
-                    strategy=strategy.value,
-                    details=result.details,
-                )
             except Exception as e:
-                logger.warning(
-                    "recovery_strategy_error",
+                logger.debug("strategy_failed", strategy=strategy.value, error=str(e))
+                result = RecoveryResult(
+                    success=False,
                     strategy=strategy.value,
-                    error=str(e),
+                    details=f"Strategy raised: {e}",
                 )
 
+            if result and result.success:
+                logger.info("recovery_successful", strategy=strategy.value)
+                # Note: don't clear depth map, let it track total failures for this node
+                result.attempts = attempt
+                return result
+            if result:
+                last_details = result.details
+
         raise RecoveryExhaustedError(
-            f"All {len(strategies)} recovery strategies exhausted for {error_type.__name__}",
+            f"All {len(strategies)} recovery strategies failed for {error_type.__name__}"
+            + (f" (last: {last_details})" if last_details else ""),
             original_error=error,
-            attempts=len(strategies),
+            attempts=len(strategies[: self._max_retries]),
+            details={"last_strategy_details": last_details},
         )
 
     async def _execute_strategy(
@@ -356,3 +361,6 @@ class RecoveryEngine:
                 strategy=RecoveryStrategy.REFRESH_PAGE.value,
                 details=f"Page refresh failed: {e}",
             )
+
+
+

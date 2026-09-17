@@ -88,7 +88,8 @@ class TestReport(BaseModel):
     """
 
     report_id: str = Field(description="Unique report identifier")
-    goal: str = Field(description="The business goal that was tested")
+    goal: str = Field(description='The business goal that was tested')
+    test_case: Any = Field(default=None, description='The GeneratedTestCase if imported')
     status: str = Field(description="passed, failed, precondition_failed, blocked, error")
     started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     completed_at: datetime | None = None
@@ -156,3 +157,4 @@ class TestReport(BaseModel):
         if self.total_validations == 0:
             return 0.0
         return self.passed_validations / self.total_validations * 100
+

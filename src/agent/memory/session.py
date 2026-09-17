@@ -103,6 +103,8 @@ class SessionMemory(BaseModel):
     structured_intent: StructuredIntent | None = None
     plan: ExecutionPlan | None = None
     final_assertions: list[Any] = Field(default_factory=list)
+    test_case_data: dict[str, Any] = Field(default_factory=dict)
+    persona: str | None = None
     reasoning_trace: ReasoningTrace = Field(default_factory=ReasoningTrace)
 
     @field_serializer("reasoning_trace")
@@ -309,6 +311,34 @@ class SessionMemory(BaseModel):
         # Goal
         sections.append(f"## Goal\n{self.goal}")
 
+        # Active persona (multi-persona sweeps keep independent contexts)
+        if self.persona:
+            sections.append(f"## Active Persona\n{self.persona}")
+
+        # Story-scoped grounding context (imported test case)
+        if self.test_case_data:
+            story_ctx = self.test_case_data.get("story_context") or {}
+            if isinstance(story_ctx, dict) and story_ctx:
+                ctx_lines: list[str] = []
+                for key in (
+                    "story_ref", "sheet_name", "business_rules",
+                    "dependencies", "preconditions", "acceptance_criteria",
+                ):
+                    value = story_ctx.get(key)
+                    if not value:
+                        continue
+                    if isinstance(value, (list, tuple)):
+                        rendered = "; ".join(str(v) for v in value if str(v).strip())
+                    else:
+                        rendered = str(value)
+                    if rendered:
+                        ctx_lines.append(f"  {key}: {rendered}")
+                if ctx_lines:
+                    sections.append(
+                        "## Story Context (scoped to this story — do not apply to other stories)\n"
+                        + "\n".join(ctx_lines)
+                    )
+
         # Plan progress
         if self.plan:
             sections.append(f"## Plan\n{self.plan.to_summary()}")
@@ -369,3 +399,4 @@ class SessionMemory(BaseModel):
             "total_recoveries": self.total_recoveries,
             "plan_progress": self.plan.progress_pct if self.plan else 0.0,
         }
+

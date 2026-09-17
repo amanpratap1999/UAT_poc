@@ -68,3 +68,8 @@ dump.rdb
 Thumbs.db
 .DS_Store
 
+
+# Debug dumps
+last_prompt.txt
+prompt_full.txt
+*prompt*.txt

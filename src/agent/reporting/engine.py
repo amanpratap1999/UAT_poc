@@ -30,6 +30,36 @@ from agent.memory.session import SessionMemory
 logger = get_logger(__name__)
 
 
+def _step_text(step: Any) -> str:
+    """Render a planned step (dict or TestStep) as readable text."""
+    if isinstance(step, dict):
+        at = step.get("action_type", "")
+        target = step.get("target", "")
+        value = step.get("value", "")
+        expected = step.get("expected_outcome", "")
+        text = f"{at} {target}".strip()
+        if value:
+            text += f" with '{value}'"
+        if expected:
+            text += f" | {expected}"
+        return text
+    return str(step)
+
+
+def _stringify_cell(value: Any) -> str:
+    """Render a cell value (dict/list/other) as compact text for XLSX."""
+    if isinstance(value, dict):
+        try:
+            import json as _json
+
+            return _json.dumps(value, default=str)
+        except Exception:
+            return str(value)
+    if isinstance(value, (list, tuple)):
+        return "; ".join(str(v) for v in value)
+    return str(value)
+
+
 class ReportingEngine:
     """Generates comprehensive QA test reports from session memory.
 
@@ -175,6 +205,7 @@ class ReportingEngine:
         report = TestReport(
             report_id=report_id,
             goal=memory.goal,
+            test_case=memory.test_case_data or None,
             status=status,
             started_at=memory.started_at,
             completed_at=now,
@@ -197,6 +228,8 @@ class ReportingEngine:
             environment={
                 "session_id": memory.session_id,
                 "url": memory.current_url,
+                "persona": getattr(memory, "persona", None),
+                "story_id": (memory.test_case_data or {}).get("story_id"),
             },
         )
 
@@ -619,4 +652,102 @@ class ReportingEngine:
         filepath.write_text(content, encoding="utf-8")
 
         logger.info("report_saved", path=str(filepath), format=format)
+        return str(filepath)
+
+    async def save_xlsx_report(self, report: TestReport, memory: SessionMemory) -> str:
+        """Write the run's result back as an XLSX workbook (single test case)."""
+        return await self.export_xlsx_results([(report, memory)], suffix=report.report_id)
+
+    async def export_xlsx_results(
+        self,
+        results: list[tuple[TestReport, SessionMemory]],
+        suffix: str | None = None,
+    ) -> str:
+        """Export one or multiple test-case results into a usable XLSX file.
+
+        Rows follow the 13-column import workbook schema (plus Test Case ID
+        and Test Type) and preserve user story ref, test scenario,
+        description, test data, preconditions, steps, expected/actual
+        results, status, error details, persona, execution metadata, and
+        story/sheet traceability.
+        """
+        import openpyxl
+
+        stamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+        tag = suffix or f"BATCH-{uuid.uuid4().hex[:8].upper()}"
+        filename = f"{tag}_{stamp}.xlsx"
+        filepath = self._output_dir / filename
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Test Results"
+
+        headers = [
+            "Test Case ID", "User Story Ref", "Test Scenario", "Test Case Description",
+            "Test Data", "Preconditions", "Steps", "Expected Result", "Actual Result",
+            "Status", "Error Details", "Persona", "Test Type",
+            "Story Sheet", "Execution Metadata",
+        ]
+        ws.append(headers)
+
+        for report, memory in results:
+            tc = memory.test_case_data or {}
+            story_ctx = tc.get("story_context") or {}
+
+            steps_planned = tc.get("ordered_steps") or tc.get("steps") or []
+            if steps_planned:
+                steps_text = "\n".join(
+                    f"{i}. {_step_text(s)}"
+                    for i, s in enumerate(steps_planned, 1)
+                )
+            else:
+                steps_text = "\n".join(
+                    f"{t.step_index}. {t.action} [{t.result}]" for t in report.timeline
+                )
+
+            expected_text = "\n".join(
+                str(a.get("description") or a.get("expected_value") or a.get("field") or a)
+                if isinstance(a, dict) else str(getattr(a, "description", None) or getattr(a, "expected_value", "") or getattr(a, "field", ""))
+                for a in (tc.get("final_assertions") or [])
+            )
+
+            actual = (
+                "Passed all checks" if report.status == "passed"
+                else report.summary or f"Status: {report.status}"
+            )
+
+            error_details = "\n".join(
+                filter(None, [
+                    *[f"{d.severity.value.upper()}: {d.description}" for d in report.defects],
+                    *[f"AGENT-ISSUE ({i.category}): {i.description}" for i in report.agent_issues],
+                ])
+            )
+
+            exec_meta = (
+                f"session_id={memory.session_id}; validations={report.total_validations} "
+                f"(passed={report.passed_validations}, failed={report.failed_validations}); "
+                f"duration={report.duration_seconds:.1f}s"
+            )
+
+            row = [
+                tc.get("id", ""),
+                tc.get("story_id", "") or story_ctx.get("story_ref", ""),
+                tc.get("title", ""),
+                tc.get("description") or tc.get("source_user_story") or "",
+                _stringify_cell(tc.get("test_data") or ""),
+                "\n".join(tc.get("preconditions") or []),
+                steps_text,
+                expected_text,
+                actual,
+                report.status.upper(),
+                error_details,
+                getattr(memory, "persona", None) or tc.get("actor_role", ""),
+                tc.get("test_type", "Functional"),
+                story_ctx.get("sheet_name", ""),
+                exec_meta,
+            ]
+            ws.append(row)
+
+        wb.save(filepath)
+        logger.info("xlsx_results_exported", path=str(filepath), rows=len(results))
         return str(filepath)

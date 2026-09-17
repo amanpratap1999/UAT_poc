@@ -156,7 +156,72 @@ def _build_perception_evidence(run_id: str, orchestrator: Any) -> str | None:
         return None
 
 
-async def _run_agent_async(run_id: str, goal: str, tenant_id: str, test_case_id: str | None = None) -> None:
+def _build_result_snapshot(run_id: str, orchestrator: Any, report: Any) -> dict[str, Any]:
+    """Build the run result snapshot consumed by the reporting/export layer.
+
+    Preserves the imported test case (with story/sheet traceability and
+    persona) alongside the execution outcome so XLSX export, persona
+    comparison, and the API can all work off one artifact.
+    """
+    memory = getattr(orchestrator, "memory", None)
+    tc_data = getattr(memory, "test_case_data", None) or {}
+    snapshot: dict[str, Any] = {
+        "run_id": run_id,
+        "goal": getattr(report, "goal", "") or getattr(memory, "goal", ""),
+        "status": getattr(report, "status", "unknown"),
+        "persona": getattr(memory, "persona", None),
+        "test_case": tc_data,
+        "summary": getattr(report, "summary", ""),
+        "total_validations": getattr(report, "total_validations", 0),
+        "passed_validations": getattr(report, "passed_validations", 0),
+        "failed_validations": getattr(report, "failed_validations", 0),
+        "defects": [],
+        "agent_issues": [],
+        "started_at": getattr(report, "started_at", None),
+        "completed_at": getattr(report, "completed_at", None),
+        "duration_seconds": getattr(report, "duration_seconds", None),
+    }
+    for d in getattr(report, "defects", []) or []:
+        snapshot["defects"].append(
+            {
+                "defect_id": getattr(d, "defect_id", ""),
+                "title": getattr(d, "title", ""),
+                "description": getattr(d, "description", ""),
+                "severity": str(getattr(d, "severity", "")),
+                "expected": getattr(d, "expected_behavior", ""),
+                "actual": getattr(d, "actual_behavior", ""),
+                "related_step_index": getattr(d, "related_step_index", None),
+            }
+        )
+    for i in getattr(report, "agent_issues", []) or []:
+        snapshot["agent_issues"].append(
+            {
+                "issue_id": getattr(i, "issue_id", ""),
+                "title": getattr(i, "title", ""),
+                "description": getattr(i, "description", ""),
+                "category": getattr(i, "category", ""),
+            }
+        )
+    return snapshot
+
+
+def _save_result_snapshot(run_id: str, orchestrator: Any, report: Any) -> str | None:
+    """Persist the result snapshot as ``<reports_dir>/<run_id>_result.json``."""
+    try:
+        out_dir = Path(get_settings().report_output_dir).resolve()
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / f"{run_id}_result.json"
+        path.write_text(
+            json.dumps(_build_result_snapshot(run_id, orchestrator, report), indent=2, default=str),
+            encoding="utf-8",
+        )
+        return str(path)
+    except Exception as e:  # Snapshot must never fail the run
+        logger.warning("result_snapshot_write_failed: %s", e)
+        return None
+
+
+async def _run_agent_async(run_id: str, goal: str, tenant_id: str, test_case_id: str | None = None, persona: str | None = None, tc_data: dict | None = None) -> None:
     """Async wrapper to run the orchestrator and update the DB."""
 
     settings = get_settings()
@@ -198,7 +263,7 @@ async def _run_agent_async(run_id: str, goal: str, tenant_id: str, test_case_id:
                 try:
                     from agent.api.v1.dependencies import get_test_intelligence_store
                     test_store = get_test_intelligence_store(settings)
-                    tc_data = test_store.get_test_case(test_case_id, tenant_id=tenant_id)
+                    if not tc_data: tc_data = await test_store.get_test_case_async(test_case_id, tenant_id=tenant_id)
                     if tc_data and hasattr(orchestrator, "set_test_case"):
                         orchestrator.set_test_case(tc_data)
                 except Exception as tc_load_err:
@@ -217,12 +282,17 @@ async def _run_agent_async(run_id: str, goal: str, tenant_id: str, test_case_id:
             )
 
             # Execute the full agent loop
-            await orchestrator.run(goal)
+            await orchestrator.run(goal, persona=persona)
 
             # Persist perception evidence (screenshots + grounding boxes + observed values)
             evidence_path = _build_perception_evidence(run_id, orchestrator)
             if evidence_path:
                 logger.info(f"perception_evidence_saved: {evidence_path}")
+
+            # Persist the result snapshot for the reporting/export layer
+            snapshot_path = _save_result_snapshot(run_id, orchestrator, orchestrator.report)
+            if snapshot_path:
+                logger.info(f"result_snapshot_saved: {snapshot_path}")
 
             # Once finished, fetch the final report and save metrics/findings/screenshots to DB
             async with task_session_maker() as session:
@@ -421,12 +491,12 @@ def _reconcile_stale_runs() -> None:
 
 
 @celery_app.task(bind=True, name="agent.worker.tasks.execute_run")  # type: ignore[untyped-decorator]
-def execute_run(self, run_id: str, goal: str, tenant_id: str, test_case_id: str | None = None) -> str:  # type: ignore[no-untyped-def]
+def execute_run(self, run_id: str, goal: str, tenant_id: str, test_case_id: str | None = None, persona: str | None = None, tc_data: dict | None = None) -> str:  # type: ignore[no-untyped-def]
     """Synchronous Celery task that drives the async agent run."""
     logger.info(f"Starting execution for run_id={run_id} tenant={tenant_id} test_case_id={test_case_id}")
 
     # Run the async agent inside a new event loop
-    asyncio.run(_run_agent_async(run_id, goal, tenant_id, test_case_id=test_case_id))
+    asyncio.run(_run_agent_async(run_id, goal, tenant_id, test_case_id=test_case_id, persona=persona, tc_data=tc_data))
 
     return "done"
 
@@ -434,3 +504,5 @@ def execute_run(self, run_id: str, goal: str, tenant_id: str, test_case_id: str 
 # Startup reconciliation — only inside a real Celery worker process.
 if any("celery" in arg for arg in sys.argv):
     _reconcile_stale_runs()
+
+

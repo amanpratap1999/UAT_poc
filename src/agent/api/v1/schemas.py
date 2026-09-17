@@ -197,10 +197,50 @@ class GeneratedTestCaseResponse(BaseModel):
     steps: list[dict[str, Any]] = Field(default_factory=list)
     expected_outcomes: list[str] = Field(default_factory=list)
     risk_level: str = "low"
+    test_type: str = "Functional"
+    story_id: str | None = None
+    test_data: dict[str, Any] = Field(default_factory=dict)
 
 
 class GenerateTestCasesResponse(BaseModel):
     story_id: str | None = None
     test_cases: list[GeneratedTestCaseResponse]
     count: int
+
+
+class ImportedTestRunResponse(BaseModel):
+    """A queued execution run for one imported test case (optionally per persona)."""
+
+    test_case_id: str
+    run_id: str | None = None
+    persona: str | None = None
+    status: str
+    message: str = ""
+
+
+class ImportTestCasesResponse(BaseModel):
+    """Result of POST /api/v1/test-cases/import."""
+
+    story_id: str | None = None
+    sheet: str | None = None
+    test_cases: list[GeneratedTestCaseResponse] = Field(default_factory=list)
+    count: int = 0
+    runs: list[ImportedTestRunResponse] = Field(default_factory=list)
+
+
+class PersonaComparisonEntry(BaseModel):
+    persona: str | None
+    run_id: str
+    status: str
+    defect_count: int = 0
+    summary: str = ""
+
+
+class PersonaComparisonResponse(BaseModel):
+    test_case_id: str
+    compared: bool = False
+    same_outcome: bool = True
+    differing_personas: list[str] = Field(default_factory=list)
+    access_differences: list[str] = Field(default_factory=list)
+    entries: list[PersonaComparisonEntry] = Field(default_factory=list)
 

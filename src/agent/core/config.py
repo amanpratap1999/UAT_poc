@@ -307,12 +307,28 @@ class AgentConfig(BaseSubConfig):
 
     max_steps: int = Field(default=100, description="Max steps before forced stop")
     max_retries: int = Field(default=3, description="Max recovery retries per action")
+    max_recovery_depth: int = Field(
+        default=3,
+        description="Max recovery cycles allowed for the same action before terminal failure",
+    )
+    max_backoff_delay: float = Field(
+        default=10.0,
+        description="Upper bound (seconds) for exponential recovery backoff",
+    )
     observation_window: int = Field(
         default=10, description="Number of observations to keep in memory"
     )
     execution_mode: Literal["fast", "balanced", "thorough"] = Field(
         default="balanced",
         description="Execution mode: fast (DOM-first, minimal LLM), balanced, or thorough",
+    )
+    step_cache_path: str = Field(
+        default="step_cache.db",
+        description=(
+            "Path to the step resolution/parsing cache DB. Configurable via "
+            "AGENT_STEP_CACHE_PATH. Must point at a shared persistent volume "
+            "when API and worker run in separate containers."
+        ),
     )
     require_approval_risk_threshold: int = Field(
         default=8, description="Risk level (1-10) requiring human approval before execution"
@@ -500,10 +516,32 @@ class Settings(BaseSubConfig):
                 "jwt_algorithm": self.jwt_algorithm,
                 "jwt_secret_configured": bool(self.jwt_secret_key),
             },
+            "agent": {
+                "step_cache_path": self.agent.step_cache_path,
+                "max_recovery_depth": self.agent.max_recovery_depth,
+                "max_backoff_delay": self.agent.max_backoff_delay,
+            },
         }
 
 
 def get_settings() -> Settings:
     """Factory function for Settings. Used as a FastAPI dependency."""
     return Settings()
+
+
+def resolve_step_cache_path() -> Path:
+    """Resolve the step-cache DB path against the repository root.
+
+    The configured value (``AGENT_STEP_CACHE_PATH``) may be relative; such
+    paths are anchored to ``REPO_ROOT`` so the API and Celery worker agree on
+    one location regardless of their working directory. Absolute paths (the
+    recommended form for Docker, e.g. ``/app/cache/step_cache.db``) are used
+    verbatim.
+    """
+    raw = get_settings().agent.step_cache_path
+    p = Path(raw)
+    if p.is_absolute():
+        return p
+    return (REPO_ROOT / p).resolve()
+
 

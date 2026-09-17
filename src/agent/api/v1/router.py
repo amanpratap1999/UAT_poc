@@ -1,3 +1,4 @@
+from pydantic import BaseModel
 import asyncio
 import json
 import uuid
@@ -967,7 +968,7 @@ async def execute_test_case(
     s = get_cached_settings()
     store = get_test_intelligence_store(s)
 
-    tc = store.get_test_case(test_case_id, tenant_id=token.tenant_id)
+    tc = await store.get_test_case_async(test_case_id, tenant_id=token.tenant_id)
     if not tc:
         raise HTTPException(
             status_code=404,
@@ -992,6 +993,7 @@ async def execute_test_case(
             goal=goal,
             tenant_id=token.tenant_id,
             test_case_id=test_case_id,
+            tc_data=tc
         )
     except Exception as exc:
         new_run.status = "failed"
@@ -1005,6 +1007,381 @@ async def execute_test_case(
         session_id=run_id,
         status="queued",
         message=f"Agent run queued for test case: {goal}",
+    )
+
+
+
+from fastapi import UploadFile, File, Form
+import tempfile
+import os
+
+_MAX_IMPORT_BYTES = 10 * 1024 * 1024  # 10 MB workbook cap
+
+
+@router.post("/test-cases/import", response_model=list[ImportTestCasesResponse])
+async def import_test_cases(
+    token: Annotated[TokenData, Depends(get_current_user_token)],
+    file: UploadFile = File(...),
+    execute: bool = Form(False),
+    personas: str | None = Form(None),
+    sheet_name: str | None = Form(None),
+) -> list[ImportTestCasesResponse]:
+    """Import human-authored test cases from an XLSX workbook.
+
+    Complete production flow (P0 Requirement 4):
+    receive XLSX → parse all relevant sheets → create imported test cases →
+    preserve story and traceability data → store them (``set_test_case`` is
+    applied at execution time by the worker) → optionally enqueue execution
+    runs (per persona when requested) → results land in the reporting layer
+    (per-run ``<run_id>_result.json`` snapshots, XLSX exports).
+    """
+    from agent.api.v1.dependencies import get_llm_client, get_test_intelligence_store
+    from agent.testing.importer import TestCaseImporter
+
+    if not file.filename or not file.filename.lower().endswith(".xlsx"):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid file type. Please upload an Excel (.xlsx) workbook.",
+        )
+
+    settings = get_cached_settings()
+    store = get_test_intelligence_store(settings)
+
+    # Save uploaded file to a temp path, enforcing a size cap.
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Uploaded workbook is empty.")
+    if len(content) > _MAX_IMPORT_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Workbook too large ({len(content)} bytes; limit {_MAX_IMPORT_BYTES}).",
+        )
+
+    persona_list: list[str] = []
+    if personas:
+        persona_list = [p.strip() for p in personas.split(",") if p.strip()]
+
+    fd, temp_path = tempfile.mkstemp(suffix=".xlsx")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(content)
+
+        try:
+            llm = get_llm_client(settings, purpose="planner")
+        except Exception:
+            llm = None
+        importer = TestCaseImporter(temp_path, llm_client=llm)
+        try:
+            test_cases = await importer.parse(sheet_name=sheet_name)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+        responses: list[ImportTestCasesResponse] = []
+        for tc in test_cases:
+            tc_dict = tc.model_dump()
+            tc_dict["tenant_id"] = token.tenant_id
+            store.save_test_case(tc_dict, tenant_id=token.tenant_id or "unknown")
+
+            steps_out = [
+                {
+                    "action_type": s.action_type,
+                    "target": s.target,
+                    "value": s.value,
+                    "expected_outcome": s.expected_outcome,
+                }
+                for s in tc.ordered_steps
+            ]
+
+            runs: list[ImportedTestRunResponse] = []
+            if execute:
+                for persona in persona_list or [None]:
+                    goal = tc.title or tc.source_user_story
+                    run_id = str(uuid.uuid4())
+                    try:
+                        execute_run.delay(
+                            run_id=run_id,
+                            goal=goal,
+                            tenant_id=token.tenant_id,
+                            test_case_id=tc.id,
+                            persona=persona,
+                            tc_data=tc_dict,
+                        )
+                        runs.append(
+                            ImportedTestRunResponse(
+                                test_case_id=tc.id,
+                                run_id=run_id,
+                                persona=persona,
+                                status="queued",
+                                message=f"Run queued for persona {persona or 'default'}",
+                            )
+                        )
+                    except Exception as exc:
+                        runs.append(
+                            ImportedTestRunResponse(
+                                test_case_id=tc.id,
+                                run_id=run_id,
+                                persona=persona,
+                                status="failed",
+                                message=f"Failed to enqueue execution: {exc}",
+                            )
+                        )
+
+            sheet = (tc.story_context or {}).get("sheet_name")
+            responses.append(
+                ImportTestCasesResponse(
+                    story_id=tc.story_id or "imported",
+                    sheet=sheet,
+                    test_cases=[
+                        GeneratedTestCaseResponse(
+                            id=tc.id,
+                            title=tc.title or "Imported Case",
+                            description=tc.source_user_story,
+                            preconditions=tc.preconditions,
+                            steps=steps_out,
+                            expected_outcomes=[
+                                a.description or a.field for a in tc.final_assertions
+                            ],
+                            risk_level=tc.risk_level.lower(),
+                            test_type=tc.test_type,
+                            story_id=tc.story_id,
+                            test_data=tc.test_data,
+                        )
+                    ],
+                    count=1,
+                    runs=runs,
+                )
+            )
+
+        if not responses:
+            raise HTTPException(
+                status_code=422,
+                detail="No importable test cases found in the workbook.",
+            )
+
+        return responses
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+class SweepRequest(BaseModel):
+    personas: list[str]
+
+@router.post("/test-cases/{test_case_id}/sweep", response_model=list[RunResponse])
+async def execute_test_case_sweep(
+    test_case_id: str,
+    request: SweepRequest,
+    token: Annotated[TokenData, Depends(get_current_user_token)],
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+) -> list[RunResponse]:
+    """Execute a test case for multiple personas (P1 Requirement 10)."""
+    from agent.api.v1.dependencies import get_cached_settings, get_test_intelligence_store
+    
+    s = get_cached_settings()
+    store = get_test_intelligence_store(s)
+
+    tc = await store.get_test_case_async(test_case_id, tenant_id=token.tenant_id)
+    if not tc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Test case {test_case_id} not found or unauthorized",
+        )
+
+    goal = tc.get("title") or tc.get("description") or f"Execute Test Case {test_case_id}"
+    
+    responses = []
+    
+    for persona in request.personas:
+        run_id = str(uuid.uuid4())
+        new_run = Run(
+            id=run_id,
+            tenant_id=token.tenant_id or "unknown",
+            requester_id=token.user_id,
+            goal=f"{goal} (Persona: {persona})",
+            status="queued",
+        )
+        db.add(new_run)
+        try:
+            execute_run.delay(
+                run_id=run_id,
+                goal=goal,
+                tenant_id=token.tenant_id,
+                test_case_id=test_case_id,
+                persona=persona,
+                tc_data=tc
+            )
+            responses.append(RunResponse(
+                session_id=run_id,
+                status="queued",
+                message=f"Agent run queued for test case: {goal} with persona {persona}",
+            ))
+        except Exception as exc:
+            new_run.status = "failed"
+            responses.append(RunResponse(
+                session_id=run_id,
+                status="failed",
+                message=f"Failed to enqueue execution task: {exc}",
+            ))
+            
+    await db.commit()
+    return responses
+
+
+@router.post("/test-cases/export-results")
+async def export_test_case_results(
+    run_ids: list[str],
+    token: Annotated[TokenData, Depends(get_current_user_token)],
+) -> FileResponse:
+    """Export one or multiple completed test-case results as an XLSX file.
+
+    Reads the per-run result snapshots written by the worker and re-renders
+    them through the reporting engine's 13-column XLSX exporter. Only runs
+    belonging to the caller's tenant are included.
+    """
+    from agent.core.config import get_settings
+    from agent.domain.report import TestReport
+    from agent.memory.session import SessionMemory
+    from agent.api.v1.dependencies import get_reporting_engine
+
+    if not run_ids:
+        raise HTTPException(status_code=400, detail="No run ids provided.")
+
+    settings = get_settings()
+    reports_dir = Path(settings.report_output_dir).resolve()
+
+    results: list[tuple[TestReport, SessionMemory]] = []
+    for run_id in run_ids:
+        # Prevent path traversal on the run id.
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", run_id):
+            continue
+        snap_path = reports_dir / f"{run_id}_result.json"
+        if not snap_path.is_file():
+            continue
+        try:
+            snapshot = json.loads(snap_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+
+        tenant = (snapshot.get("test_case") or {}).get("tenant_id")
+        if token.tenant_id and tenant and tenant not in (token.tenant_id, "unknown"):
+            continue
+
+        memory = SessionMemory(
+            session_id=run_id,
+            goal=snapshot.get("goal", ""),
+            persona=snapshot.get("persona"),
+            test_case_data=snapshot.get("test_case") or {},
+        )
+        report = TestReport(
+            report_id=f"RPT-{run_id[:8].upper()}",
+            goal=snapshot.get("goal", ""),
+            status=snapshot.get("status", "unknown"),
+            summary=snapshot.get("summary", ""),
+            total_validations=snapshot.get("total_validations", 0),
+            passed_validations=snapshot.get("passed_validations", 0),
+            failed_validations=snapshot.get("failed_validations", 0),
+            duration_seconds=snapshot.get("duration_seconds") or 0.0,
+        )
+        results.append((report, memory))
+
+    if not results:
+        raise HTTPException(
+            status_code=404,
+            detail="No completed result snapshots found for the given run ids.",
+        )
+
+    engine = get_reporting_engine(settings)
+    export_path = await engine.export_xlsx_results(results)
+    return FileResponse(
+        export_path,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename=Path(export_path).name,
+    )
+
+
+@router.post("/test-cases/{test_case_id}/compare-personas", response_model=PersonaComparisonResponse)
+async def compare_test_case_personas(
+    test_case_id: str,
+    request: SweepRequest,
+    token: Annotated[TokenData, Depends(get_current_user_token)],
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+) -> PersonaComparisonResponse:
+    """Compare behavior and permissions of a test case across personas.
+
+    Loads the completed runs executed for this test case (one per persona),
+    compares outcomes and defect/agent-issue profiles, and identifies access
+    differences (e.g. a step that succeeded for one persona and was blocked
+    for another).
+    """
+    from agent.core.config import get_settings
+    from sqlalchemy import select as _select
+
+    if not request.personas:
+        raise HTTPException(status_code=400, detail="No personas provided.")
+
+    settings = get_settings()
+    reports_dir = Path(settings.report_output_dir).resolve()
+
+    # Runs for this test case + tenant, latest first.
+    rows = await db.execute(
+        _select(Run)
+        .where(Run.tenant_id == (token.tenant_id or "unknown"))
+        .order_by(Run.start_time.desc())
+        .limit(200)
+    )
+    candidates = rows.scalars().all()
+
+    entries: list[PersonaComparisonEntry] = []
+    snapshots: dict[str, dict] = {}
+    for run in candidates:
+        snap_path = reports_dir / f"{run.id}_result.json"
+        if not snap_path.is_file():
+            continue
+        try:
+            snapshot = json.loads(snap_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if (snapshot.get("test_case") or {}).get("id") != test_case_id:
+            continue
+        persona = snapshot.get("persona") or "default"
+        if persona not in request.personas or persona in snapshots:
+            continue
+        snapshots[persona] = snapshot
+        entries.append(
+            PersonaComparisonEntry(
+                persona=persona,
+                run_id=run.id,
+                status=snapshot.get("status", "unknown"),
+                defect_count=len(snapshot.get("defects") or []),
+                summary=snapshot.get("summary", ""),
+            )
+        )
+
+    statuses = {e.status for e in entries}
+    same_outcome = len(statuses) <= 1
+
+    access_differences: list[str] = []
+    differing: list[str] = []
+    if not same_outcome:
+        differing = sorted({e.persona or "default" for e in entries})
+        for e in entries:
+            if e.status in ("blocked", "precondition_failed", "error"):
+                access_differences.append(
+                    f"Persona '{e.persona}' could not complete the flow (status: {e.status})"
+                )
+            elif e.defect_count > 0:
+                access_differences.append(
+                    f"Persona '{e.persona}' recorded {e.defect_count} defect(s) "
+                    f"(possible permission-driven behavior difference)"
+                )
+
+    return PersonaComparisonResponse(
+        test_case_id=test_case_id,
+        compared=bool(entries),
+        same_outcome=same_outcome,
+        differing_personas=differing,
+        access_differences=access_differences,
+        entries=entries,
     )
 
 

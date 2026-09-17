@@ -14,6 +14,8 @@
     "sla": ["Time Transition Testing", "State Transition Testing", "Boundary Timing"],
     "approval": ["Decision Table", "State Transition Testing", "RBAC Authority Verification"],
     "rbac": ["RBAC Data Visibility", "RBAC Action Restrictions", "Negative Testing (Unauthorized Access)"],
-    "state_machine": ["State Transition Testing", "Invalid State Transitions", "Functional Path Testing"]
+    "state_machine": ["State Transition Testing", "Invalid State Transitions", "Functional Path Testing"],
+    "resilience": ["Idempotency", "Error Isolation"],
+    "system": ["Audit", "End-to-End"]
   }
 }

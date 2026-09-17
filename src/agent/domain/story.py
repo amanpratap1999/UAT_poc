@@ -73,9 +73,19 @@ class ExpectedAssertion(BaseModel):
 class GeneratedTestCase(BaseModel):
     """Complete, structured test case ready for deterministic or cognitive execution."""
 
-    id: str = Field(description="Unique test case identifier (e.g., TC-INC-001)")
+    id: str = Field(description='Unique test case identifier')
+    title: str = Field(default='', description='Test scenario or title')
+    test_type: str = Field(default='Functional', description='Type of test (e.g. Functional, End-to-End, Idempotency, Audit, Error Isolation)')
     source_user_story: str = Field(description="Original user story or natural language goal")
     story_id: str | None = Field(default=None, description="Reference to parent StorySpecification")
+    story_context: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Story-scoped grounding context preserved from the source workbook: "
+            "user story ref, sheet name, business rules, dependencies, "
+            "preconditions, acceptance criteria, and test data."
+        ),
+    )
     module: str = Field(default="incident", description="Module/table being tested")
     table: str = Field(default="incident", description="ServiceNow table")
     target_record: str | None = Field(default=None, description="Target record (e.g., INC0000007)")
@@ -118,3 +128,4 @@ class TestVerdict(BaseModel):
     is_application_defect: bool = False
     defect_classification: str | None = None
     documentation_section: str | None = None
+

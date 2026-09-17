@@ -1,7 +1,7 @@
 # ==============================================================================
 # Start ServiceNow UAT Agent Locally
 # ==============================================================================
-# Starts FastAPI API, Celery worker (solo pool), and React/Vite frontend
+# Starts FastAPI API, Celery worker (threads pool), and React/Vite frontend
 # Records created process PIDs in .runtime/local/
 # Writes separate logs to logs/*.local.log
 # ==============================================================================
@@ -300,3 +300,4 @@ if ($Foreground) {
         & (Join-Path $PSScriptRoot "stop-local.ps1")
     }
 }
+

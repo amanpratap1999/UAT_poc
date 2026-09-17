@@ -1,5 +1,3 @@
-
-
 services:
   db:
     image: ankane/pgvector:v0.4.2
@@ -39,6 +37,7 @@ services:
       - ./tests:/app/tests
       - reports_data:/app/reports
       - screenshots_data:/app/screenshots
+      - step_cache_data:/app/cache
     ports:
       - "8000:8000"
     environment:
@@ -47,6 +46,7 @@ services:
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+      - AGENT_STEP_CACHE_PATH=${AGENT_STEP_CACHE_PATH:-/app/cache/step_cache.db}
       - LLM_PROVIDER=${LLM_PROVIDER}
       - LLM_BASE_URL=${LLM_BASE_URL}
       - LLM_MODEL=${LLM_MODEL}
@@ -73,6 +73,7 @@ services:
       - SCREENSHOT_DIR=${SCREENSHOT_DIR:-/app/screenshots}
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - AGENT_STEP_CACHE_PATH=${AGENT_STEP_CACHE_PATH:-/app/cache/step_cache.db}
       # DO NOT PUT REAL CREDENTIALS HERE
     depends_on:
       db:
@@ -83,19 +84,21 @@ services:
   worker:
     build: .
     image: uat-poc-backend:latest
-    command: sh -c "celery -A agent.core.celery_app worker --loglevel=info 2>&1 | tee /app/worker.log"
+    command: sh -c "celery -A agent.core.celery_app worker --loglevel=info --pool=threads --concurrency=4 2>&1 | tee /app/worker.log"
     volumes:
       - ./src:/app/src
       - ./worker.log:/app/worker.log
       - ./scripts:/app/scripts
       - reports_data:/app/reports
       - screenshots_data:/app/screenshots
+      - step_cache_data:/app/cache
     environment:
       - UAT_RUNTIME_MODE=${UAT_RUNTIME_MODE:-docker}
       - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://postgres:postgrespassword@db:5432/servicenow_qa}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
+      - AGENT_STEP_CACHE_PATH=${AGENT_STEP_CACHE_PATH:-/app/cache/step_cache.db}
       - LLM_PROVIDER=${LLM_PROVIDER}
       - LLM_BASE_URL=${LLM_BASE_URL}
       - LLM_MODEL=${LLM_MODEL}
@@ -122,6 +125,7 @@ services:
       - SCREENSHOT_DIR=${SCREENSHOT_DIR:-/app/screenshots}
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - AGENT_STEP_CACHE_PATH=${AGENT_STEP_CACHE_PATH:-/app/cache/step_cache.db}
     depends_on:
       db:
         condition: service_healthy
@@ -146,3 +150,4 @@ volumes:
   redisdata:
   reports_data:
   screenshots_data:
+  step_cache_data:

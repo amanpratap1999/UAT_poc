@@ -15,6 +15,7 @@ from agent.cognition.models import TestHypothesis
 from agent.core.logging import get_logger
 from agent.core.types import ActionType, AgentState, RunEventType, StepStatus
 from agent.domain.plan import ExecutionPlan
+from agent.domain.actions import AgentAction
 from agent.domain.validation import ValidationResult
 from agent.domain.knowledge_model import CustomerKnowledgeModel
 from agent.memory.session import SessionMemory
@@ -730,16 +731,32 @@ class CognitiveOrchestrator:
             # P0.2 SCRIPTED TEST EXECUTION MODE bypass
             action = None
             if step.expected_values and "action_type" in step.expected_values:
-                # Build AgentAction from the explicitly mapped step
-                action = AgentAction(
-                    action_type=ActionType(step.expected_values["action_type"].upper()),
-                    target=step.expected_values.get("target", ""),
-                    value=step.expected_values.get("value", ""),
-                    reasoning=f"Explicitly scripted step: {step.description}",
-                    metadata={"is_scripted": True}
-                )
-                logger.info("decision_engine_bypassed", reason="Scripted test execution mode active")
-            else:
+                # Build AgentAction from the explicitly mapped step. An
+                # unrecognized action_type string must degrade gracefully to
+                # the decision engine rather than crashing the run with a
+                # ValueError.
+                raw_action_type = str(step.expected_values["action_type"]).lower().strip()
+                try:
+                    typed_action = ActionType(raw_action_type)
+                except ValueError:
+                    typed_action = None
+                    logger.warning(
+                        "scripted_step_unknown_action_type",
+                        action_type=raw_action_type,
+                        step=step.step_index,
+                    )
+
+                if typed_action is not None:
+                    action = AgentAction(
+                        action_type=typed_action,
+                        target=step.expected_values.get("target", ""),
+                        value=step.expected_values.get("value", ""),
+                        reasoning=f"Explicitly scripted step: {step.description}",
+                        metadata={"is_scripted": True}
+                    )
+                    logger.info("decision_engine_bypassed", reason="Scripted test execution mode active")
+
+            if action is None:
                 decision = await self._decision_engine.decide_next_action(  # type: ignore[union-attr]
                     intent=memory.structured_intent,
                     world_state=world_state,
