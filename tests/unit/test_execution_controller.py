@@ -11,6 +11,7 @@ from agent.browser.page_interactor import PageInteractor
 from agent.core.exceptions import SelectorNotFoundError
 from agent.core.types import ActionType
 from agent.domain.actions import AgentAction
+from agent.core.config import ServiceNowConfig
 from agent.execution.controller import ExecutionController
 from agent.recovery.engine import RecoveryEngine, RecoveryResult
 
@@ -57,10 +58,15 @@ def controller(
     mock_recovery_engine: MagicMock,
 ) -> ExecutionController:
     """Execution controller with all mocks."""
+    config = ServiceNowConfig()
+    config.allow_mutations = True
+    config.instance_url = "https://dev12345.service-now.com"
+    config.allowed_instances = ["dev12345.service-now.com"]
     return ExecutionController(
         browser_manager=mock_browser_manager,
         page_interactor=mock_page_interactor,
         recovery_engine=mock_recovery_engine,
+        servicenow_config=config,
     )
 
 
@@ -130,7 +136,7 @@ async def test_execute_with_failure_and_recovery(
     mock_recovery_engine: MagicMock,
 ) -> None:
     """Test that failed actions trigger recovery."""
-    mock_page_interactor.click.side_effect = SelectorNotFoundError("Element not found")
+    mock_page_interactor.click.side_effect = [SelectorNotFoundError("Element not found"), None]
     mock_recovery_engine.attempt_recovery.return_value = RecoveryResult(
         success=True,
         strategy="wait_and_retry",

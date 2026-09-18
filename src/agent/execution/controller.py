@@ -219,7 +219,7 @@ class ExecutionController:
                         logger.info("recovery_succeeded", strategy=recovery_result.strategy)
                         try:
                             # Re-execute the original action now that the element is ready
-                            await self._interactor.execute_action(action)
+                            await handler(action)
                             return ActionResult(
                                 success=True,
                                 action=action,

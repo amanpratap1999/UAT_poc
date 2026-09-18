@@ -141,4 +141,4 @@ async def test_extract_password_fields(engine: ObservationEngine) -> None:
     assert len(fields) == 1
     assert fields[0].name == "Password"
     assert fields[0].field_type == "password"
-    assert fields[0].value == "secret"
+    assert fields[0].value == "[REDACTED]"

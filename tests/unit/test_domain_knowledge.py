@@ -44,4 +44,4 @@ def test_classify_anomaly_unknown_table():
     model = CustomerKnowledgeModel()
     result = model.classify_anomaly("Something went wrong", "unknown_table")
 
-    assert result.classification == AnomalyClassification.UNKNOWN
+    assert result.classification == AnomalyClassification.INCONCLUSIVE

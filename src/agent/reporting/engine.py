@@ -228,8 +228,8 @@ class ReportingEngine:
             environment={
                 "session_id": memory.session_id,
                 "url": memory.current_url,
-                "persona": getattr(memory, "persona", None),
-                "story_id": (memory.test_case_data or {}).get("story_id"),
+                "persona": getattr(memory, "persona", "") or "",
+                "story_id": (memory.test_case_data or {}).get("story_id") or "",
             },
         )
 

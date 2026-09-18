@@ -144,6 +144,14 @@ class ServiceNowConfig(BaseSubConfig):
         default=None, 
         description="The currently active persona name, if any"
     )
+    allow_mutations: bool = Field(
+        default=False, 
+        description="Allow tests to modify state (must be explicit to touch prod)."
+    )
+    allowed_instances: list[str] = Field(
+        default_factory=list,
+        description="Whitelist of instance hostnames allowed to be mutated."
+    )
 
     def get_active_credentials(self) -> tuple[str, str]:
         """Get credentials for the active persona, falling back to defaults."""
