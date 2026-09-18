@@ -98,7 +98,7 @@ class CognitiveOrchestrator:
                     logger.info("run_resumed_by_user")
                     await self._publish_event(RunEventType.RUN_RESUMED)
                     self._transition(AgentState.EXECUTING, "Execution resumed by user")
-            return status
+            return str(status)
         except Exception as e:
             logger.debug("check_controls_failed", error=str(e))
             return "running"
@@ -807,8 +807,19 @@ class CognitiveOrchestrator:
                             current_state = state_map.get(current_state_raw.strip().lower())
                             
                             if current_state and current_state != target_state:
-                                from agent.skills.incident.knowledge.rules import IncidentLifecycle
-                                if not IncidentLifecycle.is_valid_transition(current_state, target_state):
+                                is_valid = True
+                                if self._knowledge_memory and self._knowledge_memory.customer_model:
+                                    is_valid = self._knowledge_memory.customer_model.is_valid_state_transition(
+                                        "incident", 
+                                        current_state.value if hasattr(current_state, "value") else str(current_state), 
+                                        target_state.value if hasattr(target_state, "value") else str(target_state)
+                                    )
+                                else:
+                                    # Fallback
+                                    from agent.skills.incident.knowledge.rules import IncidentLifecycle
+                                    is_valid = IncidentLifecycle.is_valid_transition(current_state, target_state)
+                                
+                                if not is_valid:
                                     logger.warning(
                                         "lifecycle_gate_blocked",
                                         from_state=current_state.name,
@@ -864,7 +875,8 @@ class CognitiveOrchestrator:
                 result = await self._execution_controller.execute(action)  # type: ignore[union-attr]
 
             # P0 QA-005 Fix: Reload page to verify mutations after save/update
-            if action.action_type.value == "click" and action.target and ("sysverb_update" in str(action.target).lower() or "sysverb_insert" in str(action.target).lower()):
+            action_type_val = getattr(action.action_type, "value", action.action_type)
+            if str(action_type_val) == "click" and action.target and ("sysverb_update" in str(action.target).lower() or "sysverb_insert" in str(action.target).lower()):
                 try:
                     if self._browser_manager:
                         page = self._browser_manager.get_page()
@@ -936,7 +948,9 @@ class CognitiveOrchestrator:
             if validation.overall_passed and not (hasattr(action, "metadata") and action.metadata and action.metadata.get("is_scripted")):
                 if memory.plan and memory.plan.current_step and self._decision_engine and hasattr(self._decision_engine, "_step_cache"):
                     try:
-                        intent_type_str = str(memory.structured_intent.intent_type.value) if hasattr(memory.structured_intent.intent_type, "value") else str(memory.structured_intent.intent_type)
+                        intent_type_str = "unknown"
+                        if memory.structured_intent:
+                            intent_type_str = str(memory.structured_intent.intent_type.value) if hasattr(memory.structured_intent.intent_type, "value") else str(memory.structured_intent.intent_type)
                         self._decision_engine._step_cache.save_action(
                             goal=objective,
                             intent_type=intent_type_str,

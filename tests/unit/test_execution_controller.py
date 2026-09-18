@@ -60,6 +60,7 @@ def controller(
     """Execution controller with all mocks."""
     config = ServiceNowConfig()
     config.allow_mutations = True
+    config.is_subproduction = True
     config.instance_url = "https://dev12345.service-now.com"
     config.allowed_instances = ["dev12345.service-now.com"]
     return ExecutionController(

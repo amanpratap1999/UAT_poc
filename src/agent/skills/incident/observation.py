@@ -79,20 +79,23 @@ class IncidentObserver:
         if priority_raw:
             priority_val = IncidentPriority.from_string(priority_raw)
         else:
-            # Fallback for when priority is not visible in DOM
-            priority_val = IncidentBusinessRules.calculate_priority(impact_val, urgency_val)
+            priority_val = IncidentPriority.UNKNOWN
 
         # Editability
         is_readonly = False
         if world_state:
             is_readonly = world_state.user_permissions == "readonly"
 
+        # Format priority_label safely regardless of whether it's a string or Enum member
+        p_value = getattr(priority_val, "value", priority_val)
+        p_name = getattr(priority_val, "name", str(priority_val).upper())
+
         incident = Incident(
             number=number,
             state=state_enum,
             state_label=state_raw,
             priority=priority_val,
-            priority_label=f"{priority_val.value} - {priority_val.name.capitalize()}",
+            priority_label=f"{p_value} - {p_name.capitalize()}",
             impact=impact_val,
             urgency=urgency_val,
             caller=caller,

@@ -141,11 +141,11 @@ class StepParser:
             return self._result(at, target, value, expected_outcome)
 
         # Deterministic template parse.
-        at, target, value = self._parse_template(action_text)
-        if at is not None:
+        s_at, s_target, s_value = self._parse_template(action_text)
+        if s_at is not None:
             if not expected_outcome:
-                expected_outcome = self._default_outcome(at, target, value, action_text)
-            return self._result(at, target, value, expected_outcome)
+                expected_outcome = self._default_outcome(s_at, s_target, s_value, action_text)
+            return self._result(s_at, s_target, s_value, expected_outcome)
 
         # Unrecognized wording → cache → LLM → safe fallback.
         parsed = await self._parse_with_llm(action_text)
@@ -359,7 +359,7 @@ class StepParser:
             except Exception:
                 cached = None
         if cached is not None:
-            return cached
+            return cached  # type: ignore[no-any-return]
 
         prompt = (
             "Convert the following human-written UI test step into a JSON object "

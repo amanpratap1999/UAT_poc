@@ -181,7 +181,7 @@ class TestIntelligenceStore:
             return None
         return case
 
-    async def get_test_case_async(self, test_case_id: str, tenant_id: str | None = None) -> dict | None:
+    async def get_test_case_async(self, test_case_id: str, tenant_id: str | None = None) -> dict[str, Any] | None:
         case = self._memory_cases.get(test_case_id)
         if case:
             if tenant_id and case.get("tenant_id") not in (tenant_id, "unknown"):

@@ -37,7 +37,7 @@ jobs:
           pip install -e ".[dev]"
           pip install mypy
       - name: Run Mypy
-        run: mypy --strict src || true
+        run: mypy --strict src
 
   test:
     name: Backend Test (pytest)

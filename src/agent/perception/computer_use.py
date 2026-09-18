@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 
 from agent.core.logging import get_logger
 from agent.domain.actions import AgentAction
+from agent.core.types import ActionType
 
 if TYPE_CHECKING:
     from agent.execution.policy import ActionPolicy
@@ -52,9 +53,9 @@ class ProposedBrowserAction(BaseModel):
             metadata["y"] = self.y
 
         return AgentAction(
-            action_type=self.action_type,
+            action_type=ActionType(self.action_type),
             target=self.target or f"coordinate({self.x},{self.y})",
-            value=self.value,
+            value=self.value or "",
             metadata=metadata,
         )
 
@@ -71,7 +72,7 @@ class GeminiComputerUseAdapter:
     def _init_model(self) -> None:
         """Initialize the Gemini generative model."""
         try:
-            import google.generativeai as genai
+            import google.generativeai as genai  # type: ignore[import-untyped]
 
             genai.configure(api_key=self.api_key)
             self._model = genai.GenerativeModel("gemini-2.0-flash")

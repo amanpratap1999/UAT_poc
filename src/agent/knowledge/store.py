@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import Any
 
 from agent.core.config import DomainConfig, LLMConfig
 from agent.core.logging import get_logger
@@ -44,7 +45,7 @@ class KnowledgeStore(ABC):
         """Index all documents in the store."""
         pass
 
-    async def index_story_context(self, story_id: str, context: dict) -> str:
+    async def index_story_context(self, story_id: str, context: dict[str, Any]) -> str:
         """Load story-specific information into the store, scoped to this story.
 
         Default implementation renders the context as sections under the
@@ -131,7 +132,7 @@ class InMemoryKnowledgeStore(KnowledgeStore):
         """Index documents (in memory, this just loads them)."""
         self._load_docs()
 
-    async def index_story_context(self, story_id: str, context: dict) -> str:
+    async def index_story_context(self, story_id: str, context: dict[str, Any]) -> str:
         """Load story-specific information into memory, scoped to this story.
 
         Sections are stored under the story_id key so retrieval with the same
@@ -149,7 +150,7 @@ class InMemoryKnowledgeStore(KnowledgeStore):
         return story_id
 
     @staticmethod
-    def _render_story_sections(context: dict) -> list[tuple[str, str]]:
+    def _render_story_sections(context: dict[str, Any]) -> list[tuple[str, str]]:
         """Render a story-context dict into (heading, content) sections."""
         sections: list[tuple[str, str]] = []
         label_map = [
@@ -401,7 +402,7 @@ class PgVectorKnowledgeStore(KnowledgeStore):
             fallback = InMemoryKnowledgeStore(self._docs_dir)
             return await fallback.retrieve(query, module, story_id=story_id)
 
-    async def index_story_context(self, story_id: str, context: dict) -> str:
+    async def index_story_context(self, story_id: str, context: dict[str, Any]) -> str:
         """Index story-specific context rows, scoped under the story_id.
 
         Rows are keyed by module_name = story_id, replacing any previous
@@ -423,7 +424,7 @@ class PgVectorKnowledgeStore(KnowledgeStore):
             texts = [f"{h} {c}" for h, c in sections]
             embeddings = await self._embedding_client.create_embeddings(texts)
 
-            async with self._pool.acquire() as conn:  # type: ignore[union-attr]
+            async with self._pool.acquire() as conn:
                 await conn.execute(
                     "DELETE FROM document_sections WHERE module_name = $1", story_id
                 )

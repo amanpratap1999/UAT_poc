@@ -27,6 +27,19 @@ async def async_client():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
+    from agent.api.v1.auth import get_password_hash
+    from agent.domain.models import User
+    async with async_session() as session:
+        admin_user = User(
+            id="admin-id",
+            tenant_id="tenant-0",
+            username="admin",
+            role="Admin",
+            hashed_password=get_password_hash("admin")
+        )
+        session.add(admin_user)
+        await session.commit()
+
     async def override_get_db():
         async with async_session() as session:
             yield session

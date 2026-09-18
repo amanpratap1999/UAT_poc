@@ -30,7 +30,7 @@ class BaseLLMClient(ABC):
     @abstractmethod
     async def complete(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
@@ -50,7 +50,7 @@ class BaseLLMClient(ABC):
     @abstractmethod
     async def complete_json(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         temperature: float | None = None,
         max_tokens: int | None = None,
     ) -> dict[str, Any]:
@@ -139,7 +139,7 @@ class OpenAILLMClient(BaseLLMClient):
 
     async def complete(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
@@ -210,7 +210,7 @@ class OpenAILLMClient(BaseLLMClient):
 
     async def complete_json(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         temperature: float | None = None,
         max_tokens: int | None = None,
     ) -> dict[str, Any]:

@@ -117,7 +117,7 @@ async def test_incident_e2e_workflow(mock_incident_settings: Settings, tmp_path:
     world_model = WorldModel()
 
     skill_registry = CapabilityRegistry()
-    incident_skill = IncidentSkill(base_url="https://test.service-now.com")
+    incident_skill = IncidentSkill(config=mock_incident_settings.servicenow)
     skill_registry.register(incident_skill, incident_skill.get_capability_definition())
 
     tool_registry = ToolRegistry()

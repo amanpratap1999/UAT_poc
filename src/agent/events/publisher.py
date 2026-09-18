@@ -33,7 +33,7 @@ class RunEventPublisher:
             try:
                 import redis.asyncio as aioredis
 
-                self._redis = aioredis.from_url(self.redis_url, decode_responses=True)
+                self._redis = aioredis.from_url(self.redis_url, decode_responses=True)  # type: ignore[no-untyped-call]
                 self._connected = True
             except Exception as e:
                 logger.warning("redis_event_publisher_connection_failed", error=str(e))
@@ -81,7 +81,7 @@ class RunEventPublisher:
                 # Store latest state snapshot
                 await r.set(f"run_state:{self.run_id}", raw, ex=7200)
         except Exception as e:
-            logger.debug("event_publish_failed", event=event_name, error=str(e))
+            logger.debug("event_publish_failed", event_type=event_name, error=str(e))
 
         return message
 
@@ -129,7 +129,7 @@ class RunControlReceiver:
             try:
                 import redis.asyncio as aioredis
 
-                self._redis = aioredis.from_url(self.redis_url, decode_responses=True)
+                self._redis = aioredis.from_url(self.redis_url, decode_responses=True)  # type: ignore[no-untyped-call]
             except Exception as e:
                 logger.warning("redis_control_receiver_connection_failed", error=str(e))
                 return None
@@ -198,7 +198,7 @@ class RunControlReceiver:
                 await r.delete(answer_key)
                 await r.delete(prompt_key)
                 await self.set_status(RunControlStatus.RUNNING)
-                return ans
+                return str(ans)
 
             current = await self.get_status()
             if current == RunControlStatus.CANCELLED.value:

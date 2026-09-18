@@ -186,7 +186,7 @@ class ReportingEngine:
         duration = (now - memory.started_at).total_seconds()
 
         # Augment step_evidence with canonical plan steps if present
-        if getattr(memory, "plan", None) and memory.plan.steps:
+        if memory.plan and memory.plan.steps:
             existing_indices = {se.get("step_index") for se in step_evidence if isinstance(se, dict)}
             for s in memory.plan.steps:
                 if s.step_index not in existing_indices:
@@ -359,7 +359,7 @@ class ReportingEngine:
 
             defect_counter += 1
             failed_checks = step.validation.failed_checks
-            check_names = [c.check_name for c in failed_checks]
+            check_names_list = [c.check_name for c in failed_checks]
             check_details = "; ".join(
                 f"{c.check_name}: expected={c.expected}, actual={c.actual}"
                 for c in failed_checks
@@ -373,7 +373,7 @@ class ReportingEngine:
                 DefectReport(
                     defect_id=f"DEF-{defect_counter:03d}",
                     severity=self._assess_severity(failed_checks),
-                    title=f"Validation failure: {', '.join(check_names)}",
+                    title=f"Validation failure: {', '.join(check_names_list)}",
                     description=check_details,
                     expected_behavior="; ".join(c.expected for c in failed_checks),
                     actual_behavior="; ".join(c.actual for c in failed_checks),
@@ -680,6 +680,7 @@ class ReportingEngine:
 
         wb = openpyxl.Workbook()
         ws = wb.active
+        assert ws is not None
         ws.title = "Test Results"
 
         headers = [

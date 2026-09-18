@@ -9,6 +9,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from agent.core.logging import get_logger
+from agent.domain.knowledge_model import CustomerKnowledgeModel
 from agent.skills.incident.domain.models import Incident, IncidentState
 from agent.skills.incident.knowledge.rules import (
     IncidentBusinessRules,
@@ -36,12 +37,14 @@ class LifecycleEngine:
         self,
         current_incident: Incident,
         target_state: IncidentState,
+        knowledge_model: CustomerKnowledgeModel | None = None
     ) -> TransitionAssessment:
         """Evaluate whether an Incident can transition from current to target state.
 
         Args:
             current_incident: Current Incident domain model.
             target_state: Proposed target IncidentState.
+            knowledge_model: Dynamic schema and rules model.
 
         Returns:
             A TransitionAssessment model.
@@ -49,7 +52,16 @@ class LifecycleEngine:
         current_state = current_incident.state
 
         # Check state machine transition validity
-        is_valid = IncidentLifecycle.is_valid_transition(current_state, target_state)
+        is_valid = True
+        if knowledge_model:
+            is_valid = knowledge_model.is_valid_state_transition(
+                "incident", 
+                current_state.value if hasattr(current_state, "value") else str(current_state), 
+                target_state.value if hasattr(target_state, "value") else str(target_state)
+            )
+        else:
+            is_valid = IncidentLifecycle.is_valid_transition(current_state, target_state)
+            
         block_reasons: list[str] = []
         missing_fields: list[str] = []
 
@@ -60,6 +72,13 @@ class LifecycleEngine:
 
         # Check required mandatory fields for target state
         mandatory_required = IncidentBusinessRules.get_mandatory_fields_for_state(target_state)
+        if knowledge_model:
+            dynamic_mandatory = knowledge_model.get_mandatory_fields_for_state(
+                "incident",
+                target_state.value if hasattr(target_state, "value") else str(target_state)
+            )
+            # Combine static and dynamic rules for completeness
+            mandatory_required = list(set(list(mandatory_required) + dynamic_mandatory))
 
         for field_name in mandatory_required:
             val = self._get_incident_field_value(current_incident, field_name)

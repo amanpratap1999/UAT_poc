@@ -164,6 +164,7 @@ class BrowserManager:
                     }
                     if launch_args:
                         persistent_kwargs["args"] = launch_args
+                    assert self._playwright is not None
                     _GLOBAL_CONTEXT = await self._playwright.chromium.launch_persistent_context(**persistent_kwargs)
                 self._context = _GLOBAL_CONTEXT
                 pages = self._context.pages
@@ -177,8 +178,10 @@ class BrowserManager:
                     launch_kwargs["args"] = launch_args
                 
                 if not _GLOBAL_BROWSER:
+                    assert self._playwright is not None
                     _GLOBAL_BROWSER = await self._playwright.chromium.launch(**launch_kwargs)
                 
+                assert self._browser is not None
                 self._context = await self._browser.new_context(
                     viewport={
                         "width": self._browser_config.viewport_width,

@@ -166,7 +166,7 @@ class PerceptionDecisionEngine:
                 )
 
             perception_route = route_result.route
-            if route_result.success:
+            if route_result.success and route_result.candidate is not None:
                 selected_candidate = route_result.candidate
                 self._apply_candidate_to_action(final_action, selected_candidate)
                 used_vision = perception_route not in ("DOM", "DOM_DISAMBIGUATED")

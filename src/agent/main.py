@@ -48,7 +48,8 @@ from agent.api.v1.dependencies import (
     get_validation_engine,
     get_world_model,
 )
-from agent.api.v1.router import HealthResponse, health_check, readiness_check, router
+from agent.api.v1.schemas import HealthResponse
+from agent.api.v1.router import health_check, readiness_check, router
 from agent.browser.manager import BrowserManager
 from agent.browser.page_interactor import PageInteractor
 from agent.capabilities.registry import CapabilityRegistry
@@ -270,6 +271,25 @@ class AgentOrchestrator:
                 
                 plan.steps.append(step)
                 
+        for idx, step_data in enumerate(tc_data.get("cleanup_steps", [])):
+            if isinstance(step_data, dict):
+                desc = step_data.get("description") or step_data.get("action") or ""
+                if "action_type" in step_data:
+                    at = step_data["action_type"]
+                    tgt = step_data.get("target", "")
+                    val = step_data.get("value", "")
+                    if not desc:
+                        desc = f"{at} {tgt}" + (f" with '{val}'" if val else "")
+                
+                step = PlanStep(
+                    step_index=len(plan.steps) + idx + 1,
+                    description=desc.strip() or f"Cleanup Step {idx+1}",
+                    expected_outcome=step_data.get("expected_outcome", ""),
+                )
+                if "action_type" in step_data:
+                    step.expected_values = step_data
+                plan.cleanup_steps.append(step)
+
         self._memory.plan = plan
         
         # P0.6 FINAL VERIFICATION: Store final assertions in memory for later
@@ -471,6 +491,30 @@ class AgentOrchestrator:
                 error_message=str(e),
             )
         finally:
+            # P0 Cleanup execution
+            try:
+                if self._memory.plan and getattr(self._memory.plan, "cleanup_steps", []):
+                    logger.info("executing_cleanup_steps", step_count=len(self._memory.plan.cleanup_steps))
+                    from agent.domain.plan import ExecutionPlan
+                    cleanup_plan = ExecutionPlan(
+                        goal="Cleanup",
+                        steps=self._memory.plan.cleanup_steps
+                    )
+                    
+                    # Temporarily clear failures to allow cleanup to run
+                    orig_precondition_failed = self._memory.precondition_failed
+                    self._memory.precondition_failed = False
+                    
+                    # Also temporarily clear stop_requested if we want cleanup to happen anyway,
+                    # but usually stop means hard stop. Let's keep stop_requested as is.
+                    
+                    await self._cognitive_orchestrator._execute_canonical_plan(self._memory, cleanup_plan, "Cleanup")
+                    
+                    # Restore failures
+                    self._memory.precondition_failed = orig_precondition_failed
+            except Exception as e:
+                logger.error("cleanup_execution_failed", error=str(e))
+
             # Generate report
             try:
                 self._report = await self._generate_report()

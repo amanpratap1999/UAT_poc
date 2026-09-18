@@ -109,6 +109,13 @@ class ExecutionController:
             )
         )
         if is_mutating:
+            if not getattr(self._servicenow_config, "is_subproduction", False):
+                return ActionResult(
+                    success=False,
+                    action=action,
+                    error="Mutations are denied on production instances. Set SERVICENOW_IS_SUBPRODUCTION=true.",
+                    duration_ms=0,
+                )
             if not getattr(self._servicenow_config, "allow_mutations", False):
                 return ActionResult(
                     success=False,

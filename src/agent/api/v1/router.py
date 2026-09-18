@@ -170,7 +170,7 @@ async def readiness_check() -> JSONResponse:
 
     # 2. Redis check
     try:
-        redis_client = aioredis.from_url(settings.session.redis_url, decode_responses=True)
+        redis_client = aioredis.from_url(settings.session.redis_url, decode_responses=True)  # type: ignore[no-untyped-call]
         try:
             await redis_client.ping()
             checks["redis"] = {"status": "ok"}
@@ -279,9 +279,9 @@ async def create_run(
 
     # Enqueue Celery task with error handling
     try:
-        execute_run.delay(run_id=run_id, goal=request.goal, tenant_id=token.tenant_id)
+        execute_run.delay(run_id=run_id, goal=request.goal, tenant_id=token.tenant_id or "unknown")
     except Exception as exc:
-        new_run.status = "failed"
+        new_run.status = "failed"  # type: ignore[assignment]
         await db.commit()
         raise HTTPException(
             status_code=500,
@@ -396,13 +396,13 @@ async def update_finding(
         raise HTTPException(status_code=404, detail="Finding not found")
 
     if request.capability is not None:
-        finding.capability = request.capability
+        finding.capability = request.capability  # type: ignore[assignment]
     if request.description is not None:
-        finding.description = request.description
+        finding.description = request.description  # type: ignore[assignment]
     if request.is_defect is not None:
-        finding.is_defect = request.is_defect
+        finding.is_defect = request.is_defect  # type: ignore[assignment]
     if request.severity is not None:
-        finding.severity = request.severity
+        finding.severity = request.severity  # type: ignore[assignment]
 
     await db.commit()
     await db.refresh(finding)
@@ -605,14 +605,14 @@ async def stream_run_events(
     if not run_res.scalars().first():
         raise HTTPException(status_code=404, detail="Run not found or unauthorized")
 
-    async def event_generator():
+    async def event_generator() -> Any:
         settings = get_cached_settings()
         r = None
         pubsub = None
         try:
             import redis.asyncio as aioredis
 
-            r = aioredis.from_url(settings.session.redis_url, decode_responses=True)
+            r = aioredis.from_url(settings.session.redis_url, decode_responses=True)  # type: ignore[no-untyped-call]
             pubsub = r.pubsub()
             channel_name = f"run_events:{run_id}"
             await pubsub.subscribe(channel_name)
@@ -713,7 +713,7 @@ async def pause_run(
     settings = get_cached_settings()
     import redis.asyncio as aioredis
 
-    r = aioredis.from_url(settings.session.redis_url, decode_responses=True)
+    r = aioredis.from_url(settings.session.redis_url, decode_responses=True)  # type: ignore[no-untyped-call]
     try:
         await r.set(f"run_control:{run_id}:status", "paused", ex=7200)
         seq = await r.incr(f"run_events_seq:{run_id}")
@@ -730,7 +730,7 @@ async def pause_run(
     finally:
         await r.close()
 
-    db_run.status = "paused"
+    db_run.status = "paused"  # type: ignore[assignment]
     await db.commit()
 
     return ActionResponse(run_id=run_id, status="paused", message=f"Run paused: {request.reason}")
@@ -754,7 +754,7 @@ async def resume_run(
     settings = get_cached_settings()
     import redis.asyncio as aioredis
 
-    r = aioredis.from_url(settings.session.redis_url, decode_responses=True)
+    r = aioredis.from_url(settings.session.redis_url, decode_responses=True)  # type: ignore[no-untyped-call]
     try:
         await r.set(f"run_control:{run_id}:status", "running", ex=7200)
         seq = await r.incr(f"run_events_seq:{run_id}")
@@ -771,7 +771,7 @@ async def resume_run(
     finally:
         await r.close()
 
-    db_run.status = "running"
+    db_run.status = "running"  # type: ignore[assignment]
     await db.commit()
 
     return ActionResponse(run_id=run_id, status="running", message=f"Run resumed: {request.message}")
@@ -796,7 +796,7 @@ async def cancel_run(
     settings = get_cached_settings()
     import redis.asyncio as aioredis
 
-    r = aioredis.from_url(settings.session.redis_url, decode_responses=True)
+    r = aioredis.from_url(settings.session.redis_url, decode_responses=True)  # type: ignore[no-untyped-call]
     try:
         await r.set(f"run_control:{run_id}:status", "cancelled", ex=7200)
         seq = await r.incr(f"run_events_seq:{run_id}")
@@ -813,7 +813,7 @@ async def cancel_run(
     finally:
         await r.close()
 
-    db_run.status = "cancelled"
+    db_run.status = "cancelled"  # type: ignore[assignment]
     await db.commit()
 
     return ActionResponse(run_id=run_id, status="cancelled", message=f"Run cancelled: {request.reason}")
@@ -836,7 +836,7 @@ async def answer_clarification(
     settings = get_cached_settings()
     import redis.asyncio as aioredis
 
-    r = aioredis.from_url(settings.session.redis_url, decode_responses=True)
+    r = aioredis.from_url(settings.session.redis_url, decode_responses=True)  # type: ignore[no-untyped-call]
     try:
         # Match worker request-specific answer key
         key = f"run_control:{run_id}:clarification:{request.request_id}:answer"
@@ -863,7 +863,7 @@ async def submit_approval(
     settings = get_cached_settings()
     import redis.asyncio as aioredis
 
-    r = aioredis.from_url(settings.session.redis_url, decode_responses=True)
+    r = aioredis.from_url(settings.session.redis_url, decode_responses=True)  # type: ignore[no-untyped-call]
     try:
         # Match worker prompt-specific decision key
         key = f"run_control:{run_id}:approval:{request.prompt_id}:decision"
@@ -908,14 +908,14 @@ async def generate_test_cases(
             acceptance_criteria=request.acceptance_criteria,
         )
         tc.story_id = story_id
-        store.save_test_case(tc, tenant_id=token.tenant_id)
+        store.save_test_case(tc, tenant_id=token.tenant_id or "unknown")
         cases.append(
             GeneratedTestCaseResponse(
                 id=tc.id,
                 title=f"UAT Verification: {tc.target_record or 'Incident'}",
                 description=tc.source_user_story,
                 preconditions=list(tc.preconditions),
-                steps=[s.model_dump() if hasattr(s, "model_dump") else s for s in tc.ordered_steps],
+                steps=[s.model_dump() if hasattr(s, "model_dump") else dict(s) for s in tc.ordered_steps],
                 expected_outcomes=[a.description for a in tc.final_assertions],
                 risk_level=tc.risk_level.lower(),
             )
@@ -944,7 +944,7 @@ async def generate_test_cases(
                 "risk_level": "medium",
                 "acceptance_criteria": request.acceptance_criteria,
             }
-            store.save_test_case(tc_obj, tenant_id=token.tenant_id)
+            store.save_test_case(tc_obj, tenant_id=token.tenant_id or "unknown")
             cases.append(
                 GeneratedTestCaseResponse(
                     id=cid,
@@ -976,7 +976,7 @@ async def execute_test_case(
     s = get_cached_settings()
     store = get_test_intelligence_store(s)
 
-    tc = await store.get_test_case_async(test_case_id, tenant_id=token.tenant_id)
+    tc = await store.get_test_case_async(test_case_id, tenant_id=token.tenant_id or "unknown")
     if not tc:
         raise HTTPException(
             status_code=404,
@@ -1004,7 +1004,7 @@ async def execute_test_case(
             tc_data=tc
         )
     except Exception as exc:
-        new_run.status = "failed"
+        new_run.status = "failed"  # type: ignore[assignment]
         await db.commit()
         raise HTTPException(
             status_code=500,
@@ -1098,7 +1098,7 @@ async def import_test_cases(
 
             runs: list[ImportedTestRunResponse] = []
             if execute:
-                for persona in persona_list or [None]:
+                for persona in (persona_list or [None]):  # type: ignore[list-item]
                     goal = tc.title or tc.source_user_story
                     run_id = str(uuid.uuid4())
                     try:
@@ -1184,7 +1184,7 @@ async def execute_test_case_sweep(
     s = get_cached_settings()
     store = get_test_intelligence_store(s)
 
-    tc = await store.get_test_case_async(test_case_id, tenant_id=token.tenant_id)
+    tc = await store.get_test_case_async(test_case_id, tenant_id=token.tenant_id or "unknown")
     if not tc:
         raise HTTPException(
             status_code=404,
@@ -1220,7 +1220,7 @@ async def execute_test_case_sweep(
                 message=f"Agent run queued for test case: {goal} with persona {persona}",
             ))
         except Exception as exc:
-            new_run.status = "failed"
+            new_run.status = "failed"  # type: ignore[assignment]
             responses.append(RunResponse(
                 session_id=run_id,
                 status="failed",
@@ -1336,7 +1336,7 @@ async def compare_test_case_personas(
     candidates = rows.scalars().all()
 
     entries: list[PersonaComparisonEntry] = []
-    snapshots: dict[str, dict] = {}
+    snapshots: dict[str, dict[str, Any]] = {}
     for run in candidates:
         snap_path = reports_dir / f"{run.id}_result.json"
         if not snap_path.is_file():
@@ -1354,7 +1354,7 @@ async def compare_test_case_personas(
         entries.append(
             PersonaComparisonEntry(
                 persona=persona,
-                run_id=run.id,
+                run_id=str(run.id),
                 status=snapshot.get("status", "unknown"),
                 defect_count=len(snapshot.get("defects") or []),
                 summary=snapshot.get("summary", ""),

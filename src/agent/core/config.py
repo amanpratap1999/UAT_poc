@@ -129,8 +129,12 @@ class ServiceNowConfig(BaseSubConfig):
     )
 
     instance_url: str = Field(
-        default="https://dev12345.service-now.com",
+        default="",
         description="ServiceNow instance base URL",
+    )
+    is_subproduction: bool = Field(
+        default=False,
+        description="Explicitly declare this instance as sub-production. Production instances cannot be mutated.",
     )
     username: str = Field(default="admin", description="Login username")
     password: str = Field(default="", description="Login password")
@@ -433,6 +437,13 @@ class Settings(BaseSubConfig):
         if not v.is_absolute():
             return (REPO_ROOT / v).resolve()
         return v
+
+    @model_validator(mode="after")
+    def _validate_instance_url(self) -> "Settings":
+        if self.servicenow.instance_url == "https://dev12345.service-now.com" or not self.servicenow.instance_url:
+            import warnings
+            warnings.warn("SERVICENOW_INSTANCE_URL is not set or using default. Execution may fail.", stacklevel=2)
+        return self
 
     @model_validator(mode="after")
     def _validate_jwt_secret_for_runtime(self) -> "Settings":

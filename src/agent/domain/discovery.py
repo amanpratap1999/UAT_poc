@@ -59,11 +59,23 @@ class CustomerDiscoveryAgent:
                 read_only=str(entry.get("read_only", "false")).lower() == "true",
             )
 
-        # Mock fetching policies (in real impl, fetch from sys_ui_policy)
-        # table.active_ui_policies = await self._fetch_ui_policies(table_name)
+        table.active_ui_policies = await self._fetch_ui_policies(table_name)
 
         logger.info("table_metadata_discovered", table=table_name, fields_count=len(table.fields))
         return table
+
+    async def _fetch_ui_policies(self, table_name: str) -> list[dict[str, Any]]:
+        """Fetch active UI policies for a table."""
+        try:
+            response = await self._client.get(
+                "/api/now/table/sys_ui_policy",
+                params={"sysparm_query": f"table={table_name}^active=true", "sysparm_display_value": "false"},
+            )
+            response.raise_for_status()
+            return response.json().get("result", [])  # type: ignore[no-any-return]
+        except httpx.HTTPError as e:
+            logger.warning("ui_policy_fetch_failed", table=table_name, error=str(e))
+            return []
 
     async def _fetch_dictionary(self, table_name: str) -> list[dict[str, Any]]:
         """Fetch dictionary entries for a table."""

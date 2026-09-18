@@ -68,14 +68,14 @@ def _apply_redis_resp2_default() -> None:
 
         import redis.utils as _redis_utils
 
-        _redis_utils.DEFAULT_RESP_VERSION = 2
+        _redis_utils.DEFAULT_RESP_VERSION = 2  # type: ignore[attr-defined]
         patched = ["redis.utils"]
         # Update the copied by-name bindings in every already-imported module.
         for name, mod in list(sys.modules.items()):
             if name == "redis.utils" or not name.startswith("redis"):
                 continue
             if mod is not None and hasattr(mod, "DEFAULT_RESP_VERSION"):
-                mod.DEFAULT_RESP_VERSION = 2
+                mod.DEFAULT_RESP_VERSION = 2  # type: ignore[attr-defined]
                 patched.append(name)
     except Exception:
         # Never let broker-version detection break application startup.

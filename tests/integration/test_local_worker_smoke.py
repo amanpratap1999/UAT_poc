@@ -125,7 +125,7 @@ async def test_local_worker_smoke_pipeline(tmp_path: Path, monkeypatch: pytest.M
         await _run_agent_async(run_id=run_id, goal=goal, tenant_id=tenant_id)
 
     # 3. Verify orchestrator was run
-    mock_orchestrator.run.assert_awaited_once_with(goal)
+    mock_orchestrator.run.assert_awaited_once_with(goal, persona=None)
 
     # 4. Verify worker updated database with final status and metrics
     async with async_session() as session:

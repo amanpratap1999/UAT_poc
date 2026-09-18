@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from agent.core.config import DomainConfig
 from agent.core.logging import get_logger
 from agent.learning.types import (
@@ -29,8 +31,8 @@ class LearningStore:
         self._pool: asyncpg.Pool | None = None
         self._initialized = False
         self._memory_recoveries: dict[tuple[str, str], LearnedRecovery] = {}
-        self._memory_strategies: dict[tuple, LearnedStrategyEffectiveness] = {}
-        self._memory_explorations: dict[tuple, LearnedExplorationOutcome] = {}
+        self._memory_strategies: dict[tuple[Any, ...], LearnedStrategyEffectiveness] = {}
+        self._memory_explorations: dict[tuple[Any, ...], LearnedExplorationOutcome] = {}
         self._memory_experiences: list[LearnedExperience] = []
 
     async def _init_pool(self) -> None:

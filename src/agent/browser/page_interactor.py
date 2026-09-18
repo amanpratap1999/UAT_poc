@@ -415,6 +415,10 @@ class PageInteractor:
         """
         locator = self._resolve_locator(selector)
         try:
+            if await locator.count() > 0:
+                is_password = await locator.first.get_attribute("type") == "password"
+                if is_password:
+                    return "[REDACTED]"
             return await locator.input_value()
         except Exception:
             return ""
@@ -499,7 +503,7 @@ class PageInteractor:
         # 2. ServiceNow Domain Heuristics for login & common targets
         sel_lower = selector.strip().lower()
         if sel_lower in ("user name", "username", "user_name", "user id", "user", "login id"):
-            return (
+            return (  # type: ignore[no-any-return]
                 ctx.locator(
                     "input#user_name, input[name='user_name'], input#userName, "
                     "input[name='userName'], input[id*='user_name'], "
@@ -507,10 +511,10 @@ class PageInteractor:
                 )
                 .or_(ctx.get_by_label("User name", exact=False))
                 .or_(ctx.get_by_placeholder("User name", exact=False))
-            )  # type: ignore[no-any-return]
+            )
 
         if sel_lower in ("password", "user_password", "sys_password", "user password"):
-            return (
+            return (  # type: ignore[no-any-return]
                 ctx.locator(
                     "input#user_password, input[name='user_password'], input[type='password'], "
                     "input#userPassword, input[name='userPassword'], input[id*='password'], "
@@ -518,10 +522,10 @@ class PageInteractor:
                 )
                 .or_(ctx.get_by_label("Password", exact=False))
                 .or_(ctx.get_by_placeholder("Password", exact=False))
-            )  # type: ignore[no-any-return]
+            )
 
         if sel_lower in ("show password", "hide password", "toggle password", "show password icon"):
-            return (
+            return (  # type: ignore[no-any-return]
                 ctx.locator(
                     "button[aria-label*='password' i], button[title*='password' i], "
                     "[aria-label*='Show Password' i], [aria-label*='Hide password' i], "
@@ -531,56 +535,56 @@ class PageInteractor:
                 .or_(ctx.get_by_role("button", name="Show Password"))
                 .or_(ctx.get_by_title("Show Password", exact=False))
                 .or_(ctx.get_by_text("Show Password", exact=False))
-            )  # type: ignore[no-any-return]
+            )
 
         if sel_lower in ("state", "incident.state", "incident state"):
-            return (
+            return (  # type: ignore[no-any-return]
                 ctx.locator("select[id$='.state'], select[name$='.state'], select#incident\\.state")
                 .or_(ctx.get_by_label("State", exact=False))
-            )  # type: ignore[no-any-return]
+            )
 
         if sel_lower in ("category", "incident.category", "incident category"):
-            return (
+            return (  # type: ignore[no-any-return]
                 ctx.locator("select[id$='.category'], select[name$='.category']")
                 .or_(ctx.get_by_label("Category", exact=False))
-            )  # type: ignore[no-any-return]
+            )
 
         if sel_lower in ("urgency", "incident.urgency", "incident urgency"):
-            return (
+            return (  # type: ignore[no-any-return]
                 ctx.locator("select[id$='.urgency'], select[name$='.urgency']")
                 .or_(ctx.get_by_label("Urgency", exact=False))
-            )  # type: ignore[no-any-return]
+            )
 
         if sel_lower in ("impact", "incident.impact", "incident impact"):
-            return (
+            return (  # type: ignore[no-any-return]
                 ctx.locator("select[id$='.impact'], select[name$='.impact']")
                 .or_(ctx.get_by_label("Impact", exact=False))
-            )  # type: ignore[no-any-return]
+            )
 
         if sel_lower in ("on hold reason", "hold reason", "hold_reason", "incident.hold_reason"):
-            return (
+            return (  # type: ignore[no-any-return]
                 ctx.locator("select[id$='.hold_reason'], select[name$='.hold_reason']")
                 .or_(ctx.get_by_label("On hold reason", exact=False))
-            )  # type: ignore[no-any-return]
+            )
 
         if sel_lower in ("update", "sysverb_update", "save record", "save"):
-            return (
+            return (  # type: ignore[no-any-return]
                 ctx.locator("button#sysverb_update, button[name='sysverb_update'], button:has-text('Update')")
                 .or_(ctx.get_by_role("button", name="Update"))
-            )  # type: ignore[no-any-return]
+            )
 
         if sel_lower in ("resolve", "resolve incident", "resolve_incident"):
-            return (
+            return (  # type: ignore[no-any-return]
                 ctx.locator("button#resolve_incident, button[name='resolve_incident'], button:has-text('Resolve')")
                 .or_(ctx.get_by_role("button", name="Resolve"))
-            )  # type: ignore[no-any-return]
+            )
 
         # 3. Check if it looks like a clean CSS or XPath selector (e.g. starts with #, ., [, //)
         if selector.startswith("#") or selector.startswith(".") or selector.startswith("[") or selector.startswith("//"):
             return ctx.locator(selector)  # type: ignore[no-any-return]
 
         # 4. Unprefixed semantic string fallback
-        return (
+        return (  # type: ignore[no-any-return]
             ctx.get_by_role("button", name=selector)
             .or_(ctx.get_by_role("link", name=selector))
             .or_(ctx.get_by_label(selector))
@@ -589,7 +593,7 @@ class PageInteractor:
             .or_(ctx.locator(f"select[name$='.{selector.lower()}']"))
             .or_(ctx.locator(f"input[name='{selector}']"))
             .or_(ctx.locator(f"#{selector}"))
-        )  # type: ignore[no-any-return]
+        )
 
     async def _disambiguate_locator(
         self, locator: Locator, selector: str, action_type: str, timeout: int

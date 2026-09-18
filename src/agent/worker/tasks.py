@@ -123,7 +123,7 @@ def _build_perception_evidence(run_id: str, orchestrator: Any) -> str | None:
                     "frame_id": frame_id,
                     "run_id": run_id,
                     "step_index": step_idx,
-                    "timestamp": ts.isoformat() if hasattr(ts, "isoformat") else str(ts or datetime.now(UTC).isoformat()),
+                    "timestamp": ts.isoformat() if ts is not None and hasattr(ts, "isoformat") else (str(ts) if ts is not None else datetime.now(UTC).isoformat()),
                     "action_taken": (
                         f"{getattr(action, 'action_type', 'action')}: "
                         f"{getattr(action, 'target', '')}"
@@ -221,7 +221,7 @@ def _save_result_snapshot(run_id: str, orchestrator: Any, report: Any) -> str | 
         return None
 
 
-async def _run_agent_async(run_id: str, goal: str, tenant_id: str, test_case_id: str | None = None, persona: str | None = None, tc_data: dict | None = None) -> None:
+async def _run_agent_async(run_id: str, goal: str, tenant_id: str, test_case_id: str | None = None, persona: str | None = None, tc_data: dict[str, Any] | None = None) -> None:
     """Async wrapper to run the orchestrator and update the DB."""
 
     settings = get_settings()
@@ -256,7 +256,7 @@ async def _run_agent_async(run_id: str, goal: str, tenant_id: str, test_case_id:
             def _on_step(step: Any, mem: Any) -> None:
                 _build_perception_evidence(run_id, orchestrator)
 
-            orchestrator._on_step_complete = _on_step
+            setattr(orchestrator, "_on_step_complete", _on_step)
 
             # If test_case_id is provided, load structured test case
             if test_case_id:
@@ -403,7 +403,7 @@ async def _run_agent_async(run_id: str, goal: str, tenant_id: str, test_case_id:
             logger.exception("Agent run failed")
             async with task_session_maker() as session:
                 end_time = datetime.now(UTC)
-                duration_seconds: int | None = None
+                duration_seconds = None
                 try:
                     start_row = await session.execute(
                         select(Run.start_time).where(Run.id == run_id)
@@ -492,7 +492,7 @@ def _reconcile_stale_runs() -> None:
 
 
 @celery_app.task(bind=True, name="agent.worker.tasks.execute_run")  # type: ignore[untyped-decorator]
-def execute_run(self, run_id: str, goal: str, tenant_id: str, test_case_id: str | None = None, persona: str | None = None, tc_data: dict | None = None) -> str:  # type: ignore[no-untyped-def]
+def execute_run(self, run_id: str, goal: str, tenant_id: str, test_case_id: str | None = None, persona: str | None = None, tc_data: dict[str, Any] | None = None) -> str:  # type: ignore[no-untyped-def]
     """Synchronous Celery task that drives the async agent run."""
     logger.info(f"Starting execution for run_id={run_id} tenant={tenant_id} test_case_id={test_case_id}")
 

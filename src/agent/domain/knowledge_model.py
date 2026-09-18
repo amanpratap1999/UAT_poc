@@ -52,6 +52,8 @@ class TableMetadata(BaseModel):
     active_ui_policies: list[dict[str, Any]] = Field(default_factory=list)
     active_client_scripts: list[dict[str, Any]] = Field(default_factory=list)
     active_business_rules: list[dict[str, Any]] = Field(default_factory=list)
+    valid_transitions: dict[str, list[str]] = Field(default_factory=dict)
+    mandatory_fields_by_state: dict[str, list[str]] = Field(default_factory=dict)
 
 
 class CustomerKnowledgeModel:
@@ -72,6 +74,24 @@ class CustomerKnowledgeModel:
     def get_table(self, name: str) -> TableMetadata | None:
         """Retrieve metadata for a table."""
         return self.tables.get(name)
+
+    def is_valid_state_transition(
+        self, table_name: str, current_state: str, target_state: str
+    ) -> bool:
+        """Check if transition from current to target state is permitted."""
+        table = self.get_table(table_name)
+        if not table or not table.valid_transitions:
+            # Fallback to permissive if we don't have transition data for this table
+            return True
+        allowed = table.valid_transitions.get(str(current_state), [])
+        return str(target_state) in allowed
+
+    def get_mandatory_fields_for_state(self, table_name: str, state: str) -> list[str]:
+        """Get mandatory fields for a given state."""
+        table = self.get_table(table_name)
+        if not table or not table.mandatory_fields_by_state:
+            return []
+        return table.mandatory_fields_by_state.get(str(state), [])
 
     def classify_anomaly(
         self, anomaly_description: str, table_name: str, field_name: str | None = None

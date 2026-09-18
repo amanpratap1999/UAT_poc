@@ -245,18 +245,14 @@ class ValidationEngine:
                 fname == target_label
                 or fname == f"incident.{target_label}"
                 or target_label == f"incident.{fname}"
-                or target_label in fname
-                or fname in target_label
             ):
                 fval = field.value.strip().lower()
                 exp_clean = expected_value.lower()
                 value_matches = (
                     exp_clean == fval
-                    or exp_clean in fval
-                    or fval in exp_clean
                     or state_map.get(exp_clean) == fval
                     or state_map.get(fval) == exp_clean
-                ) if (exp_clean and fval) else (not exp_clean and not fval)
+                ) if (exp_clean or fval) else True
 
                 return ValidationCheck(
                     check_name="field_update",

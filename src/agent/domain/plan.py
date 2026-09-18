@@ -94,6 +94,7 @@ class ExecutionPlan(BaseModel):
 
     goal: str = Field(description="The business goal this plan achieves")
     steps: list[PlanStep] = Field(default_factory=list)
+    cleanup_steps: list[PlanStep] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     is_complete: bool = False
 
