@@ -26,6 +26,8 @@ from agent.api.v1.schemas import (
     CancelRequest,
     ClarifyAnswerRequest,
     FindingResponse,
+    ImportTestCasesResponse,
+    PersonaComparisonResponse,
     FindingUpdateRequest,
     GenerateTestCasesRequest,
     GenerateTestCasesResponse,
