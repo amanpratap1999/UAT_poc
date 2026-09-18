@@ -36,7 +36,9 @@ logger = get_logger(__name__)
 class IncidentSkill(BaseSkill):
     """Production Domain Skill for ServiceNow Incident Management."""
 
-    def __init__(self, base_url: str = "https://dev12345.service-now.com") -> None:
+    def __init__(self, config: Any = None) -> None:
+        self._config = config
+        base_url = config.instance_url if config else "https://dev12345.service-now.com"
         self._navigator = IncidentNavigator(base_url=base_url)
         self._observer = IncidentObserver()
         self._lifecycle_engine = LifecycleEngine()

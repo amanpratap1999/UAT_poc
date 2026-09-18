@@ -110,7 +110,7 @@ async def run_validation() -> None:
                 {"type": "string", "name": "short_description", "mandatory": True},
                 {"type": "reference", "name": "caller_id", "mandatory": True}
             ]
-            strategies = await selector.select_strategies(fields=fields, workflow_type="incident")
+            await selector.select_strategies(fields=fields, workflow_type="incident")
 
             llm_client = OpenAILLMClient(config=llm_config)
             generator = ScenarioGenerator(llm_client, selector)
@@ -130,18 +130,18 @@ async def run_validation() -> None:
         try:
             store = LearningStore(domain_config)
             await store._init_pool()
-            learning_service = LearningService(store)
+            LearningService(store)
             eval_engine = EvaluationEngine()
             eval_engine.start_run("real_validation_01")
 
             if not ui_tars_url:
                 logger.warning("UI_TARS_ENDPOINT not set, Visual Grounding will fail safely")
 
-            grounder = HttpVisualGrounder(endpoint_url=ui_tars_url or "http://localhost:8000")
-            observer = ObservationEngine()
+            HttpVisualGrounder(endpoint_url=ui_tars_url or "http://localhost:8000")
+            ObservationEngine()
 
             llm_client = OpenAILLMClient(config=llm_config)
-            verifier = LLMBehavioralVerifier(llm_client)
+            LLMBehavioralVerifier(llm_client)
 
             async with BrowserManager(browser_config, sn_config, screenshot_dir=evidence_dir) as manager:  # noqa: E501
                 await manager.navigate(f"{sn_config.instance_url}/navpage.do")

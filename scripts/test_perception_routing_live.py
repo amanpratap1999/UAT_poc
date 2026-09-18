@@ -13,11 +13,7 @@ Verifies:
 """
 
 import asyncio
-import io
 import sys
-from datetime import datetime, timezone
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
 
 # Add src to path
 sys.path.insert(0, r"c:\Users\Prakhar Singh\Desktop\UAT_Servicenow\UAT_poc\src")
@@ -25,7 +21,6 @@ sys.path.insert(0, r"c:\Users\Prakhar Singh\Desktop\UAT_Servicenow\UAT_poc\src")
 from agent.api.v1.dependencies import (
     get_browser_manager,
     get_cached_settings,
-    get_grounder_backend,
     get_observation_engine,
 )
 from agent.browser.page_interactor import PageInteractor
@@ -38,8 +33,8 @@ from agent.learning.service import LearningService
 from agent.learning.store import LearningStore
 from agent.perception.backends import GeminiBackend, GrounderBackend, MoondreamBackend
 from agent.perception.engine import PerceptionDecisionEngine
-from agent.perception.models import BoundingBox, GroundingFailure, PerceptionCandidate
-from agent.perception.router import PerceptionRouteResult, PerceptionRouter
+from agent.perception.models import PerceptionCandidate
+from agent.perception.router import PerceptionRouter
 from agent.perception.verifier import LLMBehavioralVerifier
 from agent.planner.llm_client import OpenAILLMClient
 
@@ -129,7 +124,7 @@ async def main():
         confidence_medium=0.60,
     )
 
-    perception_engine = PerceptionDecisionEngine(
+    PerceptionDecisionEngine(
         browser=browser_manager,
         interactor=interactor,
         executor=executor,
@@ -151,7 +146,7 @@ async def main():
     print("TEST 1: PROVING DOM FAST PATH (Target: 'sysverb_update')")
     print("-" * 70)
 
-    action_dom = AgentAction(
+    AgentAction(
         action_type=ActionType.CLICK,
         target="sysverb_update",
         reasoning="Test DOM fast path resolution on Update button",
@@ -171,7 +166,7 @@ async def main():
         page=page,
     )
 
-    print(f"\n[Test 1 Result]")
+    print("\n[Test 1 Result]")
     print(f"  Route: {route_result_1.route}")
     print(f"  Confidence: {route_result_1.confidence}")
     print(f"  Verified: {route_result_1.verified}")
@@ -207,7 +202,7 @@ async def main():
         page=page,
     )
 
-    print(f"\n[Test 2 Result]")
+    print("\n[Test 2 Result]")
     print(f"  Route: {route_result_2.route}")
     print(f"  Confidence: {route_result_2.confidence}")
     print(f"  Verified: {route_result_2.verified}")
@@ -251,7 +246,7 @@ async def main():
         page=page,
     )
 
-    print(f"\n[Test 3 Result]")
+    print("\n[Test 3 Result]")
     print(f"  Moondream Invoked First: {failing_moondream.invoked}")
     print(f"  Route: {route_result_3.route}")
     print(f"  Confidence: {route_result_3.confidence}")

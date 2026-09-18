@@ -1,7 +1,5 @@
 import asyncio
-import os
 import sys
-from pathlib import Path
 
 # Add src to sys.path
 sys.path.insert(0, r"c:\Users\Prakhar Singh\Desktop\UAT_Servicenow\UAT_poc\src")
@@ -11,7 +9,7 @@ from agent.api.v1.dependencies import get_cached_settings, get_browser_manager, 
 async def inspect_live_incident():
     settings = get_cached_settings()
     browser_manager = get_browser_manager(settings)
-    observation_engine = get_observation_engine()
+    get_observation_engine()
     
     print("Launching browser...")
     await browser_manager.launch()

@@ -20,6 +20,7 @@ class AnomalyClassification(StrEnum):
     CONFIGURATION_DIFFERENCE = "Configuration Difference"
     EXPECTED_CUSTOMIZATION = "Expected Customization"
     UNKNOWN = "Unknown"
+    INCONCLUSIVE = "Inconclusive"
 
 
 class ClassificationResult(BaseModel):
@@ -88,8 +89,8 @@ class CustomerKnowledgeModel:
         table = self.get_table(table_name)
         if not table:
             return ClassificationResult(
-                classification=AnomalyClassification.UNKNOWN,
-                reasoning=f"No metadata found for table '{table_name}'.",
+                classification=AnomalyClassification.INCONCLUSIVE,
+                reasoning=f"No metadata found for table '{table_name}'. Cannot determine if anomaly.",
             )
 
         # Example logic for demonstrating rule-based classification
@@ -130,6 +131,6 @@ class CustomerKnowledgeModel:
 
         # If we reach here, we don't have enough deterministic data, fallback to application bug assumption  # noqa: E501
         return ClassificationResult(
-            classification=AnomalyClassification.APPLICATION_BUG,
-            reasoning="Anomaly does not match any known customizations or business rules in the current model.",  # noqa: E501
+            classification=AnomalyClassification.INCONCLUSIVE,
+            reasoning="Anomaly does not match any known discovered rules.",
         )

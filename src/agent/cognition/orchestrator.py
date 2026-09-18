@@ -863,6 +863,16 @@ class CognitiveOrchestrator:
             else:
                 result = await self._execution_controller.execute(action)  # type: ignore[union-attr]
 
+            # P0 QA-005 Fix: Reload page to verify mutations after save/update
+            if action.action_type.value == "click" and action.target and ("sysverb_update" in str(action.target).lower() or "sysverb_insert" in str(action.target).lower()):
+                try:
+                    if self._browser_manager:
+                        page = self._browser_manager.get_page()
+                        await page.reload(wait_until="domcontentloaded")
+                        await page.wait_for_timeout(2000)
+                except Exception as e:
+                    logger.debug("failed_to_reload_after_update", error=str(e))
+
             # Capture screenshot if not already captured
             if not result.screenshot_path and self._browser_manager:
                 try:

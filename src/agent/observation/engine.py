@@ -279,7 +279,10 @@ class ObservationEngine:
                         field_type = "select" if tag == "select" else input_type
 
                         try:
-                            value = await element.input_value()
+                            if input_type == "password":
+                                value = "[REDACTED]"
+                            else:
+                                value = await element.input_value()
                         except Exception:
                             value = await element.inner_text() if tag == "textarea" else ""
 

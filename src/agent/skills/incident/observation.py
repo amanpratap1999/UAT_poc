@@ -74,7 +74,12 @@ class IncidentObserver:
         # Priority, Impact, Urgency
         impact_val = self._parse_impact(fields_map.get("impact", "3"))
         urgency_val = self._parse_urgency(fields_map.get("urgency", "3"))
-        priority_val = IncidentBusinessRules.calculate_priority(impact_val, urgency_val)
+        priority_raw = fields_map.get("priority", "")
+        if priority_raw:
+            priority_val = IncidentPriority.from_string(priority_raw)
+        else:
+            # Fallback for when priority is not visible in DOM
+            priority_val = IncidentBusinessRules.calculate_priority(impact_val, urgency_val)
 
         # Editability
         is_readonly = False

@@ -5,8 +5,6 @@ Prints safe, sanitized configuration values for the active runtime mode.
 Secrets (passwords, tokens, API keys) are never printed.
 """
 
-import json
-import os
 import sys
 from pathlib import Path
 
@@ -14,9 +12,8 @@ from pathlib import Path
 repo_root = Path(__file__).resolve().parent.parent
 src_dir = repo_root / "src"
 if str(src_dir) not in sys.path:
-    sys.path.insert(0, str(src_dir))
-
-from agent.core.config import get_active_env_file, get_settings
+    from agent.core.config import get_settings
+sys.path.insert(0, str(src_dir))
 
 
 def main() -> None:

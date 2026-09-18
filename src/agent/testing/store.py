@@ -184,16 +184,20 @@ class TestIntelligenceStore:
     async def get_test_case_async(self, test_case_id: str, tenant_id: str | None = None) -> dict | None:
         case = self._memory_cases.get(test_case_id)
         if case:
-            if tenant_id and case.get("tenant_id") not in (tenant_id, "unknown"): return None
+            if tenant_id and case.get("tenant_id") not in (tenant_id, "unknown"):
+                return None
             return case
-        
+
         await self._init_pool()
-        if not self._pool: return None
+        if not self._pool:
+            return None
         try:
             async with self._pool.acquire() as conn:
                 row = await conn.fetchrow("SELECT * FROM test_cases WHERE id = $1", test_case_id)
-                if not row: return None
-                if tenant_id and row["tenant_id"] not in (tenant_id, "unknown"): return None
+                if not row:
+                    return None
+                if tenant_id and row["tenant_id"] not in (tenant_id, "unknown"):
+                    return None
                 import json
                 return {
                     "id": row["id"],

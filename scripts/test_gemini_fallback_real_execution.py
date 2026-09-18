@@ -16,13 +16,10 @@ Proves:
 """
 
 import asyncio
-import io
 import json
-import os
 import sys
 import time
 from datetime import datetime, timezone
-from pathlib import Path
 
 # Add src to sys.path
 sys.path.insert(0, r"c:\Users\Prakhar Singh\Desktop\UAT_Servicenow\UAT_poc\src")
@@ -30,21 +27,19 @@ sys.path.insert(0, r"c:\Users\Prakhar Singh\Desktop\UAT_Servicenow\UAT_poc\src")
 from agent.api.v1.dependencies import (
     get_browser_manager,
     get_cached_settings,
-    get_grounder_backend,
     get_observation_engine,
 )
 from agent.browser.page_interactor import PageInteractor
 from agent.core.logging import get_logger
 from agent.core.types import ActionType
-from agent.domain.actions import ActionResult, AgentAction
+from agent.domain.actions import AgentAction
 from agent.execution.controller import ExecutionController
 from agent.execution.policy import ActionPolicy
 from agent.learning.service import LearningService
 from agent.learning.store import LearningStore
 from agent.perception.backends import GeminiBackend, GrounderBackend, MoondreamBackend
-from agent.perception.engine import PerceptionDecisionEngine
-from agent.perception.models import BoundingBox, GroundingFailure, PerceptionCandidate
-from agent.perception.router import PerceptionRouteResult, PerceptionRouter
+from agent.perception.models import PerceptionCandidate
+from agent.perception.router import PerceptionRouter
 from agent.perception.verifier import LLMBehavioralVerifier
 from agent.planner.llm_client import OpenAILLMClient
 
@@ -91,7 +86,7 @@ class FailingMoondreamPrimaryBackend(GrounderBackend):
 async def run_gemini_fallback_visual_execution_test():
     settings = get_cached_settings()
     browser_manager = get_browser_manager(settings)
-    observation_engine = get_observation_engine()
+    get_observation_engine()
 
     timeline = []
 
@@ -132,7 +127,7 @@ async def run_gemini_fallback_visual_execution_test():
     llm = OpenAILLMClient(config=settings.llm)
     verifier = LLMBehavioralVerifier(llm_client=llm)
     learning_store = LearningStore(config=settings.domain)
-    learning_service = LearningService(store=learning_store)
+    LearningService(store=learning_store)
 
     moondream_backend = MoondreamBackend(api_key=settings.perception.moondream_api_key)
     failing_moondream = FailingMoondreamPrimaryBackend(wrapped_moondream=moondream_backend)
@@ -176,7 +171,7 @@ async def run_gemini_fallback_visual_execution_test():
             resolution_notes_visible: closeNotes ? (closeNotes.offsetParent !== null) : false
         };
     }""")
-    print(f"BEFORE State Metrics:")
+    print("BEFORE State Metrics:")
     print(f"  - Notes Tab Active: {notes_tab_active_before['notes_active']}")
     print(f"  - Resolution Tab Active: {notes_tab_active_before['resolution_active']}")
     print(f"  - Resolution Section (Close Code) Visible: {notes_tab_active_before['resolution_section_visible']}")
@@ -210,7 +205,7 @@ async def run_gemini_fallback_visual_execution_test():
     t_route_end = time.time()
     timeline.append(("T6_GEMINI_RESULT_RETURNED", t_route_end))
 
-    print(f"\nRouting Result:")
+    print("\nRouting Result:")
     print(f"  - Moondream Invoked First: {failing_moondream.invoked}")
     print(f"  - Route: {route_result.route}")
     print(f"  - Confidence: {route_result.confidence}")
@@ -241,7 +236,7 @@ async def run_gemini_fallback_visual_execution_test():
     )
 
     policy_result = policy.validate(action, current_url=before_url)
-    print(f"ActionPolicy Validation Result:")
+    print("ActionPolicy Validation Result:")
     print(f"  - Allowed: {policy_result.is_allowed}")
     print(f"  - Action Type: {policy_result.action_type}")
     print(f"  - Reason: {policy_result.reason or 'Policy check passed'}")
@@ -255,7 +250,7 @@ async def run_gemini_fallback_visual_execution_test():
     exec_result = await executor.execute(action)
     exec_duration_ms = (time.perf_counter() - t_exec_0) * 1000
 
-    print(f"ExecutionController Result:")
+    print("ExecutionController Result:")
     print(f"  - Success: {exec_result.success}")
     print(f"  - Execution Duration: {exec_duration_ms:.1f}ms")
     print(f"  - Error: {exec_result.error}")
@@ -267,7 +262,6 @@ async def run_gemini_fallback_visual_execution_test():
     # [Step 6] Capture AFTER State & Measure Real UI State Delta
     print("\n[Step 6] Capturing AFTER State and measuring UI state delta...")
     after_screenshot_path = await browser_manager.take_screenshot("after_gemini_fallback_action")
-    after_url = page.url
 
     after_tab_state = await page.evaluate("""() => {
         const tabs = Array.from(document.querySelectorAll('.tabs2_tab'));
@@ -283,7 +277,7 @@ async def run_gemini_fallback_visual_execution_test():
         };
     }""")
 
-    print(f"\nAFTER State Metrics:")
+    print("\nAFTER State Metrics:")
     print(f"  - Notes Tab Active: {after_tab_state['notes_active']}")
     print(f"  - Resolution Tab Active: {after_tab_state['resolution_active']}")
     print(f"  - Resolution Section (Close Code) Visible: {after_tab_state['resolution_section_visible']}")
@@ -315,7 +309,7 @@ async def run_gemini_fallback_visual_execution_test():
         after_screenshot_path=after_screenshot_path,
     )
 
-    print(f"Behavioral Verification Result:")
+    print("Behavioral Verification Result:")
     print(f"  - Is Verified: {verification.is_verified}")
     print(f"  - Confidence: {verification.confidence}")
     print(f"  - Reasoning: {verification.reasoning}")

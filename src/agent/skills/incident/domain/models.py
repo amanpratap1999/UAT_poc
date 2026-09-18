@@ -22,10 +22,13 @@ class IncidentState(StrEnum):
     RESOLVED = "6"
     CLOSED = "7"
     CANCELED = "8"
+    UNKNOWN = "unknown"
 
     @classmethod
-    def from_string(cls, val: str) -> IncidentState:
+    def from_string(cls, val: str) -> "IncidentState":
         """Parse string/label into IncidentState enum."""
+        if not val:
+            return cls.UNKNOWN
         v_lower = val.lower().strip()
         if "new" in v_lower or v_lower == "1":
             return cls.NEW
@@ -39,7 +42,7 @@ class IncidentState(StrEnum):
             return cls.CLOSED
         if "cancel" in v_lower or v_lower == "8":
             return cls.CANCELED
-        return cls.NEW
+        return cls.UNKNOWN
 
 
 class Impact(StrEnum):
@@ -66,6 +69,24 @@ class IncidentPriority(StrEnum):
     MODERATE = "3"
     LOW = "4"
     PLANNING = "5"
+    UNKNOWN = "unknown"
+
+    @classmethod
+    def from_string(cls, val: str) -> "IncidentPriority":
+        if not val:
+            return cls.UNKNOWN
+        v_lower = val.lower().strip()
+        if "1" in v_lower or "critical" in v_lower:
+            return cls.CRITICAL
+        if "2" in v_lower or "high" in v_lower:
+            return cls.HIGH
+        if "3" in v_lower or "moderate" in v_lower:
+            return cls.MODERATE
+        if "4" in v_lower or "low" in v_lower:
+            return cls.LOW
+        if "5" in v_lower or "planning" in v_lower:
+            return cls.PLANNING
+        return cls.UNKNOWN
 
 
 class Assignment(BaseModel):

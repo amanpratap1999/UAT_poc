@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from agent.browser.manager import VISUAL_CURSOR_SCRIPT, BrowserManager
+from agent.browser.manager import VISUAL_CURSOR_SCRIPT, BrowserManager, reset_browser_globals
 from agent.browser.page_interactor import PageInteractor
 from agent.core.config import BrowserConfig, ServiceNowConfig, Settings
 from agent.core.exceptions import BrowserLaunchError
@@ -303,8 +303,6 @@ async def test_cors_headers_on_api() -> None:
     assert response.headers.get("access-control-allow-origin") in ("*", "http://localhost:5173")
 
 
-from agent.browser.manager import reset_browser_globals
-import pytest
 @pytest.fixture(autouse=True)
 def reset_globals_fixture():
     reset_browser_globals()

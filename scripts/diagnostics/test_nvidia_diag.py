@@ -1,5 +1,4 @@
 import os
-import sys
 import time
 import socket
 import ssl
@@ -8,8 +7,10 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 def mask_key(key):
-    if not key: return "None"
-    if len(key) <= 8: return "****"
+    if not key:
+        return "None"
+    if len(key) <= 8:
+        return "****"
     return f"{key[:4]}...{key[-4:]}"
 
 def print_section(title):

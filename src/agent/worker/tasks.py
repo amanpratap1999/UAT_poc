@@ -263,7 +263,8 @@ async def _run_agent_async(run_id: str, goal: str, tenant_id: str, test_case_id:
                 try:
                     from agent.api.v1.dependencies import get_test_intelligence_store
                     test_store = get_test_intelligence_store(settings)
-                    if not tc_data: tc_data = await test_store.get_test_case_async(test_case_id, tenant_id=tenant_id)
+                    if not tc_data:
+                        tc_data = await test_store.get_test_case_async(test_case_id, tenant_id=tenant_id)
                     if tc_data and hasattr(orchestrator, "set_test_case"):
                         orchestrator.set_test_case(tc_data)
                 except Exception as tc_load_err:

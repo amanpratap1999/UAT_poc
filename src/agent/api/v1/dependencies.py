@@ -145,7 +145,8 @@ def get_skill_registry(settings: Settings | None = None) -> CapabilityRegistry:
     """Create a CapabilityRegistry pre-registered with IncidentSkill."""
     s = settings or get_cached_settings()
     registry = CapabilityRegistry()
-    incident_skill = IncidentSkill(base_url=s.servicenow.instance_url)
+    # Instantiate specific skills with required config
+    incident_skill = IncidentSkill(config=s.servicenow)
     registry.register(incident_skill, incident_skill.get_capability_definition())
     return registry
 

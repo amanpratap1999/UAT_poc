@@ -11,7 +11,6 @@ Never starts Docker. Provides actionable Windows remediation instructions for mi
 """
 
 import asyncio
-import os
 import socket
 import sys
 from pathlib import Path
@@ -21,9 +20,8 @@ from urllib.parse import urlparse
 repo_root = Path(__file__).resolve().parent.parent
 src_dir = repo_root / "src"
 if str(src_dir) not in sys.path:
-    sys.path.insert(0, str(src_dir))
-
-from agent.core.config import get_settings
+    from agent.core.config import get_settings
+sys.path.insert(0, str(src_dir))
 
 
 def check_port_available(host: str, port: int) -> bool:

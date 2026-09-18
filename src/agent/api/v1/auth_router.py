@@ -20,12 +20,32 @@ from agent.domain.models import User
 router = APIRouter(tags=["auth"])
 
 
+from collections import defaultdict
+import time
+
+_login_attempts: dict[str, list[float]] = defaultdict(list)
+MAX_ATTEMPTS = 5
+LOCKOUT_WINDOW = 300  # 5 minutes
+
 @router.post("/api/v1/token", response_model=Token)
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
     db: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> Any:
     """OAuth2 compatible token login, get an access token for future requests."""
+
+    now = time.time()
+    username = form_data.username
+    attempts = _login_attempts[username]
+    
+    # Filter attempts within window
+    _login_attempts[username] = [t for t in attempts if now - t < LOCKOUT_WINDOW]
+    
+    if len(_login_attempts[username]) >= MAX_ATTEMPTS:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts. Account temporarily locked.",
+        )
 
     import os
 
@@ -36,35 +56,32 @@ async def login_for_access_token(
     except Exception:
         user = None
 
-    admin_user = os.environ.get("QA_ADMIN_USERNAME", "prakhar.s1")
-    admin_pass = os.environ.get("QA_ADMIN_PASSWORD", "admin")
-
-    if user:
-        if not verify_password(form_data.password, user.hashed_password):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect username or password",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        token_data = {
-            "sub": user.username,
-            "role": user.role,
-            "tenant_id": user.tenant_id,
-            "user_id": user.id,
-        }
-    elif form_data.username in (admin_user, "admin") and form_data.password == admin_pass:
-        token_data = {
-            "sub": form_data.username,
-            "role": "QA Manager",
-            "tenant_id": "tenant-0",
-            "user_id": "local-admin-0",
-        }
-    else:
+    if not user:
+        _login_attempts[username].append(time.time())
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+        
+    if not verify_password(form_data.password, user.hashed_password):
+        _login_attempts[username].append(time.time())
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        
+    token_data = {
+        "sub": user.username,
+        "role": user.role,
+        "tenant_id": user.tenant_id,
+        "user_id": user.id,
+    }
+
+    # Reset attempts on success
+    if username in _login_attempts:
+        del _login_attempts[username]
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(

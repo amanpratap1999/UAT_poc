@@ -100,6 +100,36 @@ class ExecutionController:
                 error_type="UnknownActionType",
             )
 
+        # P0 QA-007: Prod Mutation Gate
+        is_mutating = action.action_type in ("fill", "select", "check", "uncheck") or (
+            action.action_type == "click" and action.target and (
+                "sysverb_update" in str(action.target).lower() or 
+                "sysverb_insert" in str(action.target).lower() or
+                "sysverb_delete" in str(action.target).lower()
+            )
+        )
+        if is_mutating:
+            if not getattr(self._servicenow_config, "allow_mutations", False):
+                return ActionResult(
+                    success=False,
+                    action=action,
+                    error="Mutations are denied by default. Set SERVICENOW_ALLOW_MUTATIONS=true.",
+                    duration_ms=0,
+                )
+            
+            from urllib.parse import urlparse
+            url = getattr(self._servicenow_config, "instance_url", "")
+            hostname = urlparse(url).hostname if url else ""
+            allowed = getattr(self._servicenow_config, "allowed_instances", [])
+            
+            if allowed and hostname not in allowed:
+                return ActionResult(
+                    success=False,
+                    action=action,
+                    error=f"Instance {hostname} is not in SERVICENOW_ALLOWED_INSTANCES for mutations.",
+                    duration_ms=0,
+                )
+
         # Policy validation check
         current_url = ""
         try:
@@ -187,13 +217,25 @@ class ExecutionController:
                     )
                     if recovery_result.success:
                         logger.info("recovery_succeeded", strategy=recovery_result.strategy)
-                        return ActionResult(
-                            success=True,
-                            action=action,
-                            duration_ms=(time.perf_counter() - start_time) * 1000,
-                            screenshot_path=await self._safe_screenshot("recovered"),
-                            details={"recovered": True, "strategy": recovery_result.strategy},
-                        )
+                        try:
+                            # Re-execute the original action now that the element is ready
+                            await self._interactor.execute_action(action)
+                            return ActionResult(
+                                success=True,
+                                action=action,
+                                duration_ms=(time.perf_counter() - start_time) * 1000,
+                                screenshot_path=await self._safe_screenshot("recovered"),
+                                details={"recovered": True, "strategy": recovery_result.strategy},
+                            )
+                        except Exception as retry_e:
+                            logger.warning("retry_after_recovery_failed", error=str(retry_e))
+                            return ActionResult(
+                                success=False,
+                                action=action,
+                                error=f"{type(e).__name__}: {str(e)} (Recovery tried but retry failed: {str(retry_e)})",
+                                duration_ms=(time.perf_counter() - start_time) * 1000,
+                                screenshot_path=screenshot_path,
+                            )
                 except Exception as recovery_error:
                     logger.warning("recovery_failed", error=str(recovery_error))
 
