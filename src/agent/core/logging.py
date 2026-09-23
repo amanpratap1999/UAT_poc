@@ -35,12 +35,17 @@ def setup_logging(
         except Exception:
             pass
 
+    def _redact_event_dict(logger: structlog.types.WrappedLogger, method_name: str, event_dict: structlog.types.EventDict) -> structlog.types.EventDict:
+        from agent.core.redaction import redact_dict
+        return redact_dict(event_dict)
+
     shared_processors: list[structlog.types.Processor] = [
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
         structlog.processors.UnicodeDecoder(),
+        _redact_event_dict,
     ]
 
     if log_format == "json":

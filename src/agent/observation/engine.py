@@ -279,7 +279,11 @@ class ObservationEngine:
                         field_type = "select" if tag == "select" else input_type
 
                         try:
-                            if input_type == "password":
+                            from agent.core.redaction import is_sensitive_field
+                            element_id = await element.get_attribute("id") or ""
+                            element_name = await element.get_attribute("name") or ""
+                            
+                            if input_type == "password" or is_sensitive_field(label) or is_sensitive_field(element_id) or is_sensitive_field(element_name):
                                 value = "[REDACTED]"
                             else:
                                 value = await element.input_value()

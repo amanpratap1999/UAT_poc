@@ -38,7 +38,10 @@ class IncidentSkill(BaseSkill):
 
     def __init__(self, config: Any = None) -> None:
         self._config = config
-        base_url = config.instance_url if config else "https://dev12345.service-now.com"
+        base_url = config.instance_url if config else ""
+        if not base_url:
+            raise ValueError("SERVICENOW_INSTANCE_URL is not configured.")
+        base_url = base_url.rstrip("/")
         self._navigator = IncidentNavigator(base_url=base_url)
         self._observer = IncidentObserver()
         self._lifecycle_engine = LifecycleEngine()

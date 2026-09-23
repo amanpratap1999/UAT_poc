@@ -33,6 +33,8 @@ class ActionPolicy:
 
     def __init__(self, config: SecurityConfig | None = None) -> None:
         self._config = config or SecurityConfig()
+        self._action_budget = 50  # Hard budget limit
+        self._actions_executed = 0
 
     def validate(self, action: AgentAction, current_url: str = "") -> PolicyValidationResult:
         """Validate an action before execution.
@@ -41,7 +43,27 @@ class ActionPolicy:
         1. Action type not in blocked_actions
         2. Navigation target host is in allowed_hosts
         3. JavaScript evaluation permissions
+        4. Kill switch
+        5. Action budget
         """
+        import os
+        if os.getenv("UAT_KILL_SWITCH") == "1":
+            return PolicyValidationResult(
+                is_allowed=False,
+                reason="UAT_KILL_SWITCH is enabled. Execution aborted.",
+                action_type=action.action_type,
+                target=action.target,
+            )
+
+        self._actions_executed += 1
+        if self._actions_executed > self._action_budget:
+            return PolicyValidationResult(
+                is_allowed=False,
+                reason=f"Action budget exceeded ({self._action_budget} actions max).",
+                action_type=action.action_type,
+                target=action.target,
+            )
+
         action_type_str = action.action_type
 
         # Check 1: Action type blocklist

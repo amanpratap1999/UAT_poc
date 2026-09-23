@@ -26,7 +26,7 @@ def mock_browser_manager() -> MagicMock:
     manager.wait_for_network_idle = AsyncMock()
     manager.get_page = MagicMock()
     manager.get_page_errors = MagicMock(return_value=[])
-    manager.get_url = AsyncMock(return_value="https://dev12345.service-now.com")
+    manager.get_url = AsyncMock(return_value="https://test.service-now.com")
     return manager
 
 
@@ -61,8 +61,8 @@ def controller(
     config = ServiceNowConfig()
     config.allow_mutations = True
     config.is_subproduction = True
-    config.instance_url = "https://dev12345.service-now.com"
-    config.allowed_instances = ["dev12345.service-now.com"]
+    config.instance_url = "https://test.service-now.com"
+    config.allowed_instances = ["test.service-now.com"]
     return ExecutionController(
         browser_manager=mock_browser_manager,
         page_interactor=mock_page_interactor,

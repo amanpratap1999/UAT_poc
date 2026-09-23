@@ -12,7 +12,14 @@ from __future__ import annotations
 
 from agent.core.logging import get_logger
 from agent.domain.validation import ValidationCheck, ValidationResult
-from agent.skills.incident.domain.models import Incident, IncidentState, IncidentValidationResult
+from agent.skills.incident.domain.models import (
+    Impact,
+    Incident,
+    IncidentPriority,
+    IncidentState,
+    IncidentValidationResult,
+    Urgency,
+)
 from agent.skills.incident.knowledge.rules import IncidentBusinessRules
 
 logger = get_logger(__name__)
@@ -47,11 +54,23 @@ class IncidentValidator:
         passed = True
         error_msg: str | None = None
 
-        # Check Priority recalculation
-        expected_priority = IncidentBusinessRules.calculate_priority(after.impact, after.urgency)
-        if after.priority != expected_priority:
+        # Check Priority recalculation — only when the values were actually
+        # observed (QA-004). Unobserved values must be reported as UNVERIFIED,
+        # never silently compared against a fabricated default.
+        if after.impact == Impact.UNKNOWN or after.urgency == Urgency.UNKNOWN:
             passed = False
-            error_msg = f"Priority calculation mismatch: expected {expected_priority.name}, actual {after.priority.name}"  # noqa: E501
+            details["priority_check"] = "unverified"
+            error_msg = (
+                "UNVERIFIED: impact and/or urgency were not observed on the page."
+            )
+        elif after.priority == IncidentPriority.UNKNOWN:
+            passed = False
+            details["priority_check"] = "unverified"
+            error_msg = (
+                "UNVERIFIED: priority was not observed on the page."
+            )
+        else:
+            details["priority_check"] = "verified_from_observation"
 
         step_lower = expected_step.lower()
 
@@ -136,14 +155,36 @@ class IncidentValidator:
         passed = True
         error_msg: str | None = None
 
-        if expected_record and incident.number:
+        if expected_record and not incident.number:
+            # QA-011: a required record precondition must FAIL when no
+            # incident number was observed — silence is not a pass.
+            passed = False
+            error_msg = (
+                f"Precondition failed: expected record {expected_record.upper()} "
+                "but no incident number was observed on the page."
+            )
+        elif expected_record and incident.number:
             if expected_record.upper() != incident.number.upper():
                 passed = False
                 error_msg = f"Precondition failed: Expected record {expected_record.upper()}, actual {incident.number.upper()}"
 
         if passed and expected_state:
             exp_state_enum = IncidentState.from_string(expected_state)
-            if incident.state != exp_state_enum:
+            if exp_state_enum == IncidentState.UNKNOWN:
+                # Fail closed: an unparseable expected state can never be
+                # satisfied by "actual is also unknown".
+                passed = False
+                error_msg = (
+                    f"Precondition failed: expected state '{expected_state}' "
+                    "could not be resolved to a known incident state."
+                )
+            elif incident.state == IncidentState.UNKNOWN:
+                passed = False
+                error_msg = (
+                    "Precondition failed: actual incident state was not observed "
+                    f"on the page (expected '{exp_state_enum.name}')."
+                )
+            elif incident.state != exp_state_enum:
                 passed = False
                 error_msg = (
                     f"Precondition failed: Expected initial state '{exp_state_enum.name}', "

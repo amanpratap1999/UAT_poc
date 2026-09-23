@@ -88,6 +88,50 @@ logger = get_logger(__name__)
 
 
 class AgentOrchestrator:
+    """Coordinates planning, execution, validation and reporting for a run."""
+
+    @staticmethod
+    def _compare_restoration(baseline: Any, final: Any) -> list[str] | None:
+        """Compare a re-observed record against the pre-run baseline (QA-012).
+
+        Args:
+            baseline: PageObservation captured before the first action.
+            final: PageObservation captured after cleanup ran.
+
+        Returns:
+            None when no baseline values were captured (restoration cannot be
+            verified), an empty list when restoration is confirmed, or the
+            list of mismatches.
+        """
+        base_number = (
+            getattr(baseline, "record_number", "")
+            or getattr(baseline, "incident_number", "")
+            or ""
+        )
+        final_number = (
+            getattr(final, "record_number", "")
+            or getattr(final, "incident_number", "")
+            or ""
+        )
+        base_state = (
+            getattr(baseline, "current_state", "") or getattr(baseline, "record_state", "") or ""
+        )
+        final_state = (
+            getattr(final, "current_state", "") or getattr(final, "record_state", "") or ""
+        )
+
+        if not base_number and not base_state:
+            return None
+
+        mismatches: list[str] = []
+        if base_number and str(final_number).strip() != str(base_number).strip():
+            mismatches.append(
+                f"record number changed during cleanup: {base_number} -> {final_number}"
+            )
+        if base_state and str(final_state).strip().lower() != str(base_state).strip().lower():
+            mismatches.append(f"state not restored: was {base_state}, now {final_state}")
+        return mismatches
+
     """The autonomous cognitive agent runtime.
 
     Orchestrates all engines through the cognitive loop:
@@ -187,6 +231,9 @@ class AgentOrchestrator:
         self._memory = SessionMemory(
             observation_window=settings.agent.observation_window,
         )
+        from agent.core.locks import RecordLockManager
+        self._lock_manager = RecordLockManager()
+        self._locked_records = set()
         self._stop_requested = False
         self._report: TestReport | None = None
         self._report_file: str | None = None
@@ -358,6 +405,9 @@ class AgentOrchestrator:
 
     async def run(self, goal: str, persona: str | None = None) -> TestReport:
         """Execute the full autonomous cognitive agent loop."""
+        from agent.core.redaction import redact_string
+        goal = redact_string(goal)
+        
         logger.info("agent_run_started", goal=goal, session_id=self.session_id, persona=persona)
 
         if persona:
@@ -417,6 +467,8 @@ class AgentOrchestrator:
 
             self._cognitive_orchestrator._execution_controller = self._execution_controller
             self._cognitive_orchestrator._perception_engine = self._perception_engine
+            self._cognitive_orchestrator._lock_manager = self._lock_manager
+            self._cognitive_orchestrator.session_id = self.session_id
 
             # Navigate to ServiceNow
             instance_url = self._settings.servicenow.instance_url
@@ -468,6 +520,7 @@ class AgentOrchestrator:
                 self._transition_safe(AgentState.COMPLETED, "Stop requested")
             elif self._memory.state not in (
                 AgentState.FAILED,
+                AgentState.CLEANUP_FAILED,
                 AgentState.COMPLETED,
                 AgentState.PRECONDITION_FAILED,
                 AgentState.BLOCKED,
@@ -491,7 +544,7 @@ class AgentOrchestrator:
                 error_message=str(e),
             )
         finally:
-            # P0 Cleanup execution
+            # P0 Cleanup execution + independent restoration verification (QA-012)
             try:
                 if self._memory.plan and getattr(self._memory.plan, "cleanup_steps", []):
                     logger.info("executing_cleanup_steps", step_count=len(self._memory.plan.cleanup_steps))
@@ -500,26 +553,83 @@ class AgentOrchestrator:
                         goal="Cleanup",
                         steps=self._memory.plan.cleanup_steps
                     )
-                    
+
                     # Temporarily clear failures to allow cleanup to run
                     orig_precondition_failed = self._memory.precondition_failed
                     self._memory.precondition_failed = False
-                    
+
                     # Also temporarily clear stop_requested if we want cleanup to happen anyway,
                     # but usually stop means hard stop. Let's keep stop_requested as is.
-                    
+
+                    # QA-012: snapshot the ORIGINAL record values from the first
+                    # pre-action observation so restoration can be verified.
+                    baseline_obs = None
+                    if self._memory.completed_steps:
+                        baseline_obs = self._memory.completed_steps[0].observation_before
+
                     await self._cognitive_orchestrator._execute_canonical_plan(self._memory, cleanup_plan, "Cleanup")
-                    
+
                     # Restore failures
                     self._memory.precondition_failed = orig_precondition_failed
+
+                    self._memory.cleanup_status = "executed"
+
+                    # QA-012: independently verify restoration by re-observing
+                    # the record and comparing against the original snapshot.
+                    try:
+                        if baseline_obs is None:
+                            self._memory.cleanup_status = "unverified"
+                            self._memory.cleanup_details = (
+                                "No baseline record snapshot available for restoration comparison."
+                            )
+                        else:
+                            restored_mismatches: list[str] | None = None
+                            if self._browser_manager:
+                                page = self._browser_manager.get_page()
+                                final_obs = await self._cognitive_orchestrator._observation_engine.observe(page)  # type: ignore[union-attr]
+                                restored_mismatches = self._compare_restoration(baseline_obs, final_obs)
+                            if restored_mismatches is None:
+                                self._memory.cleanup_status = "unverified"
+                                self._memory.cleanup_details = (
+                                    "No original record values captured; restoration not verifiable."
+                                )
+                            elif restored_mismatches:
+                                self._memory.cleanup_status = "cleanup_failed"
+                                self._memory.cleanup_details = "; ".join(restored_mismatches)
+                                self._memory.add_failure(
+                                    error_type="CleanupVerificationFailed",
+                                    error_message=(
+                                        "Cleanup did not restore the original record state: "
+                                        + "; ".join(restored_mismatches)
+                                    ),
+                                )
+                                logger.error(
+                                    "cleanup_restoration_failed",
+                                    details=self._memory.cleanup_details,
+                                )
+                            else:
+                                self._memory.cleanup_status = "verified"
+                                self._memory.cleanup_details = "Original record state restored."
+                    except Exception as cv_err:
+                        self._memory.cleanup_status = "unverified"
+                        self._memory.cleanup_details = f"Cleanup verification error: {cv_err}"
+                        logger.warning("cleanup_verification_error", error=str(cv_err))
             except Exception as e:
                 logger.error("cleanup_execution_failed", error=str(e))
+                self._memory.cleanup_status = "cleanup_failed"
+                self._memory.cleanup_details = f"Cleanup execution failed: {e}"
+                self._memory.add_failure(
+                    error_type="CleanupExecutionFailed",
+                    error_message=f"Cleanup execution failed: {e}",
+                )
 
             # Generate report
             try:
                 self._report = await self._generate_report()
                 if self._report:
-                    if self._report.status == "precondition_failed":
+                    if self._report.status == "cleanup_failed":
+                        self._transition_safe(AgentState.CLEANUP_FAILED, "Report status is cleanup_failed")
+                    elif self._report.status == "precondition_failed":
                         self._transition_safe(AgentState.PRECONDITION_FAILED, "Report status is precondition_failed")
                     elif self._report.status == "blocked":
                         self._transition_safe(AgentState.BLOCKED, "Report status is blocked")
@@ -529,6 +639,13 @@ class AgentOrchestrator:
                         self._transition_safe(AgentState.COMPLETED, "Report status is passed")
             except Exception as e:
                 logger.error("report_generation_failed", error=str(e))
+                
+            if hasattr(self, "_lock_manager") and hasattr(self._cognitive_orchestrator, "_locked_records"):
+                for rec in self._cognitive_orchestrator._locked_records:
+                    try:
+                        await self._lock_manager.release_lease(rec, self.session_id)
+                    except Exception as le:
+                        logger.warning("failed_to_release_lease", record=rec, error=str(le))
 
             await self._save_session()
             if self._browser_manager:

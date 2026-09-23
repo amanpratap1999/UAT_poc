@@ -110,6 +110,11 @@ class PageInteractor:
             else:
                 loc_str = f"{selector} >> nth={i}"
 
+            try:
+                nested_depth = await loc.evaluate("el => { let d=0; let node=el; while(node.parentNode){d++; node=node.parentNode;} return d; }")
+            except Exception:
+                nested_depth = 0
+
             candidate_key = (
                 frame_name,
                 loc_str,
@@ -121,12 +126,22 @@ class PageInteractor:
             if candidate_key in seen_candidates:
                 continue
             seen_candidates.add(candidate_key)
+            
+            dyn_conf = 0.3
+            if is_visible:
+                dyn_conf += 0.3
+            if is_enabled:
+                dyn_conf += 0.2
+            if aria_label:
+                dyn_conf += 0.1
+            dyn_conf += min(0.1, nested_depth * 0.005)
+            dyn_conf = min(1.0, max(0.1, dyn_conf))
 
             candidates.append(
                 PerceptionCandidate(
                     source="dom",
                     target_description=selector,
-                    confidence=1.0 if is_visible else 0.5,
+                    confidence=dyn_conf,
                     locator_str=loc_str,
                     frame_context=frame_name,
                     role=tag,
@@ -405,20 +420,19 @@ class PageInteractor:
             return False
 
     async def get_input_value(self, selector: str) -> str:
-        """Get the current value of an input field.
-
-        Args:
-            selector: Element identifier.
-
-        Returns:
-            The input's current value.
-        """
+        """Get the current value of an input field."""
         locator = self._resolve_locator(selector)
         try:
             if await locator.count() > 0:
-                is_password = await locator.first.get_attribute("type") == "password"
-                if is_password:
+                first = locator.first
+                input_type = await first.get_attribute("type") or ""
+                input_id = await first.get_attribute("id") or ""
+                input_name = await first.get_attribute("name") or ""
+                
+                from agent.core.redaction import is_sensitive_field
+                if input_type.lower() == "password" or is_sensitive_field(input_id) or is_sensitive_field(input_name):
                     return "[REDACTED]"
+                
             return await locator.input_value()
         except Exception:
             return ""

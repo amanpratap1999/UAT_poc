@@ -15,7 +15,11 @@ async def inspect_live_incident():
     await browser_manager.launch()
     page = browser_manager.get_page()
     
-    incident_url = "https://aelumconsultingpvtltddemo3.service-now.com/incident.do?sys_id=8d6353eac0a8016400d8a125ca14fc1f"
+    from agent.api.v1.dependencies import get_cached_settings
+    settings = get_cached_settings()
+    if not settings.servicenow.instance_url:
+        raise ValueError("SERVICENOW_INSTANCE_URL is not set.")
+    incident_url = f"{settings.servicenow.instance_url}/incident.do?sys_id=8d6353eac0a8016400d8a125ca14fc1f"
     print(f"Navigating to {incident_url}...")
     await browser_manager.navigate(incident_url)
     await page.wait_for_timeout(3000)

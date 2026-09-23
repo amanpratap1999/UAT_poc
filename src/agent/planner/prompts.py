@@ -54,7 +54,9 @@ When deciding on an action, respond with a JSON object containing:
 # PLAN GENERATION — Decompose a goal into steps
 # =============================================================================
 
-PLAN_GENERATION_PROMPT = """Given the following business goal,
+PLAN_GENERATION_PROMPT = """{untrusted_policy}
+
+Given the following business goal,
 create a detailed test execution plan.
 
 ## Business Goal
@@ -84,6 +86,8 @@ Respond with a JSON object:
 # =============================================================================
 
 NEXT_ACTION_PROMPT = """Based on the current state, decide the next action to take.
+
+{untrusted_policy}
 
 ## Current Context
 {session_context}

@@ -260,12 +260,33 @@ cp docker-compose.override.example.yml docker-compose.override.yml
 | `GET` | `/api/v1/health` | Basic service ping |
 | `GET` | `/api/v1/ready` | Full readiness probe (PostgreSQL, pgvector, Redis, storage) |
 | `GET` | `/api/v1/diagnostics/paths` | Safe runtime diagnostic information and path resolution |
-| `POST` | `/api/v1/agent/run` | Start an autonomous agent run |
-| `GET` | `/api/v1/agent/status/{id}` | Get agent run status and metrics |
-| `GET` | `/api/v1/agent/report/{id}` | Get generated test report |
+| `POST` | `/api/v1/runs` | Start an autonomous agent run |
+| `GET` | `/api/v1/runs` | List agent runs |
+| `GET` | `/api/v1/runs/{id}` | Get run status, metrics and report details |
+| `POST` | `/api/v1/runs/{id}/stream-ticket` | Issue a short-lived SSE ticket for a run |
+| `GET` | `/api/v1/runs/{id}/events` | Server-sent events stream for a run |
+| `POST` | `/api/v1/runs/{id}/pause` | Pause an active run |
+| `POST` | `/api/v1/runs/{id}/resume` | Resume a paused run |
+| `POST` | `/api/v1/runs/{id}/cancel` | Gracefully stop an active run |
+| `POST` | `/api/v1/runs/{id}/clarify` | Answer a clarification request |
+| `POST` | `/api/v1/runs/{id}/approve` | Approve a high-risk action awaiting human review |
 | `GET` | `/api/v1/runs/{id}/perception` | Get perception evidence JSON (bounding boxes, frames) |
+| `GET` | `/api/v1/findings` | List QA findings (defects and agent-side issues) |
+| `GET` | `/api/v1/knowledge-model/rules` | Discovered instance rules |
+| `GET` | `/api/v1/knowledge-model/drift` | Configuration drift query |
+| `GET` | `/api/v1/metrics` | Product metrics (requires QA Manager role) |
+| `POST` | `/api/v1/test-cases/generate` | Generate test cases from a user story |
+| `POST` | `/api/v1/test-cases/import` | Import test cases (XLSX) |
+| `POST` | `/api/v1/test-cases/{id}/execute` | Execute a stored test case |
+| `POST` | `/api/v1/test-cases/{id}/sweep` | Execute persona sweep for a test case |
+| `POST` | `/api/v1/test-cases/{id}/compare-personas` | Compare persona sweep results |
+| `POST` | `/api/v1/test-cases/export-results` | Export test-case results (XLSX) |
 | `GET` | `/api/v1/screenshots/{filename}` | Retrieve a captured screenshot |
-| `POST` | `/api/v1/agent/stop/{id}` | Gracefully stop an active agent run |
+| `POST` | `/api/v1/token` | OAuth2 password flow — issue a JWT access token |
+
+> The full machine-readable contract is served from `/docs` (OpenAPI/Swagger)
+> and `/openapi.json` by the running API — treat that as the source of truth
+> rather than this table.
 
 ---
 

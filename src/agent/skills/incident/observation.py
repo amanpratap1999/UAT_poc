@@ -7,6 +7,7 @@ strongly typed Incident domain models.
 from __future__ import annotations
 
 import re
+from typing import Any, overload
 
 from agent.core.logging import get_logger
 from agent.domain.observation import PageObservation
@@ -20,7 +21,6 @@ from agent.skills.incident.domain.models import (
     Resolution,
     Urgency,
 )
-from agent.skills.incident.knowledge.rules import IncidentBusinessRules
 
 logger = get_logger(__name__)
 
@@ -45,12 +45,17 @@ class IncidentObserver:
         if not number:
             number = self._extract_number_from_title_or_url(title, url) or ""
 
-        state_raw = (
-            getattr(observation, "current_state", None)
-            or getattr(observation, "record_state", None)
-            or "1"
+        # Extract state safely from either type. Never fabricate a default:
+        # an unobserved/unparseable state stays UNKNOWN (QA-004).
+        state_raw = getattr(observation, "current_state", None) or getattr(
+            observation, "record_state", None
         )
-        state_enum = IncidentState.from_string(state_raw)
+        if state_raw:
+            state_enum = IncidentState.from_string(str(state_raw))
+            state_label = str(state_raw)
+        else:
+            state_enum = IncidentState.UNKNOWN
+            state_label = ""
 
         # Extract fields map
         fields = getattr(observation, "visible_fields", [])
@@ -72,9 +77,11 @@ class IncidentObserver:
         res_notes = fields_map.get("resolution notes", "")
         resolution = Resolution(code=res_code, notes=res_notes)
 
-        # Priority, Impact, Urgency
-        impact_val = self._parse_impact(fields_map.get("impact", "3"))
-        urgency_val = self._parse_urgency(fields_map.get("urgency", "3"))
+        # Priority, Impact, Urgency — observed values only. Unobserved or
+        # unparseable values stay UNKNOWN instead of silently becoming LOW
+        # (QA-004: no fabricated oracle values).
+        impact_val = self._parse_level(fields_map.get("impact"), Impact)
+        urgency_val = self._parse_level(fields_map.get("urgency"), Urgency)
         priority_raw = fields_map.get("priority", "")
         if priority_raw:
             priority_val = IncidentPriority.from_string(priority_raw)
@@ -93,11 +100,14 @@ class IncidentObserver:
         incident = Incident(
             number=number,
             state=state_enum,
-            state_label=state_raw,
+            state_label=state_label or "Unknown",
             priority=priority_val,
             priority_label=f"{p_value} - {p_name.capitalize()}",
             impact=impact_val,
             urgency=urgency_val,
+            hold_reason=fields_map.get("on hold reason", ""),
+            close_code=fields_map.get("close code", ""),
+            close_notes=fields_map.get("close notes", ""),
             caller=caller,
             category=category,
             subcategory=subcategory,
@@ -125,18 +135,34 @@ class IncidentObserver:
             return match_url.group(0)
         return None
 
-    def _parse_impact(self, val: str) -> Impact:
-        v = val.lower()
-        if "1" in v or "high" in v:
-            return Impact.HIGH
-        if "2" in v or "medium" in v:
-            return Impact.MEDIUM
-        return Impact.LOW
+    @overload
+    def _parse_level(self, val: str | None, enum_cls: type[Impact]) -> Impact: ...
 
-    def _parse_urgency(self, val: str) -> Urgency:
-        v = val.lower()
-        if "1" in v or "high" in v:
-            return Urgency.HIGH
-        if "2" in v or "medium" in v:
-            return Urgency.MEDIUM
-        return Urgency.LOW
+    @overload
+    def _parse_level(self, val: str | None, enum_cls: type[Urgency]) -> Urgency: ...
+
+    def _parse_level(self, val: str | None, enum_cls: Any) -> Any:
+        """Parse a High/Medium/Low style choice value strictly.
+
+        Returns ``enum_cls`` member, or ``UNKNOWN`` when the value is missing
+        or unparseable. Never fabricates a default level.
+        """
+        if not val:
+            return enum_cls.UNKNOWN
+        v = val.lower().strip()
+        # Label tokens take precedence over numeric prefixes so values like
+        # "1 - High" or "3 - Low" map on meaning, not substring accidents.
+        if "high" in v:
+            return enum_cls.HIGH
+        if "medium" in v or "moderate" in v:
+            return enum_cls.MEDIUM
+        if "low" in v:
+            return enum_cls.LOW
+        m = re.match(r"^(\d)", v)
+        if m and m.group(1) in ("1", "2", "3"):
+            return {
+                "1": enum_cls.HIGH,
+                "2": enum_cls.MEDIUM,
+                "3": enum_cls.LOW,
+            }[m.group(1)]
+        return enum_cls.UNKNOWN

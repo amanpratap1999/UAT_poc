@@ -195,6 +195,164 @@ class CognitiveOrchestrator:
         )
         return validation
 
+    # ------------------------------------------------------------------
+    # QA-005: independent Table-API persistence oracle
+    # ------------------------------------------------------------------
+
+    _SAVE_TARGET_TOKENS = ("sysverb_update", "sysverb_insert", "sysverb_save")
+
+    @staticmethod
+    def _is_save_click(action: AgentAction) -> bool:
+        """True when the action clicks a Save/Insert UI action."""
+        target = str(action.target or "").lower()
+        type_val = str(
+            getattr(action.action_type, "value", action.action_type) or ""
+        ).lower()
+        return type_val == "click" and any(
+            t in target for t in CognitiveOrchestrator._SAVE_TARGET_TOKENS
+        )
+
+    @staticmethod
+    def _mutation_assertion(action: AgentAction) -> tuple[str, str] | None:
+        """Extract a (field, expected value) pair from a fill/select action so
+        it can be re-checked against the Table API after save.
+
+        Returns None for non-mutating actions.
+        """
+        type_val = str(
+            getattr(action.action_type, "value", action.action_type) or ""
+        ).lower()
+        if type_val not in ("fill", "select", "set_value"):
+            return None
+        field = str(
+            (action.metadata or {}).get("field_name")
+            or (action.metadata or {}).get("field_label")
+            or action.target
+            or ""
+        ).strip()
+        value = str(action.value or "").strip()
+        if not field or not value:
+            return None
+        return field, value
+
+    async def _verify_persistence_via_api(
+        self, record_number: str, assertion_pairs: list[tuple[str, str]]
+    ) -> tuple[str, Any]:
+        """Fetch the record via the Table API and verify assertions against
+        the server-side values.
+
+        Returns (status, result). Status is one of:
+        "verified" | "mismatch" | "not_found" | "error" | "partial" |
+        "disabled" | "not_attempted". ``result`` is an ApiVerificationResult
+        when a snapshot was obtained, else None.
+        """
+        sn_cfg = (
+            getattr(self._settings, "servicenow", None) if self._settings else None
+        )
+        sn_url = (getattr(sn_cfg, "instance_url", "") or "").strip() if sn_cfg else ""
+        if not (sn_url and getattr(sn_cfg, "username", "")):
+            return "not_attempted", None
+        if not getattr(sn_cfg, "api_oracle_enabled", True):
+            return "disabled", None
+        try:
+            from agent.skills.incident.api_oracle import (
+                ApiVerificationResult,
+                IncidentApiOracle,
+            )
+
+            oracle = IncidentApiOracle(sn_cfg)  # type: ignore[arg-type]
+            try:
+                snapshot = await oracle.fetch_incident(str(record_number))
+                if snapshot is None:
+                    return "not_found", None
+                if assertion_pairs:
+                    api_result = IncidentApiOracle.verify_assertions(
+                        assertion_pairs, snapshot
+                    )
+                    if api_result.status == "not_found":
+                        # Record exists server-side but none of the asserted
+                        # fields are API-verifiable: persistence of the record
+                        # itself is proven by its existence + sys_updated_on,
+                        # but the field values were NOT independently confirmed.
+                        api_result.evidence["record_exists"] = True
+                        return "partial", api_result
+                    return api_result.status, api_result
+                return "partial", ApiVerificationResult(
+                    status="partial",
+                    snapshot=snapshot,
+                    evidence={
+                        "record_exists": True,
+                        "fields_checked": 0,
+                        "sys_updated_on": snapshot.sys_updated_on,
+                        "sys_id": snapshot.sys_id,
+                    },
+                )
+            finally:
+                await oracle.aclose()
+        except Exception as api_err:
+            logger.warning(
+                "api_verification_unavailable",
+                error=str(api_err),
+                number=str(record_number),
+            )
+            return "error", None
+
+    async def _attempt_reproduction(
+        self, action: AgentAction, validation: ValidationResult
+    ) -> tuple[bool, str]:
+        """QA-006: attempt to reproduce an unexplained mismatch from a clean
+        baseline before it may be classified as a verified defect.
+
+        Reloads the page, re-executes the ORIGINAL action once, and
+        re-validates against fresh observations. Returns (reproduced,
+        evidence): reproduced=True only when the validation fails again on the
+        clean re-run. An agent-side error during reproduction does NOT count
+        as reproduction.
+        """
+        try:
+            if not self._browser_manager or not self._observation_engine:
+                return False, "reproduction skipped: browser/observation unavailable"
+            page = self._browser_manager.get_page()
+            if page is None:
+                return False, "reproduction skipped: no browser page"
+            # 1. Clean baseline: reload the record fresh from the server.
+            await page.reload(wait_until="domcontentloaded")
+            await page.wait_for_timeout(1000)
+            obs_before = await self._observation_engine.observe(page)
+
+            # 2. Re-execute the original action exactly once.
+            if self._perception_engine:
+                retry_result = await self._perception_engine.execute_with_perception(action)
+            else:
+                retry_result = await self._execution_controller.execute(action)  # type: ignore[union-attr]
+            if not retry_result.success:
+                return False, (
+                    "re-execution of the original action failed with an agent-side "
+                    f"error ({retry_result.error or 'unknown'}); mismatch NOT reproduced"
+                )
+
+            # 3. Fresh observation + independent re-validation.
+            obs_after = await self._observation_engine.observe(page)
+            retry_validation = await self._validation_engine.validate_action(  # type: ignore[union-attr]
+                action=action,
+                result=retry_result,
+                before=obs_before,
+                after=obs_after,
+            )
+            if retry_validation.overall_passed:
+                return False, (
+                    "mismatch did NOT reproduce on a clean re-run (validation "
+                    "passed after reload + re-execution); previous failure was "
+                    "likely transient or environmental"
+                )
+            return True, (
+                "mismatch REPRODUCED on a clean re-run: validation failed again "
+                f"after reload + re-execution. Original summary: {validation.to_summary()}"
+            )
+        except Exception as repro_err:
+            logger.warning("reproduction_attempt_failed", error=str(repro_err))
+            return False, f"reproduction attempt errored: {repro_err}"
+
     def _parse_hypotheses_from_response(
         self, response: Any, objective: str
     ) -> list[TestHypothesis]:
@@ -676,7 +834,27 @@ class CognitiveOrchestrator:
             },
         )
 
+        # QA-005: field/value pairs mutated by fill/select steps so far. They
+        # are re-checked against the Table API each time the record is saved.
+        pending_api_assertions: list[tuple[str, str]] = []
+        api_mismatch_found = False
+
         for step in plan.steps:
+            if hasattr(self, "_lock_manager") and self._lock_manager:
+                rec_num = (memory.current_record or {}).get("number")
+                if rec_num:
+                    if not hasattr(self, "_locked_records"):
+                        self._locked_records = set()
+                    if rec_num not in self._locked_records:
+                        acquired = await self._lock_manager.acquire_lease(rec_num, getattr(self, "session_id", "default"))
+                        if not acquired:
+                            reason = f"Concurrency Isolation: Record {rec_num} is currently locked by another test session."
+                            step.mark_failed(reason)
+                            memory.add_timeline_entry(action=f"Acquire lease for {rec_num}", result="failed")
+                            self._transition(AgentState.BLOCKED, reason)
+                            return
+                        self._locked_records.add(rec_num)
+
             if (
                 self._stop_requested
                 or memory.precondition_failed
@@ -808,10 +986,10 @@ class CognitiveOrchestrator:
                             
                             if current_state and current_state != target_state:
                                 is_valid = True
-                                if self._knowledge_memory and self._knowledge_memory.customer_model:
-                                    is_valid = self._knowledge_memory.customer_model.is_valid_state_transition(
-                                        "incident", 
-                                        current_state.value if hasattr(current_state, "value") else str(current_state), 
+                                if self._knowledge_model:
+                                    is_valid = self._knowledge_model.is_valid_state_transition(
+                                        "incident",
+                                        current_state.value if hasattr(current_state, "value") else str(current_state),
                                         target_state.value if hasattr(target_state, "value") else str(target_state)
                                     )
                                 else:
@@ -1010,6 +1188,87 @@ class CognitiveOrchestrator:
                 return
 
             if validation.overall_passed:
+                # QA-005: accumulate mutations and, on save/insert, prove
+                # persistence through the independent Table-API oracle.
+                mutation = self._mutation_assertion(action)
+                if mutation is not None:
+                    pending_api_assertions.append(mutation)
+
+                api_failed = False
+                if self._is_save_click(action) and pending_api_assertions:
+                    # Keep only the latest expected value per canonical field:
+                    # a later step may legitimately overwrite an earlier one.
+                    latest_assertions = {
+                        fname.strip().lower(): (fname, fval)
+                        for fname, fval in pending_api_assertions
+                    }
+                    record_number = (
+                        (memory.current_record or {}).get("number")
+                        if memory.current_record
+                        else None
+                    ) or getattr(raw_obs_after, "record_number", None) or getattr(
+                        raw_obs_after, "incident_number", None
+                    )
+                    if record_number:
+                        api_status, api_result = await self._verify_persistence_via_api(
+                            str(record_number), list(latest_assertions.values())
+                        )
+                        memory.api_verification_status = api_status
+                        if api_status != "verified":
+                            api_failed = True
+                            validation.classification = "INCONCLUSIVE"
+                            validation.overall_passed = False
+
+                            if api_status == "mismatch" and api_result is not None:
+                                api_mismatch_found = True
+                                for mismatch_msg in api_result.mismatches:
+                                    memory.add_failure(
+                                        error_type="ApiVerificationMismatch",
+                                        error_message=(
+                                            "Independent Table API check contradicts "
+                                            f"the UI state after save: {mismatch_msg}"
+                                        ),
+                                    )
+                                logger.warning(
+                                    "api_verification_mismatch",
+                                    mismatches=api_result.mismatches,
+                                    step_index=step.step_index,
+                                )
+                            else:
+                                memory.add_failure(
+                                    error_type="ApiVerificationFailed",
+                                    error_message=f"Independent Table API check failed with status: {api_status}",
+                                )
+                                logger.warning(
+                                    "api_verification_failed",
+                                    api_status=api_status,
+                                    step_index=step.step_index,
+                                )
+
+                if api_failed:
+                    reason = (
+                        f"Save was NOT persisted correctly: the independent Table API oracle returned '{memory.api_verification_status}'."
+                    )
+                    step.mark_failed(reason)
+                    step.classification = "INCONCLUSIVE"
+                    memory.add_timeline_entry(
+                        action=f"API oracle mismatch/error after save on step {step.step_index}",
+                        result="persistence verification failed",
+                    )
+                    await self._publish_event(
+                        RunEventType.STEP_FINISHED,
+                        {
+                            "step_index": step.step_index,
+                            "description": step.description,
+                            "status": "failed",
+                            "expected_outcome": step.expected_outcome,
+                            "observed_values": step.observed_values,
+                            "actual_result": reason,
+                            "screenshot": result.screenshot_path,
+                        },
+                    )
+                    continue
+
                 step.mark_success()
                 await self._publish_event(
                     RunEventType.STEP_FINISHED,
@@ -1100,6 +1359,58 @@ class CognitiveOrchestrator:
                             error_type="InvestigationVerifiedDefect",
                             error_message=f"Step {step.step_index}: {investigation.reasoning}",
                         )
+                    elif str(
+                        getattr(investigation, "classification", "") or ""
+                    ).startswith("inconclusive"):
+                        # QA-006: an unexplained mismatch is INCONCLUSIVE —
+                        # fail closed (never counted as a validated success,
+                        # never counted as an application defect). Attempt one
+                        # bounded reproduction from a clean baseline; only a
+                        # reproduced mismatch escalates to verified_defect.
+                        reproduced, repro_evidence = await self._attempt_reproduction(
+                            action, validation
+                        )
+                        memory.add_timeline_entry(
+                            action=f"Reproduction attempt on step {step.step_index}",
+                            result=repro_evidence,
+                        )
+                        if reproduced:
+                            investigation = (
+                                await self._investigation_engine.investigate_mismatch(
+                                    action=action,
+                                    expected=step.expected_outcome,
+                                    actual=validation.to_summary(),
+                                    table_name="incident",
+                                    result=result,
+                                    validation=validation,
+                                    reproduced=True,
+                                )
+                            )
+                        if investigation.is_defect:
+                            step.mark_failed(investigation.reasoning)
+                            memory.add_failure(
+                                error_type="InvestigationVerifiedDefect",
+                                error_message=(
+                                    f"Step {step.step_index}: {investigation.reasoning}"
+                                ),
+                            )
+                        else:
+                            step.mark_failed(investigation.reasoning)
+                            memory.add_failure(
+                                error_type="InconclusiveVerification",
+                                error_message=(
+                                    f"Step {step.step_index}: {investigation.reasoning}"
+                                ),
+                            )
+                        kr = getattr(investigation, "knowledge_reference", None)
+                        memory.add_defect_verdict(
+                            step_index=memory.current_step_index - 1,
+                            hypothesis_id=f"step-{step.step_index}-reproduction",
+                            is_defect=investigation.is_defect,
+                            classification=investigation.classification,
+                            reasoning=f"{investigation.reasoning} [{repro_evidence}]",
+                            knowledge_reference=kr if isinstance(kr, str) else None,
+                        )
                     else:
                         step.mark_success()
 
@@ -1118,18 +1429,111 @@ class CognitiveOrchestrator:
 
         # P0.6 FINAL VERIFICATION — Independent assertion pass on fresh browser state
         final_assertions = getattr(memory, "final_assertions", None) or []
-        final_verification_passed = True
+        final_verification_passed = not api_mismatch_found
         final_verification_ran = False
-        
+
         if final_assertions and not memory.precondition_failed:
             logger.info("final_verification_start", assertion_count=len(final_assertions))
             self._transition(AgentState.VALIDATING, "Running final verification assertions")
-            
+
             try:
                 # Get fresh page observation — do NOT use cached state
                 page = self._browser_manager.get_page()  # type: ignore[union-attr]
                 fresh_obs = await self._observation_engine.observe(page)  # type: ignore[union-attr]
                 fresh_world = self._world_model.build_semantic_state(fresh_obs)
+
+                # QA-005: independently verify persistence through the
+                # ServiceNow Table API. A browser-only observation is NOT
+                # sufficient evidence that a mutation was committed
+                # server-side (optimistic UI state can mimic a save).
+                # Fail closed: mismatch / not_found / error all prevent the
+                # run from declaring persistence success. Only an explicit
+                # opt-out (disabled / not_attempted) bypasses the oracle.
+                api_verification_status = "not_attempted"
+                record_number = (
+                    getattr(fresh_obs, "record_number", None)
+                    or getattr(fresh_obs, "incident_number", None)
+                    or (
+                        (memory.current_record or {}).get("number")
+                        if memory.current_record
+                        else None
+                    )
+                )
+                if record_number:
+                    assertion_pairs: list[tuple[str, str]] = []
+                    for assertion_item in final_assertions:
+                        if isinstance(assertion_item, dict):
+                            f_name = str(assertion_item.get("field", ""))
+                            f_val = str(assertion_item.get("expected_value", ""))
+                        elif isinstance(assertion_item, str):
+                            continue
+                        else:
+                            f_name = str(getattr(assertion_item, "field", ""))
+                            f_val = str(
+                                getattr(assertion_item, "expected_value", "")
+                            )
+                        if f_name:
+                            assertion_pairs.append((f_name, f_val))
+                    # Merge the mutations accumulated during execution (final
+                    # assertion list wins on conflicting fields).
+                    for fname, fval in pending_api_assertions:
+                        if not any(p[0].strip().lower() == fname.strip().lower() for p in assertion_pairs):
+                            assertion_pairs.append((fname, fval))
+
+                    api_status, api_result = await self._verify_persistence_via_api(
+                        str(record_number), assertion_pairs
+                    )
+                    api_verification_status = api_status
+                    if api_status == "mismatch" and api_result is not None:
+                        final_verification_passed = False
+                        for mismatch_msg in api_result.mismatches:
+                            memory.add_failure(
+                                error_type="ApiVerificationMismatch",
+                                error_message=(
+                                    "Independent Table API check contradicts "
+                                    f"the UI state: {mismatch_msg}"
+                                ),
+                            )
+                        logger.warning(
+                            "api_verification_mismatch",
+                            mismatches=api_result.mismatches,
+                        )
+                    elif api_status == "not_found":
+                        # The UI shows a record that the Table API cannot see:
+                        # persistence cannot be confirmed.
+                        final_verification_passed = False
+                        memory.add_failure(
+                            error_type="ApiVerificationNotFound",
+                            error_message=(
+                                f"Record {record_number} was NOT found through the "
+                                "Table API although the UI displays it. Persistence "
+                                "cannot be confirmed (credentials, scope, or the "
+                                "record was never committed)."
+                            ),
+                        )
+                        logger.warning(
+                            "api_verification_record_not_found", number=str(record_number)
+                        )
+                    elif api_status == "error":
+                        # Fail closed: without the independent oracle the run
+                        # cannot claim persistence success. This is reported as
+                        # UNVERIFIED (not as an application defect).
+                        final_verification_passed = False
+                        memory.add_failure(
+                            error_type="ApiVerificationUnavailable",
+                            error_message=(
+                                "Table API oracle could not be reached; persistence "
+                                "of the mutation is UNVERIFIED and the run cannot "
+                                "be declared successful on browser evidence alone."
+                            ),
+                        )
+                    elif api_status == "partial":
+                        logger.info(
+                            "api_verification_partial",
+                            number=str(record_number),
+                            note="Record exists server-side but asserted fields were not API-verifiable",
+                        )
+                memory.api_verification_status = api_verification_status
                 
                 for assertion in final_assertions:
                     final_verification_ran = True

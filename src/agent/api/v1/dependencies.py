@@ -41,6 +41,7 @@ from agent.planner.planner import Planner
 from agent.recovery.engine import RecoveryEngine
 from agent.reflection.engine import ReflectionEngine
 from agent.reporting.engine import ReportingEngine
+from agent.skills.change.skill import ChangeSkill
 from agent.skills.incident.skill import IncidentSkill
 from agent.testing.generator import ScenarioGenerator
 from agent.testing.store import TestIntelligenceStore
@@ -142,12 +143,14 @@ def get_world_model() -> WorldModel:
 
 
 def get_skill_registry(settings: Settings | None = None) -> CapabilityRegistry:
-    """Create a CapabilityRegistry pre-registered with IncidentSkill."""
+    """Create a CapabilityRegistry pre-registered with the domain skills."""
     s = settings or get_cached_settings()
     registry = CapabilityRegistry()
     # Instantiate specific skills with required config
     incident_skill = IncidentSkill(config=s.servicenow)
     registry.register(incident_skill, incident_skill.get_capability_definition())
+    change_skill = ChangeSkill(base_url=s.servicenow.instance_url)
+    registry.register(change_skill, change_skill.get_capability_definition())
     return registry
 
 

@@ -19,7 +19,13 @@ from agent.domain.actions import AgentAction
 class IncidentNavigator:
     """Strategy builder for Incident Management navigation actions."""
 
-    def __init__(self, base_url: str = "https://dev12345.service-now.com") -> None:
+    def __init__(self, base_url: str) -> None:
+        """Create the navigator.
+
+        Args:
+            base_url: ServiceNow instance URL. Mandatory — never hard-code an
+                instance hostname (QA-019).
+        """
         self._base_url = base_url.rstrip("/")
 
     def navigate_to_incident_list(self) -> AgentAction:

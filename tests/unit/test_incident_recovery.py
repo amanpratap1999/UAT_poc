@@ -28,11 +28,22 @@ def test_suggest_incident_recovery_resolution_notes() -> None:
 
 
 def test_suggest_incident_recovery_readonly() -> None:
-    """Test domain recovery for read-only form."""
-    handler = IncidentRecoveryHandler()
+    """Test domain recovery for read-only form with a configured instance."""
+    handler = IncidentRecoveryHandler(base_url="https://test.service-now.com")
     inc = Incident(number="INC001", is_readonly=True)
 
     action = handler.suggest_incident_recovery("Cannot edit form", current_incident=inc)
 
     assert action is not None
     assert action.action_type == ActionType.NAVIGATE
+    assert action.value.startswith("https://test.service-now.com/incident.do")
+
+
+def test_suggest_incident_recovery_readonly_no_instance_fallback() -> None:
+    """Read-only recovery must never fall back to a hard-coded instance URL (QA-019)."""
+    handler = IncidentRecoveryHandler()
+    inc = Incident(number="INC001", is_readonly=True)
+
+    action = handler.suggest_incident_recovery("Cannot edit form", current_incident=inc)
+
+    assert action is None

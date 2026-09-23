@@ -257,7 +257,8 @@ def test_5_safety_test():
 
 @pytest.mark.asyncio
 async def test_8_investigation_test():
-    """Prove Expected != Actual does not immediately become a Verified Defect without investigation."""  # noqa: E501
+    """Prove Expected != Actual does not immediately become a Verified Defect:
+    an unexplained mismatch is INCONCLUSIVE until reproduced (QA-006)."""  # noqa: E501
     from agent.cognition.investigation import InvestigationEngine
 
     engine = InvestigationEngine(knowledge_model=CustomerKnowledgeModel())
@@ -268,9 +269,20 @@ async def test_8_investigation_test():
         actual="Field state missing",
         table_name="unknown",
     )
-    # If no knowledge model explains it, it becomes verified defect
-    assert result.is_defect
-    assert result.classification == "verified_defect"
+    # No knowledge model explains it and it was not reproduced — it must NOT
+    # be a verified defect; it stays inconclusive.
+    assert not result.is_defect
+    assert result.classification == "inconclusive_unexplained_mismatch"
+
+    reproduced = await engine.investigate_mismatch(
+        action=Mock(),
+        expected="Field state is visible",
+        actual="Field state missing",
+        table_name="unknown",
+        reproduced=True,
+    )
+    assert reproduced.is_defect
+    assert reproduced.classification == "verified_defect"
 
 
 @pytest.mark.asyncio
@@ -301,20 +313,15 @@ async def test_9_learning_test():
         table_name="incident",
     )
 
-    # Wait, the knowledge model says it's mandatory, actual is missing, so it's a defect.
-    # We must ensure it didn't get overridden by the learning service saying it's fine.
-    # The current InvestigationEngine only prevents false positives if knowledge model explicitly
-    # explains the mismatch.
-    # If knowledge model doesn't explain the missing field (because it says it MUST be there), it
-    # falls through to learning.
-    # Wait! If learning says it's ok, but knowledge says it's mandatory, learning shouldn't
-    # override.
-    # Currently, InvestigationEngine checks knowledge model, then learning. If knowledge model DOES
-    # NOT explain it (because it's a defect), it checks learning.
-    # We need to make sure learning cannot classify it as a false positive if knowledge model
-    # explicitly mandates it!
-    # I will assert this test to verify the logic.
-    assert result.is_defect or result.classification == "learned_customization"
+    # Learning must never whitewash a mismatch the knowledge model explicitly
+    # mandates (QA-006). The result must not be a learned customization, and it
+    # must not be silently declared a verified defect either: it stays
+    # INCONCLUSIVE until reproduced from a clean baseline and confirmed by an
+    # independent oracle or human review.
+    assert result.classification != "learned_customization"
+    assert result.is_defect is False
+    assert result.classification == "inconclusive_unexplained_mismatch"
+    assert "Explicitly mandated by Knowledge Model" in result.reasoning
 
 
 def test_10_evidence_test():

@@ -26,7 +26,13 @@ logger = get_logger(__name__)
 class ChangeSkill(BaseSkill):
     """Production Domain Skill for ServiceNow Change Management."""
 
-    def __init__(self, base_url: str = "https://dev12345.service-now.com") -> None:
+    def __init__(self, base_url: str = "") -> None:
+        """Create the skill.
+
+        Args:
+            base_url: ServiceNow instance URL. Must come from configuration —
+                never hard-code an executable instance hostname (QA-019).
+        """
         self._navigator = ChangeNavigator(base_url=base_url)
         self._observer = ChangeObserver()
         self._validator = ChangeValidator()

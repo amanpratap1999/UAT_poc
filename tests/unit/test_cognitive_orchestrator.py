@@ -232,3 +232,184 @@ async def test_run_cognitive_loop_no_hypotheses_failure(orchestrator):
 
     assert len(memory.failures) == 1
     assert memory.failures[0].error_type == "PlanningFailure"
+
+
+def _app_scope_failure_setup(orchestrator):
+    """Configure a single incident hypothesis whose step fails with an
+    application-scope field mismatch."""
+    orchestrator._llm.complete_json.return_value = {
+        "hypotheses": [
+            {
+                "id": "hyp-1",
+                "capability": "incident",
+                "statement": "Set incident state.",
+                "rationale": "Testing.",
+                "supporting_facts": [],
+                "strategy": "Positive Testing",
+                "expected_outcome": "State is In Progress",
+                "falsification_condition": "State remains New",
+                "risk": 5,
+                "provenance": {},
+            }
+        ]
+    }
+    action = AgentAction(action_type=ActionType.SELECT, target="State", value="2")
+    val_app = ValidationResult(action_description="select: State")
+    val_app.add_check(
+        ValidationCheck(
+            check_name="action_execution",
+            description="Action executed",
+            passed=True,
+            expected="success",
+            actual="success",
+        )
+    )
+    val_app.add_check(
+        ValidationCheck(
+            check_name="field_update",
+            description="Field updated",
+            passed=False,
+            expected="2",
+            actual="1",
+            error_message="Field value mismatch",
+        )
+    )
+    orchestrator._validation_engine.validate_action.return_value = val_app
+    orchestrator._execution_controller.execute.return_value = ActionResult(
+        success=True, action=action
+    )
+    return action
+
+
+def _inconclusive_investigation():
+    inv = Mock()
+    inv.is_defect = False
+    inv.classification = "inconclusive_unexplained_mismatch"
+    inv.reasoning = "No authoritative configuration explains the mismatch"
+    inv.knowledge_reference = None
+    return inv
+
+
+def _verified_investigation():
+    inv = Mock()
+    inv.is_defect = True
+    inv.classification = "verified_defect"
+    inv.reasoning = "Reproduced mismatch with no authoritative explanation"
+    inv.knowledge_reference = None
+    return inv
+
+
+@pytest.mark.asyncio
+async def test_inconclusive_mismatch_reproduced_becomes_verified_defect(orchestrator):
+    """QA-006: an unexplained mismatch that REPRODUCES on a clean re-run is
+    re-investigated with reproduced=True and escalates to verified_defect."""
+    memory = SessionMemory(observation_window=5)
+    _app_scope_failure_setup(orchestrator)
+
+    orchestrator._investigation_engine = AsyncMock()
+    orchestrator._investigation_engine.investigate_mismatch.return_value = (
+        _inconclusive_investigation()
+    )
+    orchestrator._attempt_reproduction = AsyncMock(
+        return_value=(True, "mismatch REPRODUCED on a clean re-run")
+    )
+
+    await orchestrator.run_cognitive_loop(memory, "Test app failure")
+
+    # Two investigation calls: initial + post-reproduction
+    assert orchestrator._investigation_engine.investigate_mismatch.call_count == 2
+    second_call = orchestrator._investigation_engine.investigate_mismatch.call_args_list[1]
+    assert second_call.kwargs.get("reproduced") is True
+    # Escalated verdict recorded
+    assert any(v.is_defect for v in memory.defect_verdicts)
+    assert any(
+        v.classification == "verified_defect" for v in memory.defect_verdicts
+    )
+    assert any(
+        f.error_type == "InvestigationVerifiedDefect" for f in memory.failures
+    )
+
+
+@pytest.mark.asyncio
+async def test_inconclusive_mismatch_not_reproduced_stays_inconclusive(orchestrator):
+    """QA-006: a mismatch that does NOT reproduce must never become a defect
+    verdict — it remains inconclusive with the evidence recorded."""
+    memory = SessionMemory(observation_window=5)
+    _app_scope_failure_setup(orchestrator)
+
+    orchestrator._investigation_engine = AsyncMock()
+    orchestrator._investigation_engine.investigate_mismatch.return_value = (
+        _inconclusive_investigation()
+    )
+    orchestrator._attempt_reproduction = AsyncMock(
+        return_value=(False, "mismatch did NOT reproduce on a clean re-run")
+    )
+
+    await orchestrator.run_cognitive_loop(memory, "Test app failure")
+
+    # No escalation: investigation never called with reproduced=True
+    assert orchestrator._investigation_engine.investigate_mismatch.call_count == 1
+    assert not any(v.is_defect for v in memory.defect_verdicts)
+    assert all(
+        v.classification == "inconclusive_unexplained_mismatch"
+        for v in memory.defect_verdicts
+    )
+    assert any(f.error_type == "InconclusiveVerification" for f in memory.failures)
+
+
+@pytest.mark.asyncio
+async def test_attempt_reproduction_detects_persistent_mismatch(orchestrator):
+    """The real reproduction helper re-executes the action and reports
+    reproduced=True only when validation fails again on the clean re-run."""
+    action = AgentAction(action_type=ActionType.SELECT, target="State", value="2")
+    val_fail = ValidationResult(action_description="select: State")
+    val_fail.add_check(
+        ValidationCheck(
+            check_name="field_update",
+            description="Field updated",
+            passed=False,
+            expected="2",
+            actual="1",
+            error_message="Field value mismatch",
+        )
+    )
+    orchestrator._validation_engine.validate_action.return_value = val_fail
+
+    page = AsyncMock()
+    orchestrator._browser_manager.get_page.return_value = page
+
+    reproduced, evidence = await orchestrator._attempt_reproduction(action, val_fail)
+    assert reproduced is True
+    assert "REPRODUCED" in evidence
+    # The original action was re-executed exactly once
+    assert orchestrator._execution_controller.execute.call_count == 1
+    # Validation re-ran against fresh observations
+    assert orchestrator._validation_engine.validate_action.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_attempt_reproduction_agent_error_is_not_reproduction(orchestrator):
+    """A flaky agent-side failure during reproduction must NOT count as
+    reproduction of the application mismatch."""
+    action = AgentAction(action_type=ActionType.SELECT, target="State", value="2")
+    val_fail = ValidationResult(action_description="select: State")
+    val_fail.add_check(
+        ValidationCheck(
+            check_name="field_update",
+            description="Field updated",
+            passed=False,
+            expected="2",
+            actual="1",
+            error_message="Field value mismatch",
+        )
+    )
+    orchestrator._validation_engine.validate_action.return_value = val_fail
+    page = AsyncMock()
+    orchestrator._browser_manager.get_page.return_value = page
+    orchestrator._execution_controller.execute.return_value = ActionResult(
+        success=False, action=action, error="element detached"
+    )
+
+    reproduced, evidence = await orchestrator._attempt_reproduction(action, val_fail)
+    assert reproduced is False
+    assert "NOT reproduced" in evidence

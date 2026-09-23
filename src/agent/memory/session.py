@@ -137,6 +137,18 @@ class SessionMemory(BaseModel):
     precondition_failed: bool = False
     precondition_failure_reason: str | None = None
 
+    # Cleanup tracking (QA-012): restoration after mutations must be executed
+    # and independently verified; a failed restoration must be visible.
+    cleanup_status: str = Field(
+        default="not_run",
+        description="One of: not_run, executed, verified, cleanup_failed, unverified",
+    )
+    cleanup_details: str = ""
+
+    # Independent persistence verification through the ServiceNow Table API
+    # (QA-005). Values: not_attempted, unavailable, verified, mismatch.
+    api_verification_status: str = "not_attempted"
+
     # Telemetry and Browser Diagnostics
     browser_logs: list[dict[str, str]] = Field(default_factory=list)
     console_errors: list[str] = Field(default_factory=list)
@@ -156,6 +168,14 @@ class SessionMemory(BaseModel):
 
     def add_observation(self, observation: PageObservation) -> None:
         """Add a page observation, maintaining the rolling window."""
+        from agent.core.redaction import redact_dict
+        
+        # Redact the DOM structure and fields
+        if observation.dom_structure:
+            observation.dom_structure = redact_dict(observation.dom_structure)
+        if observation.fields:
+            observation.fields = redact_dict(observation.fields)
+
         self.observations.append(observation)
         self.current_url = observation.url
         self.current_page_type = observation.page_type.value

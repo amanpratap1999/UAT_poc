@@ -64,6 +64,7 @@ class IncidentBusinessRules:
         (Impact.LOW, Urgency.MEDIUM): IncidentPriority.LOW,
         (Impact.LOW, Urgency.LOW): IncidentPriority.PLANNING,
     }
+    """Determines mandatory fields for Incident transitions."""
 
     # Mandatory fields per state transition target
     _TRANSITION_MANDATORY_FIELDS: ClassVar[dict[IncidentState, list[str]]] = {
@@ -85,18 +86,29 @@ class IncidentBusinessRules:
         IncidentState.CLOSED: ["Resolution Code", "Resolution Notes"],
     }
 
+    # Conditional mandatory rules: placing an incident On Hold with a specific
+    # reason makes additional fields mandatory (QA-009).
+    _ON_HOLD_CONDITIONAL_RULES: ClassVar[dict[str, list[str]]] = {
+        "awaiting caller": ["Additional comments"],
+    }
+
     @classmethod
-    def calculate_priority(cls, impact: Impact, urgency: Urgency) -> IncidentPriority:
-        """Calculate Priority from Impact x Urgency according to ServiceNow standard matrix.
+    def get_conditional_mandatory_fields(
+        cls, target_state: IncidentState, hold_reason: str
+    ) -> list[str]:
+        """Get fields that become mandatory due to conditional lifecycle rules.
 
         Args:
-            impact: High (1), Medium (2), Low (3)
-            urgency: High (1), Medium (2), Low (3)
+            target_state: State being transitioned into.
+            hold_reason: On Hold Reason currently set on the record.
 
         Returns:
-            Calculated IncidentPriority.
+            List of additional mandatory field labels (may be empty).
         """
-        return cls._PRIORITY_MATRIX.get((impact, urgency), IncidentPriority.MODERATE)
+        if target_state != IncidentState.ON_HOLD:
+            return []
+        reason = (hold_reason or "").strip().lower()
+        return list(cls._ON_HOLD_CONDITIONAL_RULES.get(reason, []))
 
     @classmethod
     def get_mandatory_fields_for_state(cls, target_state: IncidentState) -> list[str]:

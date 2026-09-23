@@ -1,5 +1,7 @@
 """Authentication router for generating tokens."""
 
+import time
+from collections import defaultdict
 from datetime import timedelta
 from typing import Annotated, Any
 
@@ -18,10 +20,6 @@ from agent.core.db import get_db_session
 from agent.domain.models import User
 
 router = APIRouter(tags=["auth"])
-
-
-from collections import defaultdict
-import time
 
 _login_attempts: dict[str, list[float]] = defaultdict(list)
 MAX_ATTEMPTS = 5
@@ -46,8 +44,6 @@ async def login_for_access_token(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many login attempts. Account temporarily locked.",
         )
-
-    import os
 
     user = None
     try:

@@ -43,6 +43,7 @@ class InvestigationEngine:
         table_name: str | None = None,
         result: Any = None,
         validation: Any = None,
+        reproduced: bool = False,
     ) -> InvestigationResult:
         """Investigate why actual behavior differed from expected.
 
@@ -53,6 +54,10 @@ class InvestigationEngine:
             table_name: Contextual table for knowledge lookup.
             result: The ActionResult (optional, for scope classification).
             validation: The ValidationResult (optional, for scope classification).
+            reproduced: Whether this mismatch has been reproduced from a clean
+                baseline. Per QA-006 an unexplained mismatch may only become a
+                VERIFIED defect after reproduction plus an independent oracle
+                or human confirmation; otherwise it stays INCONCLUSIVE.
 
         Returns:
             InvestigationResult containing the classification.
@@ -170,11 +175,33 @@ class InvestigationEngine:
                         knowledge_reference="LearningService",
                     )
 
-        # 3. If no authoritative explanation exists, it is a verified defect
+        # 3. No authoritative explanation exists. Per QA-006 an unexplained
+        # mismatch is NOT auto-declared a verified defect: it stays
+        # INCONCLUSIVE until it has been reproduced from a clean baseline and
+        # confirmed by an independent oracle or human review. Only a
+        # reproduced mismatch escalates to verified_defect.
+        if not reproduced:
+            return InvestigationResult(
+                is_defect=False,
+                classification="inconclusive_unexplained_mismatch",
+                reasoning=(
+                    f"No authoritative configuration explains: {actual}. "
+                    "The mismatch is INCONCLUSIVE: it must be reproduced from a "
+                    "clean baseline and confirmed by an independent oracle "
+                    "(Table API / audit history) or human review before being "
+                    "classified as a verified application defect."
+                )
+                + (
+                    " (Explicitly mandated by Knowledge Model)"
+                    if explicitly_mandated_by_knowledge
+                    else ""
+                ),
+                evidence=f"Expected: {expected} | Actual: {actual}",
+            )
         return InvestigationResult(
             is_defect=True,
             classification="verified_defect",
-            reasoning=f"No authoritative configuration found to explain: {actual}"
+            reasoning=f"Reproduced mismatch with no authoritative configuration to explain: {actual}"
             + (
                 " (Explicitly mandated by Knowledge Model)"
                 if explicitly_mandated_by_knowledge

@@ -156,6 +156,15 @@ class ServiceNowConfig(BaseSubConfig):
         default_factory=list,
         description="Whitelist of instance hostnames allowed to be mutated."
     )
+    api_oracle_enabled: bool = Field(
+        default=True,
+        description=(
+            "Query the Table API as an independent persistence oracle after "
+            "mutations (QA-005). Disable only when the credentials intentionally "
+            "have no REST API access; persistence is then reported as "
+            "'disabled' instead of 'verified'."
+        ),
+    )
 
     def get_active_credentials(self) -> tuple[str, str]:
         """Get credentials for the active persona, falling back to defaults."""
@@ -441,8 +450,7 @@ class Settings(BaseSubConfig):
     @model_validator(mode="after")
     def _validate_instance_url(self) -> "Settings":
         if self.servicenow.instance_url == "https://dev12345.service-now.com" or not self.servicenow.instance_url:
-            import warnings
-            warnings.warn("SERVICENOW_INSTANCE_URL is not set or using default. Execution may fail.", stacklevel=2)
+            raise ValueError("SERVICENOW_INSTANCE_URL is not set or is using the default placeholder. Execution cannot proceed.")
         return self
 
     @model_validator(mode="after")

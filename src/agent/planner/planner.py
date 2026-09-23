@@ -13,6 +13,7 @@ from typing import Any
 
 from agent.core.exceptions import LLMResponseParseError, PlannerError
 from agent.core.logging import get_logger
+from agent.core.untrusted import UNTRUSTED_DATA_POLICY, wrap_untrusted
 from agent.domain.actions import AgentAction
 from agent.domain.knowledge_model import CustomerKnowledgeModel
 from agent.domain.observation import PageObservation
@@ -104,7 +105,8 @@ class Planner:
 
         knowledge = context or self._knowledge_context
         prompt = PLAN_GENERATION_PROMPT.format(
-            goal=goal,
+            untrusted_policy=UNTRUSTED_DATA_POLICY,
+            goal=wrap_untrusted("goal", goal),
             knowledge_context=knowledge,
         )
 
@@ -161,7 +163,8 @@ class Planner:
             current_step = "No specific plan step — use your judgment based on the goal."
 
         prompt = NEXT_ACTION_PROMPT.format(
-            session_context=memory.get_context_for_llm(),
+            untrusted_policy=UNTRUSTED_DATA_POLICY,
+            session_context=wrap_untrusted("session_context", memory.get_context_for_llm()),
             current_step=current_step,
         )
 

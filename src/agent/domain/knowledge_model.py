@@ -52,6 +52,8 @@ class TableMetadata(BaseModel):
     active_ui_policies: list[dict[str, Any]] = Field(default_factory=list)
     active_client_scripts: list[dict[str, Any]] = Field(default_factory=list)
     active_business_rules: list[dict[str, Any]] = Field(default_factory=list)
+    active_acls: list[dict[str, Any]] = Field(default_factory=list)
+    properties: list[dict[str, Any]] = Field(default_factory=list)
     valid_transitions: dict[str, list[str]] = Field(default_factory=dict)
     mandatory_fields_by_state: dict[str, list[str]] = Field(default_factory=dict)
 

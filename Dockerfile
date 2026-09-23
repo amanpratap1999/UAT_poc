@@ -9,8 +9,8 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml README.md ./
-RUN mkdir src && pip install --no-cache-dir --prefix=/install -e .
+COPY pyproject.toml README.md requirements.txt ./
+RUN mkdir src && pip install --no-cache-dir --prefix=/install -r requirements.txt && pip install --no-cache-dir --prefix=/install -e .
 
 FROM python:3.11-slim
 WORKDIR /app

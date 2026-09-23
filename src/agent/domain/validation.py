@@ -41,6 +41,7 @@ class ValidationResult(BaseModel):
     )
     checks: list[ValidationCheck] = Field(default_factory=list)
     overall_passed: bool = False
+    classification: str = Field(default="INCONCLUSIVE", description="PASSED, FAILED, INCONCLUSIVE, BLOCKED, CLEANUP_FAILED")
     is_precondition_check: bool = False
     precondition_failed: bool = False
     precondition_details: dict[str, Any] = Field(default_factory=dict)
@@ -55,8 +56,12 @@ class ValidationResult(BaseModel):
         """Recompute overall_passed from individual checks."""
         if not self.checks:
             self.overall_passed = False
+            if self.classification not in ("INCONCLUSIVE", "BLOCKED", "CLEANUP_FAILED"):
+                self.classification = "FAILED"
             return
         self.overall_passed = all(c.passed for c in self.checks)
+        if self.classification not in ("INCONCLUSIVE", "BLOCKED", "CLEANUP_FAILED"):
+            self.classification = "PASSED" if self.overall_passed else "FAILED"
 
     @property
     def passed_checks(self) -> list[ValidationCheck]:

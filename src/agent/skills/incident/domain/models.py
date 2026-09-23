@@ -51,6 +51,7 @@ class Impact(StrEnum):
     HIGH = "1"
     MEDIUM = "2"
     LOW = "3"
+    UNKNOWN = "unknown"
 
 
 class Urgency(StrEnum):
@@ -59,6 +60,7 @@ class Urgency(StrEnum):
     HIGH = "1"
     MEDIUM = "2"
     LOW = "3"
+    UNKNOWN = "unknown"
 
 
 class IncidentPriority(StrEnum):
@@ -99,19 +101,18 @@ class Assignment(BaseModel):
 class Resolution(BaseModel):
     """Resolution details for an Incident."""
 
-    code: str = Field(default="", description="Resolution Code (e.g., Solved (Permanently))")
-    notes: str = Field(default="", description="Resolution Notes")
-    resolved_by: str = Field(default="", description="User who resolved the incident")
-    resolved_at: datetime | None = None
+    """Resolution details."""
+
+    code: str = ""
+    notes: str = ""
+    resolved_by: str = ""
 
 
 class WorkNotes(BaseModel):
-    """Work notes and customer comments."""
+    """Activity stream and work notes."""
 
-    work_notes: list[str] = Field(default_factory=list, description="Internal IT work notes")
-    additional_comments: list[str] = Field(
-        default_factory=list, description="Customer visible comments"
-    )
+    entries: list[dict[str, Any]] = Field(default_factory=list)
+    audit_trail: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class Incident(BaseModel):
@@ -119,12 +120,15 @@ class Incident(BaseModel):
 
     number: str = Field(default="", description="Incident Number (e.g. INC0012345)")
     sys_id: str | None = None
-    state: IncidentState = IncidentState.NEW
-    state_label: str = Field(default="New")
-    priority: IncidentPriority = IncidentPriority.LOW
-    priority_label: str = Field(default="4 - Low")
-    impact: Impact = Impact.LOW
-    urgency: Urgency = Urgency.LOW
+    state: IncidentState = IncidentState.UNKNOWN
+    state_label: str = Field(default="Unknown")
+    priority: IncidentPriority = IncidentPriority.UNKNOWN
+    priority_label: str = Field(default="Unknown")
+    impact: Impact = Impact.UNKNOWN
+    urgency: Urgency = Urgency.UNKNOWN
+    hold_reason: str = Field(default="", description="On Hold Reason (e.g. Awaiting Caller)")
+    close_code: str = Field(default="", description="Close Code (e.g. Solved (Permanently))")
+    close_notes: str = Field(default="", description="Close Notes")
     caller: str = Field(default="", description="Caller name")
     category: str = Field(default="")
     subcategory: str = Field(default="")
@@ -133,6 +137,11 @@ class Incident(BaseModel):
     assignment: Assignment = Field(default_factory=Assignment)
     resolution: Resolution = Field(default_factory=Resolution)
     work_notes: WorkNotes = Field(default_factory=WorkNotes)
+    sla_states: list[dict[str, str]] = Field(default_factory=list, description="SLA states (e.g., in progress, breached)")
+    escalation_level: str = Field(default="Normal", description="Escalation level")
+    sys_updated_on: str = Field(default="")
+    resolved_at: str = Field(default="")
+    closed_at: str = Field(default="")
     is_readonly: bool = False
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 

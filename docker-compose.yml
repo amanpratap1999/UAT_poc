@@ -2,13 +2,19 @@ services:
   db:
     image: ankane/pgvector:v0.4.2
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      # Hard requirement: no default password (QA-016). Set POSTGRES_PASSWORD
+      # in .env / the environment; Compose refuses to start without it.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set to a generated secret}
       POSTGRES_DB: servicenow_qa
-    ports:
-      - "5432:5432"
+    # QA-016: PostgreSQL is NOT exposed to the host. It is reachable only
+    # from services on the internal backend network. For host-side debugging
+    # run `docker compose --profile debug up db` with the port block enabled.
+    expose:
+      - "5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    networks: [backend]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d servicenow_qa"]
       interval: 5s
@@ -17,64 +23,81 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    # QA-016: Redis requires authentication. TLS requires cert provisioning
+    # (add --tls-port/--cert/--key when certificates are managed).
+    command:
+      [
+        "redis-server",
+        "--requirepass",
+        "${REDIS_PASSWORD:?REDIS_PASSWORD must be set to a generated secret}",
+        "--appendonly",
+        "yes",
+      ]
+    expose:
+      - "6379"
     volumes:
       - redisdata:/data
+    networks: [backend]
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test:
+        [
+          "CMD-SHELL",
+          "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG",
+        ]
       interval: 5s
       timeout: 5s
       retries: 5
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
 
   api:
     build: .
     image: uat-poc-backend:latest
-    command: uvicorn agent.main:app --host 0.0.0.0 --port 8000 --reload
+    # QA-016: no --reload in container runs (source is not mounted).
+    command: uvicorn agent.main:app --host 0.0.0.0 --port 8000
     volumes:
-      - ./src:/app/src
-      - ./scripts:/app/scripts
-      - ./tests:/app/tests
       - reports_data:/app/reports
       - screenshots_data:/app/screenshots
       - step_cache_data:/app/cache
     ports:
       - "8000:8000"
-    environment:
-      - UAT_RUNTIME_MODE=${UAT_RUNTIME_MODE:-docker}
-      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://postgres:postgrespassword@db:5432/servicenow_qa}
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
-      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
-      - AGENT_STEP_CACHE_PATH=${AGENT_STEP_CACHE_PATH:-/app/cache/step_cache.db}
-      - LLM_PROVIDER=${LLM_PROVIDER}
-      - LLM_BASE_URL=${LLM_BASE_URL}
-      - LLM_MODEL=${LLM_MODEL}
-      - LLM_EMBEDDING_MODEL=${LLM_EMBEDDING_MODEL:-}
-      - LLM_EMBEDDING_DIMENSIONS=${LLM_EMBEDDING_DIMENSIONS:-1536}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - PUTER_ENDPOINT=${PUTER_ENDPOINT}
-      - PUTER_API_KEY=${PUTER_API_KEY}
-      - MOONDREAM_API_KEY=${MOONDREAM_API_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - BROWSER_HEADLESS=${BROWSER_HEADLESS:-true}
-      - BROWSER_SLOW_MO=${BROWSER_SLOW_MO:-0}
-      - BROWSER_SHOW_MOUSE_CURSOR=${BROWSER_SHOW_MOUSE_CURSOR:-false}
-      - BROWSER_KEEP_BROWSER_OPEN=${BROWSER_KEEP_BROWSER_OPEN:-false}
-      - BROWSER_INTERACTIVE_TIMEOUT_SECONDS=${BROWSER_INTERACTIVE_TIMEOUT_SECONDS:-300}
-      - SERVICENOW_INSTANCE_URL=${SERVICENOW_INSTANCE_URL}
-      - SERVICENOW_USERNAME=${SERVICENOW_USERNAME}
-      - SERVICENOW_PASSWORD=${SERVICENOW_PASSWORD}
-      - QA_ADMIN_USERNAME=${QA_ADMIN_USERNAME}
-      - QA_ADMIN_PASSWORD=${QA_ADMIN_PASSWORD}
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
-      - JWT_ALGORITHM=${JWT_ALGORITHM}
-      - REPORT_OUTPUT_DIR=${REPORT_OUTPUT_DIR:-/app/reports}
-      - SCREENSHOT_DIR=${SCREENSHOT_DIR:-/app/screenshots}
-      - ENVIRONMENT=${ENVIRONMENT:-production}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - AGENT_STEP_CACHE_PATH=${AGENT_STEP_CACHE_PATH:-/app/cache/step_cache.db}
-      # DO NOT PUT REAL CREDENTIALS HERE
+    networks: [backend, frontend]
+    environment: &backend-env
+      UAT_RUNTIME_MODE: ${UAT_RUNTIME_MODE:-docker}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/servicenow_qa
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/1
+      AGENT_STEP_CACHE_PATH: /app/cache/step_cache.db
+      LLM_PROVIDER: ${LLM_PROVIDER}
+      LLM_BASE_URL: ${LLM_BASE_URL}
+      LLM_MODEL: ${LLM_MODEL}
+      LLM_EMBEDDING_MODEL: ${LLM_EMBEDDING_MODEL:-}
+      LLM_EMBEDDING_DIMENSIONS: ${LLM_EMBEDDING_DIMENSIONS:-1536}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      PUTER_ENDPOINT: ${PUTER_ENDPOINT}
+      PUTER_API_KEY: ${PUTER_API_KEY}
+      MOONDREAM_API_KEY: ${MOONDREAM_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      BROWSER_HEADLESS: ${BROWSER_HEADLESS:-true}
+      BROWSER_SLOW_MO: ${BROWSER_SLOW_MO:-0}
+      BROWSER_SHOW_MOUSE_CURSOR: ${BROWSER_SHOW_MOUSE_CURSOR:-false}
+      BROWSER_KEEP_BROWSER_OPEN: ${BROWSER_KEEP_BROWSER_OPEN:-false}
+      BROWSER_INTERACTIVE_TIMEOUT_SECONDS: ${BROWSER_INTERACTIVE_TIMEOUT_SECONDS:-300}
+      SERVICENOW_INSTANCE_URL: ${SERVICENOW_INSTANCE_URL}
+      SERVICENOW_USERNAME: ${SERVICENOW_USERNAME}
+      SERVICENOW_PASSWORD: ${SERVICENOW_PASSWORD}
+      SERVICENOW_ALLOW_MUTATIONS: ${SERVICENOW_ALLOW_MUTATIONS:-false}
+      SERVICENOW_ALLOWED_INSTANCES: ${SERVICENOW_ALLOWED_INSTANCES:-}
+      QA_ADMIN_USERNAME: ${QA_ADMIN_USERNAME}
+      QA_ADMIN_PASSWORD: ${QA_ADMIN_PASSWORD}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set to a generated secret}
+      JWT_ALGORITHM: ${JWT_ALGORITHM}
+      REPORT_OUTPUT_DIR: ${REPORT_OUTPUT_DIR:-/app/reports}
+      SCREENSHOT_DIR: ${SCREENSHOT_DIR:-/app/screenshots}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # DO NOT PUT REAL CREDENTIALS HERE — use .env or a secrets manager.
     depends_on:
       db:
         condition: service_healthy
@@ -84,48 +107,14 @@ services:
   worker:
     build: .
     image: uat-poc-backend:latest
-    command: sh -c "celery -A agent.core.celery_app worker --loglevel=info --pool=threads --concurrency=4 2>&1 | tee /app/worker.log"
+    command: celery -A agent.core.celery_app worker --loglevel=info --pool=threads --concurrency=4
     volumes:
-      - ./src:/app/src
-      - ./worker.log:/app/worker.log
-      - ./scripts:/app/scripts
       - reports_data:/app/reports
       - screenshots_data:/app/screenshots
       - step_cache_data:/app/cache
+    networks: [backend]
     environment:
-      - UAT_RUNTIME_MODE=${UAT_RUNTIME_MODE:-docker}
-      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://postgres:postgrespassword@db:5432/servicenow_qa}
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/0}
-      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://redis:6379/1}
-      - AGENT_STEP_CACHE_PATH=${AGENT_STEP_CACHE_PATH:-/app/cache/step_cache.db}
-      - LLM_PROVIDER=${LLM_PROVIDER}
-      - LLM_BASE_URL=${LLM_BASE_URL}
-      - LLM_MODEL=${LLM_MODEL}
-      - LLM_EMBEDDING_MODEL=${LLM_EMBEDDING_MODEL:-}
-      - LLM_EMBEDDING_DIMENSIONS=${LLM_EMBEDDING_DIMENSIONS:-1536}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - PUTER_ENDPOINT=${PUTER_ENDPOINT}
-      - PUTER_API_KEY=${PUTER_API_KEY}
-      - MOONDREAM_API_KEY=${MOONDREAM_API_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - BROWSER_HEADLESS=${BROWSER_HEADLESS:-true}
-      - BROWSER_SLOW_MO=${BROWSER_SLOW_MO:-0}
-      - BROWSER_SHOW_MOUSE_CURSOR=${BROWSER_SHOW_MOUSE_CURSOR:-false}
-      - BROWSER_KEEP_BROWSER_OPEN=${BROWSER_KEEP_BROWSER_OPEN:-false}
-      - BROWSER_INTERACTIVE_TIMEOUT_SECONDS=${BROWSER_INTERACTIVE_TIMEOUT_SECONDS:-300}
-      - SERVICENOW_INSTANCE_URL=${SERVICENOW_INSTANCE_URL}
-      - SERVICENOW_USERNAME=${SERVICENOW_USERNAME}
-      - SERVICENOW_PASSWORD=${SERVICENOW_PASSWORD}
-      - QA_ADMIN_USERNAME=${QA_ADMIN_USERNAME}
-      - QA_ADMIN_PASSWORD=${QA_ADMIN_PASSWORD}
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
-      - JWT_ALGORITHM=${JWT_ALGORITHM}
-      - REPORT_OUTPUT_DIR=${REPORT_OUTPUT_DIR:-/app/reports}
-      - SCREENSHOT_DIR=${SCREENSHOT_DIR:-/app/screenshots}
-      - ENVIRONMENT=${ENVIRONMENT:-production}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - AGENT_STEP_CACHE_PATH=${AGENT_STEP_CACHE_PATH:-/app/cache/step_cache.db}
+      <<: *backend-env
     depends_on:
       db:
         condition: service_healthy
@@ -140,10 +129,16 @@ services:
         - VITE_API_BASE_URL=${VITE_API_BASE_URL:-}
     ports:
       - "5173:80"
+    networks: [frontend]
     environment:
       - VITE_API_BASE_URL=${VITE_API_BASE_URL:-}
     depends_on:
       - api
+
+networks:
+  backend:
+    internal: false # set true when the agent needs no other egress
+  frontend:
 
 volumes:
   pgdata:

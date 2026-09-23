@@ -88,6 +88,22 @@ class LifecycleEngine:
                     f"Transition to {target_state.name} requires mandatory field '{field_name}' to be populated."  # noqa: E501
                 )
 
+        # Conditional lifecycle rules (QA-009): e.g. "On Hold with reason
+        # 'Awaiting Caller' makes Additional comments mandatory".
+        hold_reason_value = self._get_incident_field_value(
+            current_incident, "On Hold Reason"
+        )
+        for field_name in IncidentBusinessRules.get_conditional_mandatory_fields(
+            target_state, hold_reason_value
+        ):
+            val = self._get_incident_field_value(current_incident, field_name)
+            if not val:
+                missing_fields.append(field_name)
+                block_reasons.append(
+                    f"On Hold Reason '{hold_reason_value}' makes field '{field_name}' mandatory "
+                    f"before transitioning to {target_state.name}."
+                )
+
         is_blocked = len(block_reasons) > 0
 
         logger.info(
@@ -114,6 +130,18 @@ class LifecycleEngine:
             return incident.short_description
         if fn_lower == "caller":
             return incident.caller
+        if fn_lower in ("on hold reason", "hold reason", "hold_reason"):
+            return incident.hold_reason
+        if fn_lower in ("close code", "close_code"):
+            return incident.close_code
+        if fn_lower in ("close notes", "close_notes"):
+            return incident.close_notes
+        if fn_lower in ("additional comments", "additional_comments"):
+            return (
+                incident.work_notes.additional_comments[-1]
+                if incident.work_notes.additional_comments
+                else ""
+            )
         if fn_lower in ("assignment group", "assignment_group"):
             return incident.assignment.group
         if fn_lower in ("assigned to", "assigned_to"):

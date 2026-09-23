@@ -7,6 +7,9 @@ It runs a set of applicable checks and produces a ValidationResult.
 
 from __future__ import annotations
 
+import re
+from typing import ClassVar
+
 from agent.core.logging import get_logger
 from agent.core.types import ActionType
 from agent.domain.actions import ActionResult, AgentAction
@@ -69,17 +72,31 @@ class ValidationEngine:
         # Check for NEW failed network requests introduced during action
         before_network = set(before.network_errors) if before else set()
         after_network = set(after.network_errors) if after else set()
-        new_network_errors = [
-            e
-            for e in (after_network - before_network)
-            # Filter known ServiceNow platform/background endpoint noise —
-            # these failures are not application-behavior evidence.
-            if not any(
-                frag in e.lower() for frag in self.KNOWN_NETWORK_NOISE_URLS
-            )
-        ]
+        raw_new_network_errors = list(after_network - before_network)
+        # QA-015: suppression uses versioned exact endpoint/status signatures
+        # instead of substring matching, and the suppressed evidence is
+        # preserved so reports remain auditable.
+        new_network_errors, suppressed_network = self._filter_network_noise(
+            raw_new_network_errors
+        )
         if new_network_errors:
             validation.add_check(self._check_no_network_errors(new_network_errors))
+        elif suppressed_network:
+            # Everything was suppressed as platform noise — record the
+            # suppressed evidence explicitly rather than silently passing.
+            validation.add_check(
+                ValidationCheck(
+                    check_name="network_noise_suppressed",
+                    description=(
+                        "Failed platform background requests suppressed by "
+                        f"signature set {self.SUPPRESSION_SIGNATURES_VERSION}"
+                    ),
+                    passed=True,
+                    expected="platform background noise only",
+                    actual=f"{len(suppressed_network)} suppressed requests",
+                    evidence={"suppressed_requests": suppressed_network},
+                )
+            )
 
         # Action-type-specific checks
         action_type = ActionType(action.action_type)
@@ -145,52 +162,121 @@ class ValidationEngine:
             error_message=", ".join(new_msgs) if new_msgs else None,
         )
 
-    KNOWN_PLATFORM_NOISE = (
-        "scriptloader",
-        "addeventlistener",
-        "unexpected token 'export'",
-        "failed to fetch",
-        "component_bootstrapped",
-        "component_dom_ready",
-        "qg is not a function",
-        "unifiednavcomponent",
-        "reading 'dispatch'",
+    #: Versioned suppression signature set (QA-015). Substring lists were too
+    #: broad (e.g. "failed to load resource" or "sp_" hid relevant failures).
+    #: Signatures match the (method, endpoint-path, status) triple parsed out
+    #: of the request evidence — a failure is suppressed only when the exact
+    #: endpoint path AND status both match a signature.
+    SUPPRESSION_SIGNATURES_VERSION = "2026-09-18.1"
+
+    #: (method-or-"*", exact endpoint path suffix, status-or-"*")
+    NETWORK_NOISE_SIGNATURES: ClassVar[tuple[tuple[str, str, str], ...]] = (
         # ServiceNow chat/consumer-widget background API — emits 404s on
-        # portal pages when the chat plugin is absent. Platform noise, never
-        # an application defect.
-        "consumeraccount",
-        "unreadconversation",
-        "/cs/conversation",
-        "chat plugin",
-        # Generic resource-load 404s from page furniture are not app defects
-        # unless the failed request belongs to the workflow under test.
-        "failed to load resource",
+        # portal pages when the chat plugin is absent. Platform noise.
+        ("*", "/api/now/v1/cs/consumerAccount/unreadConversation", "*"),
+        ("*", "/api/now/v1/cs/conversation", "*"),
+        ("*", "/api/now/v1/cs/consumerAccount", "*"),
+        # ServiceNow portal framework background widgets.
+        ("*", "/api/now/sp/page", "*"),
+        ("*", "/api/now/sp/widget", "*"),
     )
 
-    #: URL fragments identifying ServiceNow platform/background endpoints.
-    #: Failures against these are platform noise, not application defects.
-    KNOWN_NETWORK_NOISE_URLS = (
-        "/api/now/v1/cs/",
-        "consumeraccount",
-        "unreadconversation",
-        "notification preferences",
-        "sp_",
-        "portlet",
+    #: Console-error signatures: word-boundary regexes over exact platform
+    #: module/function names — never broad generic phrases.
+    CONSOLE_NOISE_SIGNATURES: ClassVar[tuple[str, ...]] = (
+        r"\bscriptloader\b",
+        r"\bunifiednavcomponent\b",
+        r"\bcomponent_bootstrapped\b",
+        r"\bcomponent_dom_ready\b",
+        r"\bqg\s+is\s+not\s+a\s+function\b",
+        r"\baddeventlistener\b.*\b(null|undefined)\b",
+        r"reading\s+'dispatch'",
+        r"unexpected\s+token\s+'export'",
     )
+
+    @classmethod
+    def _parse_request_evidence(cls, entry: str) -> tuple[str, str, str]:
+        """Parse a network-error evidence string into (method, path, status).
+
+        Network evidence is a freeform string (e.g.
+        ``"404 GET /api/now/v1/cs/conversation ..."``). Returns ("", "", "")
+        when nothing can be parsed — such entries are never suppressed.
+        """
+        lower = entry.strip().lower()
+        method = ""
+        status = ""
+        url = ""
+
+        url_match = re.search(r"https?://\S+|(?<![\w@./])/\S+", lower)
+        remainder = lower
+        if url_match:
+            url = url_match.group(0).rstrip(").,;'\"")
+            remainder = lower[: url_match.start()] + " " + lower[url_match.end():]
+
+        method_match = re.search(r"\b(get|post|put|patch|delete)\b", remainder)
+        if method_match:
+            method = method_match.group(1)
+        statuses = re.findall(r"\b[1-5]\d{2}\b", remainder)
+        if statuses:
+            status = statuses[-1]
+        # Strip query strings: signatures match stable endpoint paths only.
+        path = url.split("?", 1)[0] if url else ""
+        return method, path, status
+
+    @classmethod
+    def _filter_network_noise(
+        cls, entries: list[str]
+    ) -> tuple[list[str], list[dict[str, str]]]:
+        """Split request failures into actionable errors and suppressed noise.
+
+        Returns:
+            (actionable_errors, suppressed) — suppressed entries keep the
+            original evidence plus the matching signature for the report.
+        """
+        actionable: list[str] = []
+        suppressed: list[dict[str, str]] = []
+        for entry in entries:
+            method, path, status = cls._parse_request_evidence(entry)
+            matched = False
+            if path:
+                for sig_method, sig_path, sig_status in cls.NETWORK_NOISE_SIGNATURES:
+                    sig_path_lower = sig_path.lower()
+                    if (
+                        path.endswith(sig_path_lower)
+                        and (sig_method == "*" or method == sig_method)
+                        and (sig_status == "*" or status == sig_status)
+                    ):
+                        matched = True
+                        suppressed.append(
+                            {
+                                "evidence": entry,
+                                "signature": f"{sig_method} {sig_path} {sig_status}",
+                            }
+                        )
+                        break
+            if not matched:
+                actionable.append(entry)
+        return actionable, suppressed
 
     def _check_no_new_js_errors(
         self, new_errors: list[str], baseline_count: int = 0
     ) -> ValidationCheck:
         """Check that no NEW JavaScript errors were introduced during the action."""
+        compiled = [re.compile(p) for p in self.CONSOLE_NOISE_SIGNATURES]
         action_errors = [
-            e for e in new_errors
-            if not any(noise in e.lower() for noise in self.KNOWN_PLATFORM_NOISE)
+            e for e in new_errors if not any(p.search(e.lower()) for p in compiled)
         ]
+        suppressed_count = len(new_errors) - len(action_errors)
         passed = len(action_errors) == 0
         actual = (
             f"{len(action_errors)} new JS errors ({baseline_count} pre-existing baseline)"
             if action_errors
-            else f"clean (0 new errors, {baseline_count} pre-existing baseline)"
+            else f"clean (0 new errors, {baseline_count} pre-existing baseline"
+            + (
+                f", {suppressed_count} suppressed by {self.SUPPRESSION_SIGNATURES_VERSION})"
+                if suppressed_count
+                else ")"
+            )
         )
         return ValidationCheck(
             check_name="no_new_js_errors",
@@ -199,6 +285,11 @@ class ValidationEngine:
             expected="no new JS errors",
             actual=actual,
             error_message="; ".join(action_errors[:3]) if action_errors else None,
+            evidence=(
+                {"suppression_signature_version": self.SUPPRESSION_SIGNATURES_VERSION}
+                if suppressed_count
+                else {}
+            ),
         )
 
     def _check_page_navigation(
@@ -208,8 +299,7 @@ class ValidationEngine:
     ) -> ValidationCheck:
         """Verify navigation reached the expected page."""
         expected_url = action.metadata.get("url", action.value or action.target)
-        # Check if the URL contains the expected target
-        url_matches = expected_url.lower() in after.url.lower() if expected_url else True
+        url_matches = (expected_url.strip().lower() == after.url.strip().lower()) if expected_url else True
 
         return ValidationCheck(
             check_name="page_navigation",
@@ -283,20 +373,20 @@ class ValidationEngine:
     ) -> ValidationCheck:
         """Check that clicking something caused a page change or update."""
         target = (
-            f"{action.target} {action.metadata.get('field_label', '')}".lower()
-            if action
+            action.target.strip().lower()
+            if action and hasattr(action, "target")
             else ""
         )
-        if action and any(
-            marker in target for marker in ("sysverb_update", "save record", "update")
-        ):
+        if action and target in ("sysverb_update", "save record", "update"):
             messages = [
                 *after.validation_messages,
                 *after.notification_messages,
             ]
+            
+            # Exact mapping or specific status checks instead of broad substring
             failure_messages = [
-                message for message in messages
-                if any(word in message.lower() for word in ("error", "failed", "invalid", "required"))
+                m for m in messages
+                if "error" in m.lower().split() or "failed" in m.lower().split() or "invalid" in m.lower().split() or "required" in m.lower().split()
             ]
             return ValidationCheck(
                 check_name="update_response",
@@ -394,12 +484,11 @@ class ValidationEngine:
         # 1. Verify target record identifier if specified
         if expected_record:
             rec_actual = actual_record or (observation.record_number if observation else None)
+            # QA-017: exact comparison only. Substring matching allowed values
+            # like "INC1" to match "INC1000" — a false-pass path.
             rec_match = bool(
                 rec_actual
-                and (
-                    expected_record.strip().lower() == rec_actual.strip().lower()
-                    or expected_record.strip().lower() in rec_actual.strip().lower()
-                )
+                and expected_record.strip().lower() == rec_actual.strip().lower()
             )
             validation.add_check(
                 ValidationCheck(
@@ -427,7 +516,9 @@ class ValidationEngine:
             exp_norm = state_map.get(expected_initial_state.strip().lower(), expected_initial_state.strip().lower())
             act_norm = state_map.get(str(raw_actual).strip().lower(), str(raw_actual).strip().lower()) if raw_actual else "unknown"
 
-            state_match = bool(raw_actual and (exp_norm == act_norm or exp_norm in act_norm or act_norm in exp_norm))
+            # QA-017: exact comparison of canonical values only. Bidirectional
+            # substring matching let e.g. "Closed" match "Not Closed".
+            state_match = bool(raw_actual and exp_norm == act_norm)
             validation.add_check(
                 ValidationCheck(
                     check_name="initial_state_precondition",

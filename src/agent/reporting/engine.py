@@ -164,7 +164,9 @@ class ReportingEngine:
             )
         )
 
-        if precondition_failure:
+        if getattr(memory, "cleanup_status", None) == "cleanup_failed":
+            status = "cleanup_failed"
+        elif precondition_failure:
             status = "precondition_failed"
             # Hard QA rule: An application defect can ONLY exist if preconditions
             # passed and the action was executed. Precondition failures yield 0 defects.

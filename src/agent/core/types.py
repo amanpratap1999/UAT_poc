@@ -43,6 +43,7 @@ class AgentState(StrEnum):
     LEARNING = "learning"
     COMPLETED = "completed"
     FAILED = "failed"
+    CLEANUP_FAILED = "cleanup_failed"
     PRECONDITION_FAILED = "precondition_failed"
     BLOCKED = "blocked"
     PAUSED = "paused"

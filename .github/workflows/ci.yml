@@ -41,7 +41,8 @@ jobs:
 
   test:
     name: Backend Test (pytest)
-    needs: [lint, type-check]
+    # Runs independently of lint/type-check so backend regression tests always
+    # execute and report, even when a lint or typing job fails (QA-001).
     runs-on: ubuntu-latest
     env:
       UAT_RUNTIME_MODE: local

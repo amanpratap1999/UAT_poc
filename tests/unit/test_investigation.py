@@ -47,19 +47,34 @@ async def test_investigation_false_positive_customization(knowledge_model):
 
 
 @pytest.mark.asyncio
-async def test_investigation_verified_defect(knowledge_model):
+async def test_investigation_verified_defect_requires_reproduction(knowledge_model):
+    """QA-006: an unexplained mismatch is INCONCLUSIVE first; only a
+    reproduced mismatch escalates to a verified defect."""
     engine = InvestigationEngine(knowledge_model=knowledge_model)
 
-    # State is mandatory in knowledge model, so if it's missing, it's a defect
-    result = await engine.investigate_mismatch(
+    # First occurrence: State is mandatory in knowledge model, so the mismatch
+    # is a defect CANDIDATE — but not yet verified.
+    first = await engine.investigate_mismatch(
         action=Mock(),
         expected="Field State should be mandatory",
         actual="Field State is missing from form entirely",
         table_name="change_request",
     )
 
-    assert result.is_defect
-    assert result.classification == "verified_defect"
+    assert not first.is_defect
+    assert first.classification == "inconclusive_unexplained_mismatch"
+
+    # Reproduced from a clean baseline: now it can be verified.
+    reproduced = await engine.investigate_mismatch(
+        action=Mock(),
+        expected="Field State should be mandatory",
+        actual="Field State is missing from form entirely",
+        table_name="change_request",
+        reproduced=True,
+    )
+
+    assert reproduced.is_defect
+    assert reproduced.classification == "verified_defect"
 
 
 @pytest.mark.asyncio

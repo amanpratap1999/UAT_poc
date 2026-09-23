@@ -21,6 +21,16 @@ logger = get_logger(__name__)
 class IncidentRecoveryHandler:
     """Domain-specific recovery strategy builder for Incident Management."""
 
+    def __init__(self, base_url: str = "") -> None:
+        """Create the handler.
+
+        Args:
+            base_url: ServiceNow instance URL from configuration. When empty,
+                navigation-based recovery suggestions are disabled rather than
+                falling back to a hard-coded instance hostname (QA-019).
+        """
+        self._base_url = base_url.rstrip("/") if base_url else ""
+
     def suggest_incident_recovery(
         self,
         error_message: str,
@@ -71,11 +81,11 @@ class IncidentRecoveryHandler:
             )
 
         # Read-only form
-        if current_incident and current_incident.is_readonly:
+        if current_incident and current_incident.is_readonly and self._base_url:
             return AgentAction(
                 action_type=ActionType.NAVIGATE,
                 target="Create New Incident",
-                value="https://dev12345.service-now.com/incident.do?sys_id=-1",
+                value=f"{self._base_url}/incident.do?sys_id=-1",
                 reasoning="Domain Recovery: Current incident is read-only; open new incident form",
             )
 
