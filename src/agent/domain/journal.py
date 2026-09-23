@@ -106,8 +106,9 @@ class MutationJournal:
         if not self.entries:
             return True, [], []
 
-        # 1. Delete created records via Table API and verify 404
-        for entry in self.created_records:
+        # 1. Delete created records via Table API and verify 404.  Use LIFO
+        # ordering so dependent records are removed before their parents.
+        for entry in reversed(self.created_records):
             target_id = entry.sys_id or entry.record_id
             table = entry.table
             logger.info("journal_cleaning_created_record", table=table, target_id=target_id)
@@ -137,9 +138,12 @@ class MutationJournal:
                     orphaned.append({"table": table, "id": target_id, "error": err})
             else:
                 logger.warning("journal_cleanup_client_unavailable_for_delete", table=table, target_id=target_id)
+                err = f"Cannot delete {table}/{target_id}: ServiceNow client is unavailable"
+                errors.append(err)
+                orphaned.append({"table": table, "id": target_id, "error": err})
 
         # 2. Restore updated records back to their pre_state
-        for entry in self.updated_records:
+        for entry in reversed(self.updated_records):
             target_id = entry.sys_id or entry.record_id
             table = entry.table
             pre_state = entry.pre_state
@@ -162,7 +166,28 @@ class MutationJournal:
                             errors.append(err)
                             orphaned.append({"table": table, "id": target_id, "error": err})
                         else:
-                            logger.info("journal_updated_record_restored", table=table, target_id=target_id)
+                            verify_resp = await client.get(patch_url)
+                            if verify_resp.status_code != 200:
+                                err = f"Restore verification failed for {table}/{target_id}: status {verify_resp.status_code}"
+                                errors.append(err)
+                                orphaned.append({"table": table, "id": target_id, "error": err})
+                                continue
+                            try:
+                                body = verify_resp.json()
+                                current = body.get("result", body) if isinstance(body, dict) else {}
+                                mismatches = {
+                                    key: {"expected": value, "actual": current.get(key)}
+                                    for key, value in restore_payload.items()
+                                    if str(current.get(key)) != str(value)
+                                }
+                            except Exception as verify_err:
+                                mismatches = {"verification": {"error": str(verify_err)}}
+                            if mismatches:
+                                err = f"Restore verification mismatch for {table}/{target_id}: {mismatches}"
+                                errors.append(err)
+                                orphaned.append({"table": table, "id": target_id, "error": err})
+                            else:
+                                logger.info("journal_updated_record_restored", table=table, target_id=target_id)
                 except Exception as ex:
                     err = f"Exception restoring {table}/{target_id}: {ex}"
                     errors.append(err)

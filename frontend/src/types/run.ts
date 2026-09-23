@@ -24,6 +24,10 @@ export interface Run {
   end_time: string | null;
   duration_seconds: number | null;
   defect_count: number;
+  cleanup_status?: string | null;
+  cleanup_details?: string | null;
+  api_verification_status?: string | null;
+  telemetry?: Record<string, number>;
 }
 
 /** Alias — same schema as Run (backend returns same shape for list and detail) */

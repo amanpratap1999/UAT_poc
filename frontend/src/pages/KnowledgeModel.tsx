@@ -25,6 +25,18 @@ interface KnowledgeModelRulesResponse {
   rules: KnowledgeRule[];
 }
 
+interface KnowledgeTable {
+  name: string;
+  discovery_status: string;
+  discovery_error?: string | null;
+  source_status: Record<string, string>;
+  field_count: number;
+}
+
+interface KnowledgeTablesResponse {
+  tables: KnowledgeTable[];
+}
+
 /** GET /api/v1/knowledge-model/drift */
 interface KnowledgeDriftResponse {
   has_drift: boolean;
@@ -57,6 +69,13 @@ export default function KnowledgeModel() {
     staleTime: 60_000,
   });
 
+  const tablesQuery = useQuery({
+    queryKey: ["knowledge-model", "tables"],
+    queryFn: ({ signal }) =>
+      api.get<KnowledgeTablesResponse>("/api/v1/knowledge-model/tables", signal),
+    staleTime: 60_000,
+  });
+
   const rules = rulesQuery.data?.rules ?? [];
   const tables = rulesQuery.data?.tables ?? [];
   const filtered = tableFilter
@@ -82,10 +101,11 @@ export default function KnowledgeModel() {
           variant="ghost"
           size="icon"
           aria-label="Refresh knowledge model"
-          isLoading={rulesQuery.isFetching || driftQuery.isFetching}
-          onClick={() => {
-            void rulesQuery.refetch();
-            void driftQuery.refetch();
+            isLoading={rulesQuery.isFetching || driftQuery.isFetching}
+            onClick={() => {
+              void rulesQuery.refetch();
+              void driftQuery.refetch();
+              void tablesQuery.refetch();
           }}
         >
           <RefreshCw size={16} />
@@ -192,6 +212,17 @@ export default function KnowledgeModel() {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-col gap-3">
+                  {(() => {
+                    const metadata = tablesQuery.data?.tables.find((item) => item.name === table);
+                    const status = metadata?.discovery_status ?? "UNKNOWN";
+                    const variant = status === "AVAILABLE" ? "completed" : status === "FAILED" ? "failed" : "blocked";
+                    return (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="data-label">Discovery</span>
+                        <Badge variant={variant}>{status.toLowerCase()}</Badge>
+                      </div>
+                    );
+                  })()}
                   <div className="flex items-center justify-between">
                     <span className="data-label">Discovered rules</span>
                     <span className="font-mono text-lg font-medium text-ink">

@@ -15,6 +15,7 @@ import httpx
 
 from agent.core.config import ServiceNowConfig
 from agent.core.logging import get_logger
+from agent.core.redaction import redact_dict
 from agent.skills.incident.domain.models import (
     IncidentPriority,
     IncidentState,
@@ -155,7 +156,7 @@ class IncidentApiOracle:
             closed_at=_val("closed_at"),
             sys_created_on=_val("sys_created_on"),
             display_values=disp_dict,
-            raw=record,
+            raw=redact_dict(record),
         )
 
     async def fetch_audit_trail(self, sys_id: str, since: str = "") -> list[dict[str, Any]]:

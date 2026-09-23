@@ -308,25 +308,67 @@ class CognitiveOrchestrator:
                     if snapshot.sys_id:
                         side_effects = IncidentSideEffectValidator(oracle)
                         since_ts = getattr(pre_snapshot, "sys_updated_on", "") if pre_snapshot else ""
-                        for fname, fval in assertion_pairs:
-                            if fname.lower() in ("state", "priority", "assignment_group", "assigned_to"):
+                        try:
+                            expected_events: list[str] = []
+                            expected_slas: dict[str, str] = {}
+                            if pre_snapshot is not None:
+                                from agent.skills.incident.domain.models import IncidentState
+                                from agent.skills.incident.knowledge.rules import IncidentLifecycle
+
                                 try:
-                                    audit_chk = await side_effects.verify_audit_entry(
-                                        sys_id=snapshot.sys_id,
-                                        field=fname.lower(),
-                                        expected_new=fval,
-                                        since=str(since_ts or ""),
+                                    from_state = IncidentState.from_string(str(getattr(pre_snapshot, "state", "")))
+                                    to_state = IncidentState.from_string(str(getattr(snapshot, "state", "")))
+                                    effects = IncidentLifecycle.expected_side_effects(from_state, to_state)
+                                    event_names = {
+                                        "notification:on_hold": "incident.on_hold",
+                                        "notification:resolved": "incident.resolved",
+                                        "notification:closed": "incident.closed",
+                                    }
+                                    sla_stages = {
+                                        "sla:start": "in_progress",
+                                        "sla:resume": "in_progress",
+                                        "sla:restart": "in_progress",
+                                        "sla:pause": "paused",
+                                        "sla:stop": "completed",
+                                    }
+                                    expected_events = [event_names[item] for item in effects if item in event_names]
+                                    expected_slas = {
+                                        "Resolution": sla_stages[item]
+                                        for item in effects
+                                        if item in sla_stages
+                                    }
+                                except (TypeError, ValueError):
+                                    logger.warning(
+                                        "side_effect_transition_state_unrecognized",
+                                        pre_state=getattr(pre_snapshot, "state", None),
+                                        post_state=getattr(snapshot, "state", None),
                                     )
-                                    api_result.evidence[f"audit_{fname}"] = "verified" if audit_chk.passed else "missing"
-                                    if not audit_chk.passed:
-                                        logger.warning(
-                                            "audit_entry_missing_for_mutation",
-                                            field=fname,
-                                            expected=fval,
-                                            record=record_number,
-                                        )
-                                except Exception as audit_err:
-                                    logger.warning("audit_check_error", error=str(audit_err))
+                            # Call comprehensive side-effects validation
+                            side_effect_checks = await side_effects.validate_side_effects(
+                                sys_id=snapshot.sys_id,
+                                since=str(since_ts or ""),
+                                expected_mutations=assertion_pairs,
+                                expected_events=expected_events,
+                                expected_slas=expected_slas,
+                            )
+                            for chk in side_effect_checks:
+                                fname = chk.check_name
+                                api_result.evidence[f"side_effect_{fname}"] = "verified" if chk.passed else "missing"
+                                if not chk.passed:
+                                    if api_result.status == "verified":
+                                        api_result.status = "inconclusive"
+                                    api_result.mismatches.append(str(chk.error_message or chk.actual))
+                                    logger.warning(
+                                        "side_effect_check_failed",
+                                        check=fname,
+                                        error=chk.error_message,
+                                        record=record_number,
+                                    )
+                        except Exception as se_err:
+                            logger.warning("side_effects_validation_error", error=str(se_err))
+                            if api_result.status == "verified":
+                                api_result.status = "inconclusive"
+                            api_result.mismatches.append(f"Side-effects check error: {se_err}")
 
                     if api_result.status == "not_found":
                         api_result.evidence["record_exists"] = True
@@ -1313,18 +1355,43 @@ class CognitiveOrchestrator:
                         )
                         pre_vals = {}
                         if pre_mutation_snapshot:
-                            pre_vals = {
-                                "state": getattr(pre_mutation_snapshot, "state", None),
-                                "priority": getattr(pre_mutation_snapshot, "priority", None),
-                                "assignment_group": getattr(pre_mutation_snapshot, "assignment_group", None),
-                            }
-                        self._journal.record_update(
-                            table="incident",
-                            record_id=str(rec_id),
-                            pre_state=pre_vals,
-                            post_state={mutation[0]: mutation[1]},
-                            sys_id=getattr(pre_mutation_snapshot, "sys_id", None) if pre_mutation_snapshot else None,
-                        )
+                            for field_name in (
+                                "state",
+                                "priority",
+                                "impact",
+                                "urgency",
+                                "hold_reason",
+                                "short_description",
+                                "description",
+                                "assignment_group",
+                                "assigned_to",
+                                "caller_id",
+                                "category",
+                                "subcategory",
+                                "service_offering",
+                                "configuration_item",
+                            ):
+                                value = getattr(pre_mutation_snapshot, field_name, None)
+                                if value is not None:
+                                    pre_vals[field_name] = value
+                            canonical_field = mutation[0].strip().lower().replace("incident.", "")
+                            if canonical_field not in pre_vals:
+                                pre_vals[canonical_field] = getattr(pre_mutation_snapshot, canonical_field, None)
+                        if "sysverb_insert" in str(action.target or "").lower():
+                            self._journal.record_create(
+                                table="incident",
+                                record_id=str(rec_id),
+                                fields={mutation[0]: mutation[1]},
+                                sys_id=getattr(pre_mutation_snapshot, "sys_id", None) if pre_mutation_snapshot else None,
+                            )
+                        else:
+                            self._journal.record_update(
+                                table="incident",
+                                record_id=str(rec_id),
+                                pre_state=pre_vals,
+                                post_state={mutation[0]: mutation[1]},
+                                sys_id=getattr(pre_mutation_snapshot, "sys_id", None) if pre_mutation_snapshot else None,
+                            )
 
                 api_failed = False
                 if self._is_save_click(action) and pending_api_assertions:
@@ -1376,6 +1443,20 @@ class CognitiveOrchestrator:
                                     api_status=api_status,
                                     step_index=step.step_index,
                                 )
+                        if api_result is not None and getattr(api_result, "snapshot", None) is not None:
+                            # Replace the provisional insert journal identity with
+                            # the authoritative Table-API identity after save.
+                            created_entries = getattr(self._journal, "created_records", []) if self._journal else []
+                            if created_entries:
+                                latest_create = created_entries[-1]
+                                snapshot = api_result.snapshot
+                                latest_create.sys_id = getattr(snapshot, "sys_id", None)
+                                latest_create.record_id = (
+                                    getattr(snapshot, "number", None)
+                                    or getattr(snapshot, "sys_id", None)
+                                    or latest_create.record_id
+                                )
+                                latest_create.post_state = dict(getattr(snapshot, "raw", {}) or {})
 
                 if api_failed:
                     reason = (
@@ -1680,7 +1761,7 @@ class CognitiveOrchestrator:
                         # Plain string assertion — pass to LLM validation
                         field = ""
                         expected = assertion
-                        operator = "contains"
+                        operator = "equals"
                         desc = assertion
                     else:
                         field = getattr(assertion, "field", "")

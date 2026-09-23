@@ -104,11 +104,13 @@ class Planner:
         logger.info("creating_plan", goal=goal)
 
         knowledge = context or self._knowledge_context
-        prompt = PLAN_GENERATION_PROMPT.format(
-            untrusted_policy=UNTRUSTED_DATA_POLICY,
-            goal=wrap_untrusted("goal", goal),
-            knowledge_context=knowledge,
+        from agent.core.prompt_boundary import LLMInputBoundary
+        boundary = LLMInputBoundary(
+            system_instructions=SYSTEM_PROMPT,
+            verified_intent=PLAN_GENERATION_PROMPT.replace("{untrusted_policy}", "").replace("{goal}", goal).replace("{knowledge_context}", ""),
         )
+        boundary.add_untrusted_data("knowledge_context", knowledge)
+        prompt = boundary.build_prompt()
 
         response = await self._llm.complete_json(
             messages=[
@@ -153,20 +155,24 @@ class Planner:
         """
         logger.info("deciding_next_action", step=memory.current_step_index)
 
-        current_step = ""
+        current_step_text = ""
         if memory.plan and memory.plan.current_step:
             step = memory.plan.current_step
-            current_step = (
+            current_step_text = (
                 f"Step {step.step_index}: {step.description}\nExpected: {step.expected_outcome}"
             )
         else:
-            current_step = "No specific plan step — use your judgment based on the goal."
+            current_step_text = "No specific plan step — use your judgment based on the goal."
 
-        prompt = NEXT_ACTION_PROMPT.format(
-            untrusted_policy=UNTRUSTED_DATA_POLICY,
-            session_context=wrap_untrusted("session_context", memory.get_context_for_llm()),
-            current_step=current_step,
+        # Wire PromptBoundary for next action
+        from agent.core.prompt_boundary import LLMInputBoundary
+        boundary = LLMInputBoundary(
+            system_instructions=SYSTEM_PROMPT,
+            verified_intent=NEXT_ACTION_PROMPT.replace("{untrusted_policy}", "").replace("{session_context}", "").replace("{current_step}", ""),
         )
+        boundary.add_untrusted_data("session_context_dom", memory.get_context_for_llm())
+        boundary.add_untrusted_data("current_step", current_step_text)
+        prompt = boundary.build_prompt()
 
         response = await self._llm.complete_json(
             messages=[

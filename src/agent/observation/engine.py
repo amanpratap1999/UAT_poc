@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 from playwright.async_api import Page
 
 from agent.core.logging import get_logger
+from agent.core.redaction import is_sensitive_field, redact_string
 from agent.core.types import PageType
 from agent.domain.observation import (
     ButtonInfo,
@@ -539,11 +540,25 @@ class ObservationEngine:
                     locator = context.locator(selector)
                     if await locator.count() > 0:
                         try:
-                            value = await locator.first.input_value()
+                            first = locator.first
+                            field_identity = " ".join(
+                                filter(
+                                    None,
+                                    [
+                                        await first.get_attribute("type"),
+                                        await first.get_attribute("name"),
+                                        await first.get_attribute("id"),
+                                        await first.get_attribute("aria-label"),
+                                    ],
+                                )
+                            )
+                            if is_sensitive_field(field_identity):
+                                return "[REDACTED]"
+                            value = redact_string(await first.input_value())
                             if value:
                                 return value  # type: ignore[no-any-return]
                         except Exception:
-                            text = (await locator.first.inner_text()).strip()
+                            text = redact_string((await locator.first.inner_text()).strip())
                             if text:
                                 return text  # type: ignore[no-any-return]
                 except Exception:
@@ -569,11 +584,25 @@ class ObservationEngine:
                     locator = context.locator(selector)
                     if await locator.count() > 0:
                         try:
-                            value = await locator.first.input_value()
+                            first = locator.first
+                            field_identity = " ".join(
+                                filter(
+                                    None,
+                                    [
+                                        await first.get_attribute("type"),
+                                        await first.get_attribute("name"),
+                                        await first.get_attribute("id"),
+                                        await first.get_attribute("aria-label"),
+                                    ],
+                                )
+                            )
+                            if is_sensitive_field(field_identity):
+                                return None
+                            value = redact_string(await first.input_value())
                             if value and re.match(r"[A-Z]{3,}\d+", value):
                                 return value  # type: ignore[no-any-return]
                         except Exception:
-                            text = (await locator.first.inner_text()).strip()
+                            text = redact_string((await locator.first.inner_text()).strip())
                             if text and re.match(r"[A-Z]{3,}\d+", text):
                                 return text  # type: ignore[no-any-return]
                 except Exception:

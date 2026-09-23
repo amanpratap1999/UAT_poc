@@ -165,6 +165,8 @@ def _build_result_snapshot(run_id: str, orchestrator: Any, report: Any) -> dict[
     """
     memory = getattr(orchestrator, "memory", None)
     tc_data = getattr(memory, "test_case_data", None) or {}
+    from agent.core.redaction import redact_string
+
     snapshot: dict[str, Any] = {
         "run_id": run_id,
         "goal": getattr(report, "goal", "") or getattr(memory, "goal", ""),
@@ -180,6 +182,15 @@ def _build_result_snapshot(run_id: str, orchestrator: Any, report: Any) -> dict[
         "started_at": getattr(report, "started_at", None),
         "completed_at": getattr(report, "completed_at", None),
         "duration_seconds": getattr(report, "duration_seconds", None),
+        "cleanup_status": getattr(memory, "cleanup_status", "not_run"),
+        "cleanup_details": redact_string(str(getattr(memory, "cleanup_details", "") or "")),
+        "api_verification_status": getattr(memory, "api_verification_status", "not_attempted"),
+        "telemetry": {
+            "planner_calls": getattr(memory, "planner_calls", 0),
+            "moondream_calls": getattr(memory, "moondream_calls", 0),
+            "gemini_calls": getattr(memory, "gemini_calls", 0),
+            "verification_calls": getattr(memory, "verification_calls", 0),
+        },
     }
     for d in getattr(report, "defects", []) or []:
         snapshot["defects"].append(

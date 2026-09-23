@@ -11,6 +11,7 @@ Also enforces deterministic post-generation validation on LLM output actions.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 from urllib.parse import urlparse
 
@@ -45,6 +46,14 @@ class LLMInputBoundary:
                     label=label,
                     patterns=matched,
                 )
+            
+            # Apply universal redaction based on label
+            from agent.core.redaction import redact_html, redact_string
+            if "dom" in label.lower() or "html" in label.lower():
+                content = redact_html(content)
+            else:
+                content = redact_string(content)
+                
             self.untrusted_data[label] = content
 
     def build_prompt(self) -> str:
@@ -89,7 +98,16 @@ class LLMInputBoundary:
             if target_url.startswith("http://") or target_url.startswith("https://"):
                 parsed = urlparse(target_url)
                 if allowed_hosts and parsed.hostname:
-                    if parsed.hostname.lower() not in [h.lower() for h in allowed_hosts]:
+                    hostname = parsed.hostname.lower().rstrip(".")
+                    normalized_hosts = {
+                        str(host).strip().lower().rstrip(".").removeprefix("https://").removeprefix("http://")
+                        for host in allowed_hosts
+                        if str(host).strip()
+                    }
+                    if not any(
+                        hostname == allowed or hostname.endswith(f".{allowed}")
+                        for allowed in normalized_hosts
+                    ):
                         return (
                             False,
                             f"Navigation to unauthorized external host blocked: {parsed.hostname}",
@@ -100,10 +118,18 @@ class LLMInputBoundary:
         if allowed_tables:
             # If action specifies a table in metadata or target, check that it's allowed
             meta_table = (action.metadata or {}).get("table")
-            if meta_table and meta_table.lower() not in [t.lower() for t in allowed_tables]:
+            target_table_match = re.search(r"(?:/table/|[?&]table=)([a-z0-9_]+)", target_str)
+            target_table = target_table_match.group(1) if target_table_match else None
+            allowed_table_names = {str(table).lower() for table in allowed_tables}
+            if meta_table and str(meta_table).lower() not in allowed_table_names:
                 return (
                     False,
                     f"Action targets disallowed table: {meta_table}",
+                )
+            if target_table and target_table not in allowed_table_names:
+                return (
+                    False,
+                    f"Action target references disallowed table: {target_table}",
                 )
 
         return True, ""

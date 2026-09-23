@@ -1,6 +1,6 @@
 services:
   db:
-    image: ankane/pgvector:v0.4.2
+    image: ankane/pgvector:v0.4.2@sha256:ab92ebb69e54870bdb051515d3aa50cf014b7652b976d1dc0e071046a2d96923
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       # Hard requirement: no default password (QA-016). Set POSTGRES_PASSWORD
@@ -21,7 +21,7 @@ services:
       retries: 5
 
   redis:
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
     # QA-016: Redis requires authentication and TLS.
     command:
       [
@@ -40,6 +40,8 @@ services:
         "/tls/redis.key",
         "--tls-ca-cert-file",
         "/tls/ca.crt",
+        "--tls-auth-clients",
+        "no",
       ]
     expose:
       - "${REDIS_TLS_PORT:-6380}"
@@ -94,6 +96,7 @@ services:
       BROWSER_SHOW_MOUSE_CURSOR: ${BROWSER_SHOW_MOUSE_CURSOR:-false}
       BROWSER_KEEP_BROWSER_OPEN: ${BROWSER_KEEP_BROWSER_OPEN:-false}
       SESSION_STORE_TYPE: ${SESSION_STORE_TYPE:-redis}
+      REDIS_TLS_PORT: ${REDIS_TLS_PORT:-6380}
       SERVICENOW_INSTANCE_URL: ${SERVICENOW_INSTANCE_URL}
       SERVICENOW_USERNAME: ${SERVICENOW_USERNAME}
       SERVICENOW_PASSWORD: ${SERVICENOW_PASSWORD}

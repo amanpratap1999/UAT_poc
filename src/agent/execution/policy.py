@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import time
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 from pydantic import BaseModel
@@ -68,7 +69,58 @@ class ActionPolicy:
             if run_kill_file.exists():
                 return f"Durable run kill switch for run {self.run_id} is active."
 
+        # Redis is the durable cross-process kill switch in production.
+        try:
+            settings = get_settings()
+            if settings.session.store_type == "redis":
+                import redis as sync_redis
+
+                client = sync_redis.Redis.from_url(
+                    settings.session.redis_url,
+                    decode_responses=True,
+                    socket_connect_timeout=0.25,
+                    socket_timeout=0.25,
+                )
+                try:
+                    if client.get("uat:kill_switch:global"):
+                        return "Durable Redis global kill switch is active."
+                    if self.run_id and client.get(f"uat:kill_switch:run:{self.run_id}"):
+                        return f"Durable Redis kill switch for run {self.run_id} is active."
+                finally:
+                    client.close()
+        except Exception as exc:
+            is_prod = False
+            try:
+                settings = get_settings()
+                is_prod = settings.runtime_mode == "docker" or settings.environment not in (
+                    "development", "dev", "local"
+                )
+            except Exception:
+                is_prod = True
+            if is_prod:
+                return f"Unable to verify durable Redis kill switch: {exc}"
+            logger.warning("redis_kill_switch_check_failed", error=str(exc))
+
         return None
+
+    def get_budget_state(self) -> dict[str, Any]:
+        """Expose current budget utilization state."""
+        return {
+            "actions_executed": self._actions_executed,
+            "max_actions": self._budgets.max_actions_per_run,
+            "mutations_executed": self._mutations_executed,
+            "max_mutations": self._budgets.max_mutations_per_run,
+            "destructive_executed": self._destructive_executed,
+            "max_destructive": self._budgets.max_destructive_operations,
+            "records_touched": len(self._records_touched),
+            "max_records": self._budgets.max_records_per_run,
+            "tables_touched": len(self._tables_touched),
+            "max_tables": self._budgets.max_tables_per_run,
+            "time_elapsed": time.monotonic() - self._start_time,
+            "max_time": self._budgets.max_run_time_seconds,
+            "is_killed": bool(self.check_kill_switch()),
+            "kill_reason": self.check_kill_switch(),
+        }
 
     def validate(self, action: AgentAction, current_url: str = "") -> PolicyValidationResult:
         """Validate an action before execution against policies and safety budgets."""
@@ -236,7 +288,7 @@ class ActionPolicy:
     def _is_url_allowed(self, url: str) -> bool:
         """Check if a URL matches the allowed hosts configuration."""
         if not self._config.allowed_hosts:
-            return True
+            return False
 
         parsed = urlparse(url)
         hostname = (parsed.hostname or "").lower()

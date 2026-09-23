@@ -135,6 +135,9 @@ class TestVerifyPersistenceStatuses:
         with patch(
             "agent.skills.incident.api_oracle.IncidentApiOracle.fetch_incident",
             new=AsyncMock(return_value=snap),
+        ), patch(
+            "agent.skills.incident.api_oracle.IncidentApiOracle.fetch_audit_trail",
+            new=AsyncMock(return_value=[]),
         ):
             status, result = await orch._verify_persistence_via_api(
                 "INC0000007", [("state", "3")]
@@ -150,6 +153,12 @@ class TestVerifyPersistenceStatuses:
         with patch(
             "agent.skills.incident.api_oracle.IncidentApiOracle.fetch_incident",
             new=AsyncMock(return_value=snap),
+        ), patch(
+            "agent.skills.incident.api_oracle.IncidentApiOracle.fetch_audit_trail",
+            new=AsyncMock(return_value=[
+                {"fieldname": "state", "newvalue": "In Progress"},
+                {"fieldname": "caller", "newvalue": "Abel"}
+            ]),
         ):
             status, result = await orch._verify_persistence_via_api(
                 "INC0000007", [("state", "In Progress"), ("caller", "Abel")]

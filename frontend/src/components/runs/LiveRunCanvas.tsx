@@ -601,6 +601,21 @@ export function LiveRunCanvas({ runId }: LiveRunCanvasProps) {
                     {run.defect_count}
                   </span>
                 </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-ink-400">API persistence</span>
+                  <span className="font-mono text-ink-200">{run.api_verification_status || "not attempted"}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-ink-400">Cleanup</span>
+                  <span className={`font-mono ${run.cleanup_status === "cleanup_failed" ? "text-red-400" : "text-ink-200"}`}>
+                    {run.cleanup_status || "not run"}
+                  </span>
+                </div>
+                {run.cleanup_details && (
+                  <p className="rounded border border-red-500/30 bg-red-950/20 p-2 text-2xs text-red-300">
+                    {run.cleanup_details}
+                  </p>
+                )}
               </div>
 
               {/* Polling/SSE Status */}

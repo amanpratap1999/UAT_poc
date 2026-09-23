@@ -7,6 +7,7 @@ import {
   Settings,
   LogOut,
   Zap,
+  ClipboardCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -33,6 +34,8 @@ const NAV_SECTIONS: {
     label: "Configure",
     items: [
       { to: "/knowledge", label: "Knowledge Model", icon: BookOpen, id: "nav-knowledge" },
+      { to: "/test-cases", label: "Test Cases", icon: ClipboardCheck, id: "nav-test-cases" },
+      { to: "/safety", label: "Safety", icon: Zap, id: "nav-safety" },
       { to: "/settings", label: "Settings", icon: Settings, id: "nav-settings" },
     ],
   },

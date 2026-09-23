@@ -144,6 +144,38 @@ async function fetchBlob(path: string, signal?: AbortSignal): Promise<Blob> {
   return blob;
 }
 
+async function fetchBinary(
+  path: string,
+  method: "GET" | "POST",
+  body?: unknown,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const response = await fetch(resolveApiUrl(path), {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
+  });
+  if (response.status === 401) {
+    clearToken();
+    throw new ApiError(401, "Session expired. Please log in again.");
+  }
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({}));
+    const message =
+      typeof detail === "object" && detail !== null && "detail" in detail
+        ? String((detail as { detail: unknown }).detail)
+        : `Request failed with status ${response.status}`;
+    throw new ApiError(response.status, message, detail);
+  }
+  return response.blob();
+}
+
 // ─── Typed API methods ────────────────────────────────────────────────────────
 
 export const api = {
@@ -204,6 +236,36 @@ export const api = {
     });
   },
 
+  postMultipart<T>(path: string, formData: FormData, signal?: AbortSignal): Promise<T> {
+    const token = getToken();
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    return fetch(resolveApiUrl(path), {
+      method: "POST",
+      headers,
+      body: formData,
+      signal,
+    }).then(async (res) => {
+      if (res.status === 401) {
+        clearToken();
+        throw new ApiError(401, "Session expired. Please log in again.");
+      }
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        const message =
+          typeof detail === "object" && detail !== null && "detail" in detail
+            ? String((detail as { detail: unknown }).detail)
+            : `Request failed with status ${res.status}`;
+        throw new ApiError(res.status, message, detail);
+      }
+      return res.json() as Promise<T>;
+    });
+  },
+
+  postBlob(path: string, body: unknown, signal?: AbortSignal): Promise<Blob> {
+    return fetchBinary(path, "POST", body, signal);
+  },
+
   // ─── Interactive Agent Controls ──────────────────────────────────────────
 
   pauseRun(runId: string, reason = "User requested pause"): Promise<{ status: string; message: string }> {
@@ -239,6 +301,30 @@ export const api = {
     workflow_type?: string;
   }): Promise<{ story_id: string; test_cases: any[]; count: number }> {
     return this.post("/api/v1/test-cases/generate", payload);
+  },
+
+  importTestCases(
+    file: File,
+    options: { execute?: boolean; personas?: string[]; sheetName?: string } = {},
+  ): Promise<any[]> {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("execute", String(options.execute ?? false));
+    if (options.personas?.length) form.append("personas", options.personas.join(","));
+    if (options.sheetName) form.append("sheet_name", options.sheetName);
+    return this.postMultipart("/api/v1/test-cases/import", form);
+  },
+
+  sweepTestCase(testCaseId: string, personas: string[]): Promise<any[]> {
+    return this.post(`/api/v1/test-cases/${testCaseId}/sweep`, { personas });
+  },
+
+  comparePersonas(testCaseId: string, personas: string[]): Promise<any> {
+    return this.post(`/api/v1/test-cases/${testCaseId}/compare-personas`, { personas });
+  },
+
+  exportTestCaseResults(runIds: string[]): Promise<Blob> {
+    return this.postBlob("/api/v1/test-cases/export-results", runIds);
   },
 
   executeTestCase(testCaseId: string): Promise<{ session_id: string; status: string; message: string }> {

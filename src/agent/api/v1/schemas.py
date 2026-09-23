@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 # ---------------------------------------------------------------------------
 # Request models
@@ -84,6 +84,8 @@ class HealthResponse(BaseModel):
 
 
 class RunDetailResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     tenant_id: str
     requester_id: str | None
@@ -93,6 +95,10 @@ class RunDetailResponse(BaseModel):
     end_time: datetime | None
     duration_seconds: int | None
     defect_count: int
+    cleanup_status: str | None = None
+    cleanup_details: str | None = None
+    api_verification_status: str | None = None
+    telemetry: dict[str, Any] = Field(default_factory=dict)
 
 
 class FindingResponse(BaseModel):
@@ -120,6 +126,16 @@ class MetricsResponse(BaseModel):
     total_runs: int
     total_defects: int
     average_duration_seconds: float | None
+    terminal_runs: int = 0
+    passed_runs: int = 0
+    failed_runs: int = 0
+    blocked_runs: int = 0
+    pass_rate: float | None = None
+    defect_detection_rate: float | None = None
+    false_positive_rate: float | None = None
+    false_negative_rate: float | None = None
+    vision_fallback_rate: float | None = None
+    cost_per_run: float | None = None
 
 
 class KnowledgeRuleResponse(BaseModel):
@@ -136,6 +152,18 @@ class KnowledgeModelRulesResponse(BaseModel):
     total: int
     tables: list[str]
     rules: list[KnowledgeRuleResponse]
+
+
+class KnowledgeTableResponse(BaseModel):
+    name: str
+    discovery_status: str
+    discovery_error: str | None = None
+    source_status: dict[str, str] = Field(default_factory=dict)
+    field_count: int = 0
+
+
+class KnowledgeTablesResponse(BaseModel):
+    tables: list[KnowledgeTableResponse] = Field(default_factory=list)
 
 
 class KnowledgeDriftResponse(BaseModel):

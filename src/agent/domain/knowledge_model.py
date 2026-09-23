@@ -58,6 +58,8 @@ class TableMetadata(BaseModel):
 
     name: str
     discovery_status: DiscoveryStatus = DiscoveryStatus.AVAILABLE
+    discovery_error: str | None = None
+    source_status: dict[str, DiscoveryStatus] = Field(default_factory=dict)
     fields: dict[str, FieldMetadata] = Field(default_factory=dict)
     active_ui_policies: list[dict[str, Any]] = Field(default_factory=list)
     active_client_scripts: list[dict[str, Any]] = Field(default_factory=list)

@@ -15,6 +15,8 @@ const Findings = lazy(() => import("@/pages/Findings"));
 const KnowledgeModel = lazy(() => import("@/pages/KnowledgeModel"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const NotFound = lazy(() => import("@/pages/NotFound"));
+const Safety = lazy(() => import("@/pages/Safety"));
+const TestCases = lazy(() => import("@/pages/TestCases"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -60,6 +62,8 @@ export default function App() {
               <Route path="runs" element={<Runs />} />
               <Route path="findings" element={<Findings />} />
               <Route path="knowledge" element={<KnowledgeModel />} />
+              <Route path="safety" element={<Safety />} />
+              <Route path="test-cases" element={<TestCases />} />
               <Route path="settings" element={<Settings />} />
             </Route>
 

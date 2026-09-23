@@ -41,6 +41,8 @@ from agent.api.v1.schemas import (
     HealthResponse,
     KnowledgeDriftResponse,
     KnowledgeModelRulesResponse,
+    KnowledgeTableResponse,
+    KnowledgeTablesResponse,
     KnowledgeRuleResponse,
     MetricsResponse,
     PauseRequest,
@@ -123,6 +125,47 @@ async def health_check() -> HealthResponse:
         status="healthy",
         version=__version__,
     )
+
+
+@router.get("/safety")
+async def get_safety_config(
+    token: Annotated[TokenData, Depends(get_current_user_token)],
+) -> Any:
+    """Return read-only mutation safety configuration."""
+    settings = get_cached_settings()
+    from agent.execution.policy import ActionPolicy
+
+    policy = ActionPolicy(
+        config=settings.security,
+        safety_budgets=settings.safety_budgets,
+        run_id="safety-status",
+    )
+    budget_state = policy.get_budget_state()
+    mutation_hosts = [str(host).strip().lower() for host in settings.servicenow.allowed_instances if str(host).strip()]
+    kill_reason = policy.check_kill_switch()
+    return {
+        "budgets": {
+            "max_actions": settings.safety_budgets.max_actions_per_run,
+            "max_mutations": settings.safety_budgets.max_mutations_per_run,
+            "max_records": settings.safety_budgets.max_records_per_run,
+            "max_tables": settings.safety_budgets.max_tables_per_run,
+            "max_destructive": settings.safety_budgets.max_destructive_operations,
+            "max_run_time_seconds": settings.safety_budgets.max_run_time_seconds,
+        },
+        "budget_state": budget_state,
+        "allowed_hosts": list(settings.security.allowed_hosts),
+        "allowed_instances": mutation_hosts,
+        "is_subproduction": settings.servicenow.is_subproduction,
+        "allow_mutations": settings.servicenow.allow_mutations,
+        "is_safe": bool(
+            settings.servicenow.is_subproduction
+            and settings.servicenow.allow_mutations
+            and mutation_hosts
+            and not kill_reason
+        ),
+        "kill_switch_active": bool(kill_reason),
+        "kill_switch_reason": kill_reason,
+    }
 
 
 @router.get("/ready")
@@ -322,7 +365,32 @@ async def get_run(
     run = result.scalars().first()
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
-    return run
+    from pathlib import Path as _Path
+
+    payload: dict[str, Any] = {
+        "id": run.id,
+        "tenant_id": run.tenant_id,
+        "requester_id": run.requester_id,
+        "goal": run.goal,
+        "status": run.status,
+        "start_time": run.start_time,
+        "end_time": run.end_time,
+        "duration_seconds": run.duration_seconds,
+        "defect_count": run.defect_count,
+    }
+    snapshot_path = _Path(get_cached_settings().report_output_dir).resolve() / f"{run_id}_result.json"
+    if snapshot_path.is_file():
+        try:
+            snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+            payload.update(
+                cleanup_status=snapshot.get("cleanup_status"),
+                cleanup_details=snapshot.get("cleanup_details"),
+                api_verification_status=snapshot.get("api_verification_status"),
+                telemetry=snapshot.get("telemetry") or {},
+            )
+        except (OSError, json.JSONDecodeError):
+            pass
+    return payload
 
 
 @router.get("/runs/{run_id}/perception")
@@ -478,6 +546,26 @@ async def get_knowledge_model_rules(
     )
 
 
+@router.get("/knowledge-model/tables", response_model=KnowledgeTablesResponse)
+async def get_knowledge_model_tables(
+    token: Annotated[TokenData, Depends(get_current_user_token)],
+) -> KnowledgeTablesResponse:
+    """Return discovery status and source coverage for every knowledge table."""
+    km = get_knowledge_model()
+    return KnowledgeTablesResponse(
+        tables=[
+            KnowledgeTableResponse(
+                name=name,
+                discovery_status=str(table.discovery_status),
+                discovery_error=table.discovery_error,
+                source_status={key: str(value) for key, value in table.source_status.items()},
+                field_count=len(table.fields),
+            )
+            for name, table in km.tables.items()
+        ]
+    )
+
+
 @router.get("/knowledge-model/rules/{rule_id}", response_model=KnowledgeRuleResponse)
 async def get_knowledge_model_rule(
     rule_id: str,
@@ -545,11 +633,57 @@ async def get_metrics(
     )
     avg_duration = duration_result.scalar()
 
+    terminal_result = await db.execute(
+        select(func.count(Run.id)).where(
+            Run.tenant_id == token.tenant_id,
+            Run.status.in_(terminal_statuses),
+        )
+    )
+
+
+    terminal_runs = int(terminal_result.scalar() or 0)
+    passed_result = await db.execute(
+        select(func.count(Run.id)).where(
+            Run.tenant_id == token.tenant_id,
+            Run.status.in_(["completed", "passed"]),
+            Run.defect_count == 0,
+        )
+    )
+    passed_runs = int(passed_result.scalar() or 0)
+    failed_result = await db.execute(
+        select(func.count(Run.id)).where(
+            Run.tenant_id == token.tenant_id,
+            Run.status.in_(["failed", "partial", "precondition_failed"]),
+        )
+    )
+    failed_runs = int(failed_result.scalar() or 0)
+    blocked_result = await db.execute(
+        select(func.count(Run.id)).where(
+            Run.tenant_id == token.tenant_id,
+            Run.status == "blocked",
+        )
+    )
+    blocked_runs = int(blocked_result.scalar() or 0)
+    defect_run_result = await db.execute(
+        select(func.count(Run.id)).where(
+            Run.tenant_id == token.tenant_id,
+            Run.status.in_(terminal_statuses),
+            Run.defect_count > 0,
+        )
+    )
+    defect_run_count = int(defect_run_result.scalar() or 0)
+
     return MetricsResponse(
         tenant_id=token.tenant_id or "unknown",
         total_runs=total_runs,
         total_defects=int(total_defects),
         average_duration_seconds=float(avg_duration) if avg_duration else None,
+        terminal_runs=terminal_runs,
+        passed_runs=passed_runs,
+        failed_runs=failed_runs,
+        blocked_runs=blocked_runs,
+        pass_rate=(passed_runs / terminal_runs) if terminal_runs else None,
+        defect_detection_rate=(defect_run_count / terminal_runs) if terminal_runs else None,
     )
 
 
@@ -629,6 +763,21 @@ async def stream_run_events(
                 "payload": {"status": "connected"},
             })
             yield f"event: connected\ndata: {handshake}\n\n"
+
+            # 1.5 Real-time Redis digest sync logic
+            run_state_raw = await r.get(f"run_state:{run_id}")
+            if run_state_raw:
+                try:
+                    state_obj = json.loads(run_state_raw)
+                    payload = state_obj.get("payload", {})
+                    # Digest sync allows the frontend to initialize live status instantly
+                    state_payload = json.dumps({
+                        "status": payload.get("status", "running"),
+                        "current_step_index": payload.get("step_index")
+                    })
+                    yield f"event: state_snapshot\ndata: {state_payload}\n\n"
+                except Exception:
+                    pass
 
             # 2. Replay historical events from Redis list for reconnecting clients
             history_key = f"run_events_history:{run_id}"

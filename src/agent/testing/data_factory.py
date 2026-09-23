@@ -108,6 +108,32 @@ class ServiceNowDataFactory:
             if should_close:
                 await client.aclose()
 
+    def get_offline_discovery_records(self, table: str) -> dict[str, Any]:
+        """Return offline mocked discovery records for testing without real API."""
+        if table == "incident":
+            return {
+                "dictionary": [
+                    {
+                        "element": "short_description",
+                        "column_label": "Short description",
+                        "internal_type": {"value": "string"},
+                        "mandatory": "true",
+                        "read_only": "false",
+                    },
+                    {
+                        "element": "state",
+                        "column_label": "State",
+                        "internal_type": {"value": "integer"},
+                        "mandatory": "false",
+                        "read_only": "false",
+                    },
+                ],
+                "choices": [],
+                "transitions": [],
+                "mandatory": []
+            }
+        return {"dictionary": [], "choices": [], "transitions": [], "mandatory": []}
+
     async def verify_initial_state(
         self,
         table: str,

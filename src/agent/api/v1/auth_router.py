@@ -44,8 +44,12 @@ async def _check_rate_limit(key: str) -> bool:
             if count and int(count) >= MAX_ATTEMPTS:
                 return True
             return False
-        except Exception:
-            pass
+        except Exception as e:
+            is_prod = settings.runtime_mode == "docker" or settings.environment not in ("development", "dev", "local")
+            if is_prod:
+                logger.error("redis_auth_lock_failed", error=str(e))
+                raise HTTPException(status_code=503, detail="Authentication service temporarily unavailable")
+            logger.warning("redis_auth_lock_fallback", error=str(e))
 
     now = time.time()
     attempts = [t for t in _local_attempts[key] if now - t < LOCKOUT_WINDOW]
@@ -67,8 +71,12 @@ async def _record_failed_attempt(key: str) -> None:
             await pipe.execute()
             await r.aclose()
             return
-        except Exception:
-            pass
+        except Exception as e:
+            is_prod = settings.runtime_mode == "docker" or settings.environment not in ("development", "dev", "local")
+            if is_prod:
+                logger.error("redis_auth_record_failed", error=str(e))
+                raise HTTPException(status_code=503, detail="Authentication service temporarily unavailable")
+            logger.warning("redis_auth_record_fallback", error=str(e))
 
     _local_attempts[key].append(time.time())
 
@@ -82,8 +90,13 @@ async def _clear_attempts(key: str) -> None:
             r = redis.from_url(settings.session.redis_url)  # type: ignore[no-untyped-call]
             await r.delete(f"uat:auth:lock:{key}")
             await r.aclose()
-        except Exception:
-            pass
+            return
+        except Exception as e:
+            is_prod = settings.runtime_mode == "docker" or settings.environment not in ("development", "dev", "local")
+            if is_prod:
+                logger.error("redis_auth_clear_failed", error=str(e))
+                raise HTTPException(status_code=503, detail="Authentication service temporarily unavailable")
+            logger.warning("redis_auth_clear_fallback", error=str(e))
 
     _local_attempts.pop(key, None)
 

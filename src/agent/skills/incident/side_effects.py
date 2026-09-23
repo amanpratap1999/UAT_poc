@@ -20,8 +20,10 @@ class IncidentSideEffectValidator:
     async def verify_audit_entry(self, sys_id: str, field: str, expected_new: str, since: str) -> ValidationCheck:
         """Query sys_audit for the expected change record."""
         entries = await self._oracle.fetch_audit_trail(sys_id, since)
+        expected_field = field.strip().lower().replace("incident.", "")
         matched = any(
-            e.get("fieldname") == field and str(e.get("newvalue", "")).strip().lower() == expected_new.strip().lower()
+            str(e.get("fieldname", "")).strip().lower().replace("incident.", "") == expected_field
+            and str(e.get("newvalue", "")).strip().lower() == expected_new.strip().lower()
             for e in entries
         )
         return ValidationCheck(
@@ -170,3 +172,28 @@ class IncidentSideEffectValidator:
             actual=f"duplicate_of={dup_value!r}" if dup_value else "(clean)",
             error_message=None if is_clean else f"Record unexpectedly marked as duplicate of {dup_value}",
         )
+
+    async def validate_side_effects(
+        self,
+        sys_id: str,
+        since: str,
+        expected_mutations: list[tuple[str, str]] | None = None,
+        expected_events: list[str] | None = None,
+        expected_slas: dict[str, str] | None = None,
+    ) -> list[ValidationCheck]:
+        """Run a comprehensive suite of side-effect validations."""
+        checks = []
+        if expected_mutations:
+            for field, val in expected_mutations:
+                if field.lower() in ("state", "priority", "assignment_group", "assigned_to"):
+                    chk = await self.verify_audit_entry(sys_id, field.lower(), val, since)
+                    checks.append(chk)
+        if expected_events:
+            for event in expected_events:
+                chk = await self.verify_notification_sent(sys_id, event, since)
+                checks.append(chk)
+        if expected_slas:
+            for sla, stage in expected_slas.items():
+                chk = await self.verify_sla_state(sys_id, sla, stage)
+                checks.append(chk)
+        return checks

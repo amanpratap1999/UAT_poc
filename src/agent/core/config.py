@@ -170,8 +170,8 @@ class ServiceNowConfig(BaseSubConfig):
         """Get credentials for the active persona, falling back to defaults."""
         if self.active_persona and self.personas and self.active_persona in self.personas:
             p = self.personas[self.active_persona]
-            return p.get("username", self.username or "admin"), p.get("password", self.password)
-        return self.username or "admin", self.password
+            return p.get("username", self.username), p.get("password", self.password)
+        return self.username, self.password
 
 
 class BrowserConfig(BaseSubConfig):
@@ -514,6 +514,22 @@ class Settings(BaseSubConfig):
     def _validate_instance_url(self) -> "Settings":
         if self.servicenow.instance_url == "https://dev12345.service-now.com" or not self.servicenow.instance_url:
             raise ValueError("SERVICENOW_INSTANCE_URL is not set or is using the default placeholder. Execution cannot proceed.")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_servicenow_credentials(self) -> "Settings":
+        """Require explicit ServiceNow credentials outside local development."""
+        is_local = self.runtime_mode == "local" and self.environment in (
+            "development", "dev", "local",
+        )
+        if not is_local:
+            username = (self.servicenow.username or "").strip()
+            password = self.servicenow.password or ""
+            if not username or not password:
+                raise ValueError(
+                    "Refusing to start: SERVICENOW_USERNAME and SERVICENOW_PASSWORD "
+                    "must be configured outside local development."
+                )
         return self
 
     @model_validator(mode="after")

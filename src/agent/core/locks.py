@@ -84,6 +84,8 @@ class RecordLockManager:
                 if ca_cert and os.path.exists(ca_cert):
                     ssl_kwargs["ssl_ca_certs"] = ca_cert
                     ssl_kwargs["ssl_cert_reqs"] = "required"
+                elif self.is_production:
+                    raise RuntimeError("Missing REDIS_TLS_CA_CERT in production for rediss:// URL")
                 else:
                     ssl_kwargs["ssl_cert_reqs"] = "none"
             self._redis = redis.from_url(redis_url, **ssl_kwargs)  # type: ignore[no-untyped-call]

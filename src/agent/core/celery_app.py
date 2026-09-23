@@ -116,6 +116,9 @@ celery_app.conf.update(
 if broker_url and broker_url.startswith("rediss://"):
     import ssl
     ca_cert = _settings.session.redis_tls_ca_cert or os.getenv("REDIS_TLS_CA_CERT", "")
+    is_prod = _settings.runtime_mode == "docker" or _settings.environment not in ("development", "dev", "local")
+    if is_prod and not (ca_cert and os.path.exists(ca_cert)):
+        raise RuntimeError("Missing REDIS_TLS_CA_CERT in production for rediss:// URL")
     ssl_opts: dict[str, Any] = {
         "ssl_cert_reqs": ssl.CERT_REQUIRED if (ca_cert and os.path.exists(ca_cert)) else ssl.CERT_NONE,
     }

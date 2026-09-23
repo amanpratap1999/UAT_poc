@@ -53,10 +53,36 @@ jobs:
       - name: Install audit tools
         run: |
           python -m pip install --upgrade pip
-          pip install pip-audit
+          pip install pip-audit pip-tools cyclonedx-bom
+      - name: Verify dependency lock freshness
+        run: |
+          pip-compile --generate-hashes --output-file=/tmp/requirements.txt pyproject.toml
+          diff -u requirements.txt /tmp/requirements.txt
       - name: Scan lockfile for vulnerabilities
         run: |
-          pip-audit -r requirements.txt --ignore-vuln CVE-2024-52304 || true
+          pip-audit -r requirements.txt
+      - name: Generate Python SBOM
+        run: |
+          cyclonedx-py requirements requirements.txt --of JSON --output-file python-sbom.json
+      - name: Upload Python SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-sbom
+          path: python-sbom.json
+
+  filesystem-scan:
+    name: Repository Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
 
   test:
     name: Backend Test (pytest)
@@ -111,3 +137,10 @@ jobs:
         run: npx vitest run
       - name: Production build
         run: npm run build
+      - name: Generate frontend SBOM
+        run: npm sbom --sbom-format=cyclonedx > frontend-sbom.json
+      - name: Upload frontend SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-sbom
+          path: frontend/frontend-sbom.json

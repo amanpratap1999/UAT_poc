@@ -43,6 +43,11 @@ class RunEventPublisher:
                         ssl_kwargs["ssl_ca_certs"] = ca_cert
                         ssl_kwargs["ssl_cert_reqs"] = "required"
                     else:
+                        is_prod = settings.runtime_mode == "docker" or settings.environment not in (
+                            "development", "dev", "local"
+                        )
+                        if is_prod:
+                            raise RuntimeError("Missing REDIS_TLS_CA_CERT in production for rediss:// URL")
                         ssl_kwargs["ssl_cert_reqs"] = "none"
 
                 self._redis = aioredis.from_url(
@@ -74,12 +79,15 @@ class RunEventPublisher:
         self._sequence += 1
         event_name = event_type.value if hasattr(event_type, "value") else str(event_type)
 
+        from agent.core.redaction import redact_dict
+        safe_payload = redact_dict(payload or {})
+
         message: dict[str, Any] = {
             "run_id": self.run_id,
             "event_type": event_name,
             "timestamp": datetime.now(UTC).isoformat(),
             "sequence": self._sequence,
-            "payload": payload or {},
+            "payload": safe_payload,
         }
         raw = json.dumps(message)
 

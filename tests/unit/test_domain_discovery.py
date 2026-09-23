@@ -18,29 +18,25 @@ def mock_httpx_client():
 
 @pytest.mark.asyncio
 async def test_discover_table_metadata(mock_httpx_client):
-    """Test discovering a table's dictionary entries."""
-    # Mock the response for sys_dictionary
+    from agent.testing.data_factory import ServiceNowDataFactory
+    factory = ServiceNowDataFactory()
+    offline_data = factory.get_offline_discovery_records("incident")
+    
     mock_response = MagicMock()
     mock_response.raise_for_status = lambda: None
-    mock_response.json.return_value = {
-        "result": [
-            {
-                "element": "short_description",
-                "column_label": "Short description",
-                "internal_type": {"value": "string"},
-                "mandatory": "true",
-                "read_only": "false",
-            },
-            {
-                "element": "state",
-                "column_label": "State",
-                "internal_type": {"value": "integer"},
-                "mandatory": "false",
-                "read_only": "false",
-            },
-        ]
-    }
-    mock_httpx_client.get.return_value = mock_response
+    
+    # We now fetch dictionary, choices, transitions, mandatory in discovery.
+    # We need side_effect to return the right json based on url.
+    def mock_get(url, *args, **kwargs):
+        resp = MagicMock()
+        resp.raise_for_status = lambda: None
+        if "sys_dictionary" in url:
+            resp.json.return_value = {"result": offline_data["dictionary"]}
+        else:
+            resp.json.return_value = {"result": []}
+        return resp
+        
+    mock_httpx_client.get.side_effect = mock_get
 
     config = ServiceNowConfig(
         instance_url="https://test.service-now.com", username="test", password="test"

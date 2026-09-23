@@ -349,7 +349,7 @@ class BrowserManager:
         # Mask sensitive inputs (passwords, tokens, keys) before screenshot
         with suppress(Exception):
             await page.evaluate("""() => {
-                const inputs = document.querySelectorAll('input[type="password"], input[name*="password" i], input[id*="password" i], input[name*="secret" i], input[id*="secret" i], input[name*="token" i], input[id*="token" i]');
+                const inputs = document.querySelectorAll('input[type="password"], input[autocomplete="current-password"], input[autocomplete="new-password"], input[data-sensitive="true"], input[name*="password" i], input[id*="password" i], input[name*="secret" i], input[id*="secret" i], input[name*="token" i], input[id*="token" i], input[name*="api_key" i], input[id*="api_key" i], input[name*="credential" i], input[id*="credential" i], textarea[name*="secret" i], textarea[id*="secret" i]');
                 inputs.forEach(el => {
                     el.setAttribute('data-uat-orig-filter', el.style.filter || '');
                     el.style.filter = 'blur(10px)';

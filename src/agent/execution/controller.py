@@ -23,6 +23,7 @@ from agent.core.exceptions import (
     SelectorNotFoundError,
 )
 from agent.core.logging import get_logger
+from agent.core.prompt_boundary import LLMInputBoundary
 from agent.core.types import ActionType
 from agent.domain.actions import ActionResult, AgentAction
 from agent.execution.policy import ActionPolicy
@@ -162,6 +163,23 @@ class ExecutionController:
             current_url = await self._browser.get_url()
         except Exception:
             pass
+
+        # Deterministic boundary for every planner-produced action.  This is
+        # intentionally enforced here, immediately before browser dispatch,
+        # so a malformed or prompt-injected action cannot bypass policy.
+        boundary_ok, boundary_reason = LLMInputBoundary.validate_generated_action(
+            action,
+            allowed_tables=["incident"],
+            allowed_hosts=getattr(get_settings().security, "allowed_hosts", None),
+        )
+        if not boundary_ok:
+            logger.warning("action_blocked_by_llm_boundary", reason=boundary_reason)
+            return ActionResult(
+                success=False,
+                action=action,
+                error=f"LLM action boundary blocked action: {boundary_reason}",
+                error_type="LLMActionBoundaryError",
+            )
 
         policy_check = self._policy.validate(action, current_url=current_url)
         if not policy_check.is_allowed:

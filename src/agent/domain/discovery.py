@@ -46,12 +46,26 @@ class CustomerDiscoveryAgent:
         """Discover schema, policies, scripts, rules and choices for a table."""
         logger.info("discovering_table_metadata", table=table_name)
 
-        dictionary_entries = await self._fetch_dictionary(table_name)
+        try:
+            dictionary_entries = await self._fetch_dictionary(table_name)
+        except DiscoveryError as exc:
+            logger.error("table_metadata_discovery_failed", table=table_name, error=str(exc))
+            return TableMetadata(
+                name=table_name,
+                discovery_status=DiscoveryStatus.FAILED,
+                discovery_error=str(exc),
+                source_status={"dictionary": DiscoveryStatus.FAILED},
+            )
 
         if not dictionary_entries:
-            return TableMetadata(name=table_name, discovery_status=DiscoveryStatus.EMPTY)
+            return TableMetadata(
+                name=table_name,
+                discovery_status=DiscoveryStatus.EMPTY,
+                source_status={"dictionary": DiscoveryStatus.EMPTY},
+            )
 
         table = TableMetadata(name=table_name, discovery_status=DiscoveryStatus.AVAILABLE)
+        table.source_status["dictionary"] = DiscoveryStatus.AVAILABLE
 
         for entry in dictionary_entries:
             field_name = entry.get("element")
@@ -66,17 +80,35 @@ class CustomerDiscoveryAgent:
                 read_only=str(entry.get("read_only", "false")).lower() == "true",
             )
 
-        table.active_ui_policies = await self._fetch_ui_policies(table_name)
-        table.active_client_scripts = await self._fetch_client_scripts(table_name)
-        table.active_business_rules = await self._fetch_business_rules(table_name)
-        table.active_acls = await self._fetch_acls(table_name)
-        table.properties = await self._fetch_properties(table_name)
-        table.ui_actions = await self._fetch_ui_actions(table_name)
-        table.notifications = await self._fetch_notifications(table_name)
-        table.assignment_rules = await self._fetch_assignment_rules(table_name)
-        table.sla_definitions = await self._fetch_sla_definitions(table_name)
-        table.data_policies = await self._fetch_data_policies(table_name)
-        await self._apply_choice_values(table_name, table)
+        try:
+            table.active_ui_policies = await self._fetch_ui_policies(table_name)
+            table.source_status["ui_policies"] = DiscoveryStatus.AVAILABLE
+            table.active_client_scripts = await self._fetch_client_scripts(table_name)
+            table.source_status["client_scripts"] = DiscoveryStatus.AVAILABLE
+            table.active_business_rules = await self._fetch_business_rules(table_name)
+            table.source_status["business_rules"] = DiscoveryStatus.AVAILABLE
+            table.active_acls = await self._fetch_acls(table_name)
+            table.source_status["acls"] = DiscoveryStatus.AVAILABLE
+            table.properties = await self._fetch_properties(table_name)
+            table.source_status["properties"] = DiscoveryStatus.AVAILABLE
+            table.ui_actions = await self._fetch_ui_actions(table_name)
+            table.source_status["ui_actions"] = DiscoveryStatus.AVAILABLE
+            table.notifications = await self._fetch_notifications(table_name)
+            table.source_status["notifications"] = DiscoveryStatus.AVAILABLE
+            table.assignment_rules = await self._fetch_assignment_rules(table_name)
+            table.source_status["assignment_rules"] = DiscoveryStatus.AVAILABLE
+            table.sla_definitions = await self._fetch_sla_definitions(table_name)
+            table.source_status["sla_definitions"] = DiscoveryStatus.AVAILABLE
+            table.data_policies = await self._fetch_data_policies(table_name)
+            table.source_status["data_policies"] = DiscoveryStatus.AVAILABLE
+            await self._apply_choice_values(table_name, table)
+            table.source_status["choices_and_transitions"] = DiscoveryStatus.AVAILABLE
+        except DiscoveryError as exc:
+            table.discovery_status = DiscoveryStatus.FAILED
+            table.discovery_error = str(exc)
+            table.source_status["failed_source"] = DiscoveryStatus.FAILED
+            logger.error("table_metadata_discovery_failed", table=table_name, error=str(exc))
+            return table
 
         logger.info(
             "table_metadata_discovered",
@@ -110,7 +142,7 @@ class CustomerDiscoveryAgent:
             return response.json().get("result", [])  # type: ignore[no-any-return]
         except httpx.HTTPError as e:
             logger.warning("client_script_fetch_failed", table=table_name, error=str(e))
-            return []
+            raise DiscoveryError(f"Failed to fetch data: {e}") from e
 
     async def _fetch_business_rules(self, table_name: str) -> list[dict[str, Any]]:
         """Fetch active business rules for a table."""
@@ -127,7 +159,7 @@ class CustomerDiscoveryAgent:
             return response.json().get("result", [])  # type: ignore[no-any-return]
         except httpx.HTTPError as e:
             logger.warning("business_rule_fetch_failed", table=table_name, error=str(e))
-            return []
+            raise DiscoveryError(f"Failed to fetch data: {e}") from e
 
     async def _fetch_acls(self, table_name: str) -> list[dict[str, Any]]:
         """Fetch ACL rules that reference the table or its fields."""
@@ -144,7 +176,7 @@ class CustomerDiscoveryAgent:
             return response.json().get("result", [])  # type: ignore[no-any-return]
         except httpx.HTTPError as e:
             logger.warning("acl_fetch_failed", table=table_name, error=str(e))
-            return []
+            raise DiscoveryError(f"Failed to fetch data: {e}") from e
 
     async def _fetch_properties(self, table_name: str) -> list[dict[str, Any]]:
         """Fetch instance properties that start with the table prefix."""
@@ -161,7 +193,7 @@ class CustomerDiscoveryAgent:
             return response.json().get("result", [])  # type: ignore[no-any-return]
         except httpx.HTTPError as e:
             logger.warning("property_fetch_failed", table=table_name, error=str(e))
-            return []
+            raise DiscoveryError(f"Failed to fetch data: {e}") from e
 
     async def _apply_choice_values(self, table_name: str, table: TableMetadata) -> None:
         """Fetch choice list values per field, and dynamically derive transitions and mandatory fields."""
@@ -187,33 +219,57 @@ class CustomerDiscoveryAgent:
                 if element in ("state", "incident_state") and value:
                     state_choices[value] = label
 
-            # P1.9: Build dynamic lifecycle transitions and mandatory fields
-            if table_name == "incident":
-                # Dynamic transitions for incident lifecycle
-                table.valid_transitions = {
-                    "1": ["2", "3", "6", "8", "In Progress", "On Hold", "Resolved", "Canceled"],
-                    "2": ["3", "6", "8", "On Hold", "Resolved", "Canceled"],
-                    "3": ["2", "6", "8", "In Progress", "Resolved", "Canceled"],
-                    "6": ["2", "7", "8", "In Progress", "Closed", "Canceled"],
-                    "7": [],
-                    "8": [],
-                    "New": ["2", "3", "6", "8", "In Progress", "On Hold", "Resolved", "Canceled"],
-                    "In Progress": ["3", "6", "8", "On Hold", "Resolved", "Canceled"],
-                    "On Hold": ["2", "6", "8", "In Progress", "Resolved", "Canceled"],
-                    "Resolved": ["2", "7", "8", "In Progress", "Closed", "Canceled"],
-                    "Closed": [],
-                    "Canceled": [],
-                }
-                # Dynamic mandatory fields per state
-                table.mandatory_fields_by_state = {
-                    "3": ["hold_reason"],
-                    "On Hold": ["hold_reason"],
-                    "6": ["close_code", "close_notes"],
-                    "Resolved": ["close_code", "close_notes"],
-                }
+            # Build dynamic lifecycle transitions and mandatory fields
+            try:
+                # Dynamic transitions
+                resp = await self._client.get(
+                    "/api/now/table/sys_state_transition",
+                    params={
+                        "sysparm_query": f"table={table_name}^active=true",
+                        "sysparm_fields": "from_state,to_state",
+                        "sysparm_display_value": "false",
+                    },
+                )
+                resp.raise_for_status()
+                transitions: dict[str, list[str]] = {}
+                for tr in resp.json().get("result", []):
+                    f_st = tr.get("from_state", "")
+                    t_st = tr.get("to_state", "")
+                    if f_st and t_st:
+                        transitions.setdefault(f_st, []).append(t_st)
+                        # Also add label translations if available
+                        f_lbl = state_choices.get(f_st)
+                        t_lbl = state_choices.get(t_st)
+                        if f_lbl and t_lbl:
+                            transitions.setdefault(f_lbl, []).append(t_lbl)
+                table.valid_transitions = transitions
+
+                # Dynamic mandatory fields
+                resp = await self._client.get(
+                    "/api/now/table/sys_ui_policy_action",
+                    params={
+                        "sysparm_query": f"table={table_name}^mandatory=true",
+                        "sysparm_fields": "field,ui_policy",
+                        "sysparm_display_value": "false",
+                    },
+                )
+                resp.raise_for_status()
+                mandatory: dict[str, list[str]] = {}
+                for pol in resp.json().get("result", []):
+                    field = pol.get("field", "")
+                    # Associate with the UI policy logic (simplified to all states for now)
+                    if field:
+                        mandatory.setdefault("all", []).append(field)
+                table.mandatory_fields_by_state = mandatory
+            except httpx.HTTPError as e:
+                logger.warning("dynamic_discovery_failed", table=table_name, error=str(e))
+                table.discovery_status = DiscoveryStatus.FAILED
+                raise DiscoveryError(f"Failed to fetch dynamic lifecycle metadata: {e}") from e
+                
         except httpx.HTTPError as e:
             logger.warning("choice_fetch_failed", table=table_name, error=str(e))
             table.discovery_status = DiscoveryStatus.FAILED
+            raise DiscoveryError(f"Failed to fetch choices: {e}") from e
 
     async def _fetch_ui_policies(self, table_name: str) -> list[dict[str, Any]]:
         """Fetch active UI policies for a table."""
@@ -226,7 +282,7 @@ class CustomerDiscoveryAgent:
             return response.json().get("result", [])  # type: ignore[no-any-return]
         except httpx.HTTPError as e:
             logger.warning("ui_policy_fetch_failed", table=table_name, error=str(e))
-            return []
+            raise DiscoveryError(f"Failed to fetch data: {e}") from e
 
     async def _fetch_dictionary(self, table_name: str) -> list[dict[str, Any]]:
         """Fetch dictionary entries for a table, including inherited parent fields (e.g. task)."""
@@ -242,7 +298,7 @@ class CustomerDiscoveryAgent:
             return response.json().get("result", [])  # type: ignore[no-any-return]
         except httpx.HTTPError as e:
             logger.error("dictionary_fetch_failed", table=table_name, error=str(e))
-            raise RuntimeError(f"ServiceNow Discovery Failed: {e}") from e
+            raise DiscoveryError(f"ServiceNow Discovery Failed: {e}") from e
 
     async def _fetch_ui_actions(self, table_name: str) -> list[dict[str, Any]]:
         try:
@@ -258,7 +314,7 @@ class CustomerDiscoveryAgent:
             return response.json().get("result", [])  # type: ignore[no-any-return]
         except httpx.HTTPError as e:
             logger.warning("ui_actions_fetch_failed", table=table_name, error=str(e))
-            return []
+            raise DiscoveryError(f"Failed to fetch data: {e}") from e
 
     async def _fetch_notifications(self, table_name: str) -> list[dict[str, Any]]:
         try:
@@ -274,7 +330,7 @@ class CustomerDiscoveryAgent:
             return response.json().get("result", [])  # type: ignore[no-any-return]
         except httpx.HTTPError as e:
             logger.warning("notifications_fetch_failed", table=table_name, error=str(e))
-            return []
+            raise DiscoveryError(f"Failed to fetch data: {e}") from e
 
     async def _fetch_assignment_rules(self, table_name: str) -> list[dict[str, Any]]:
         try:
@@ -290,7 +346,7 @@ class CustomerDiscoveryAgent:
             return response.json().get("result", [])  # type: ignore[no-any-return]
         except httpx.HTTPError as e:
             logger.warning("assignment_rules_fetch_failed", table=table_name, error=str(e))
-            return []
+            raise DiscoveryError(f"Failed to fetch data: {e}") from e
 
     async def _fetch_sla_definitions(self, table_name: str) -> list[dict[str, Any]]:
         try:
@@ -306,7 +362,7 @@ class CustomerDiscoveryAgent:
             return response.json().get("result", [])  # type: ignore[no-any-return]
         except httpx.HTTPError as e:
             logger.warning("sla_definitions_fetch_failed", table=table_name, error=str(e))
-            return []
+            raise DiscoveryError(f"Failed to fetch data: {e}") from e
 
     async def _fetch_data_policies(self, table_name: str) -> list[dict[str, Any]]:
         try:
@@ -322,7 +378,7 @@ class CustomerDiscoveryAgent:
             return response.json().get("result", [])  # type: ignore[no-any-return]
         except httpx.HTTPError as e:
             logger.warning("data_policies_fetch_failed", table=table_name, error=str(e))
-            return []
+            raise DiscoveryError(f"Failed to fetch data: {e}") from e
 
     async def run_full_discovery(self, target_tables: list[str]) -> CustomerKnowledgeModel:
         """Run discovery for all target tables and produce a knowledge model."""

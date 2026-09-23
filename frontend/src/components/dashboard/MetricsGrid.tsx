@@ -91,10 +91,11 @@ export function MetricsGrid({ metrics, isLoading }: MetricsGridProps) {
         isLoading={isLoading}
       />
       <MetricCard
-        title="Detection Rate"
-        value="—"
+        title="Pass Rate"
+        value={metrics?.pass_rate == null ? "—" : `${(metrics.pass_rate * 100).toFixed(1)}%`}
         icon={TrendingUp}
-        blocked
+        subtitle={metrics?.terminal_runs ? `${metrics.passed_runs} of ${metrics.terminal_runs} terminal runs` : "no terminal runs"}
+        tone={metrics?.pass_rate === 1 ? "success" : metrics?.pass_rate != null ? "warning" : "neutral"}
       />
     </div>
   );
@@ -115,8 +116,7 @@ export function BlockedMetricsBanner({ className }: BlockedMetricsProps) {
           Some metrics require additional backend instrumentation
         </p>
         <p className="mt-1 text-xs leading-relaxed text-body">
-          Defect detection rate, false positive/negative rate, vision-fallback rate, and cost per
-          run are not yet available from the backend{" "}
+          False positive/negative rate, vision-fallback rate, and cost per run are not yet available from the backend{" "}
           <code className="rounded bg-canvas px-1 py-0.5 font-mono text-2xs text-body">/api/v1/metrics</code> endpoint. They will appear here once
           the backend exposes them.
         </p>

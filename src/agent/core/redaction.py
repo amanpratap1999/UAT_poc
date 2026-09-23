@@ -11,6 +11,10 @@ SENSITIVE_FIELD_PATTERNS = [
     re.compile(r"api[_]?key", re.IGNORECASE),
     re.compile(r"credential", re.IGNORECASE),
     re.compile(r"security[_]?answer", re.IGNORECASE),
+    re.compile(r"authorization", re.IGNORECASE),
+    re.compile(r"private[_]?key", re.IGNORECASE),
+    re.compile(r"client[_]?secret", re.IGNORECASE),
+    re.compile(r"access[_]?token", re.IGNORECASE),
 ]
 
 # Patterns that indicate a value is likely a secret (heuristic)
@@ -19,6 +23,7 @@ SENSITIVE_VALUE_PATTERNS = [
     re.compile(r"gh[ps]_[a-zA-Z0-9]{36}"),  # GitHub tokens
     re.compile(r"Bearer\s+[A-Za-z0-9_\-\.]+", re.IGNORECASE),  # Bearer tokens
     re.compile(r"Basic\s+[A-Za-z0-9+/=]+", re.IGNORECASE),  # Basic auth tokens
+    re.compile(r"(?:password|secret|token|api[_-]?key)\s*[:=]\s*[^\s,;]+", re.IGNORECASE),
     re.compile(r"AKIA[0-9A-Z]{16}"),  # AWS Access Key
     re.compile(r"-----BEGIN [A-Z ]+ PRIVATE KEY-----[\s\S]*?-----END [A-Z ]+ PRIVATE KEY-----"),  # Private Keys
     re.compile(r"://([^:]+):([^@]+)@"),  # URL credentials (user:pass@host)

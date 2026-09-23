@@ -131,6 +131,18 @@ class AgentOrchestrator:
             )
         if base_state and str(final_state).strip().lower() != str(base_state).strip().lower():
             mismatches.append(f"state not restored: was {base_state}, now {final_state}")
+            
+        # Compare all visible fields
+        base_fields = {f.name.lower(): f.value for f in getattr(baseline, "visible_fields", [])}
+        final_fields = {f.name.lower(): f.value for f in getattr(final, "visible_fields", [])}
+        
+        for name, base_val in base_fields.items():
+            final_val = final_fields.get(name, "")
+            if str(base_val).strip() != str(final_val).strip():
+                # Ignore empty to none translations and timestamp fields
+                if not (str(base_val).strip() == "" and str(final_val).strip() == "") and "time" not in name and "date" not in name:
+                    mismatches.append(f"field '{name}' not restored: was '{base_val}', now '{final_val}'")
+                    
         return mismatches
 
     """The autonomous cognitive agent runtime.

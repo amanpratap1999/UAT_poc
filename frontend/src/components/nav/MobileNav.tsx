@@ -5,6 +5,8 @@ import {
   AlertTriangle,
   BookOpen,
   Settings,
+  Shield,
+  ClipboardCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +15,8 @@ const MOB_ITEMS = [
   { to: "/runs", label: "Runs", icon: PlayCircle, id: "mob-nav-runs" },
   { to: "/findings", label: "Findings", icon: AlertTriangle, id: "mob-nav-findings" },
   { to: "/knowledge", label: "Knowledge", icon: BookOpen, id: "mob-nav-knowledge" },
+  { to: "/test-cases", label: "Cases", icon: ClipboardCheck, id: "mob-nav-test-cases" },
+  { to: "/safety", label: "Safety", icon: Shield, id: "mob-nav-safety" },
   { to: "/settings", label: "Settings", icon: Settings, id: "mob-nav-settings" },
 ] as const;
 
