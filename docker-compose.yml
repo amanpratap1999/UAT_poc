@@ -8,8 +8,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set to a generated secret}
       POSTGRES_DB: servicenow_qa
     # QA-016: PostgreSQL is NOT exposed to the host. It is reachable only
-    # from services on the internal backend network. For host-side debugging
-    # run `docker compose --profile debug up db` with the port block enabled.
+    # from services on the internal backend network.
     expose:
       - "5432"
     volumes:
@@ -23,8 +22,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    # QA-016: Redis requires authentication. TLS requires cert provisioning
-    # (add --tls-port/--cert/--key when certificates are managed).
+    # QA-016: Redis requires authentication and TLS.
     command:
       [
         "redis-server",
@@ -32,17 +30,28 @@ services:
         "${REDIS_PASSWORD:?REDIS_PASSWORD must be set to a generated secret}",
         "--appendonly",
         "yes",
+        "--tls-port",
+        "${REDIS_TLS_PORT:-6380}",
+        "--port",
+        "0",
+        "--tls-cert-file",
+        "/tls/redis.crt",
+        "--tls-key-file",
+        "/tls/redis.key",
+        "--tls-ca-cert-file",
+        "/tls/ca.crt",
       ]
     expose:
-      - "6379"
+      - "${REDIS_TLS_PORT:-6380}"
     volumes:
       - redisdata:/data
+      - ${REDIS_TLS_DIR:-./tls/redis}:/tls:ro
     networks: [backend]
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG",
+          "redis-cli --tls --cert /tls/redis.crt --key /tls/redis.key --cacert /tls/ca.crt -a \"$${REDIS_PASSWORD}\" -p ${REDIS_TLS_PORT:-6380} ping | grep PONG",
         ]
       interval: 5s
       timeout: 5s
@@ -59,15 +68,16 @@ services:
       - reports_data:/app/reports
       - screenshots_data:/app/screenshots
       - step_cache_data:/app/cache
+      - ${REDIS_TLS_DIR:-./tls/redis}:/tls:ro
     ports:
       - "8000:8000"
-    networks: [backend, frontend]
+    networks: [backend, egress, frontend]
     environment: &backend-env
       UAT_RUNTIME_MODE: ${UAT_RUNTIME_MODE:-docker}
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@db:5432/servicenow_qa
-      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
-      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
-      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/1
+      REDIS_URL: rediss://:${REDIS_PASSWORD}@redis:${REDIS_TLS_PORT:-6380}/0?ssl_cert_reqs=required&ssl_ca_certs=/tls/ca.crt
+      CELERY_BROKER_URL: rediss://:${REDIS_PASSWORD}@redis:${REDIS_TLS_PORT:-6380}/0
+      CELERY_RESULT_BACKEND: rediss://:${REDIS_PASSWORD}@redis:${REDIS_TLS_PORT:-6380}/1
       AGENT_STEP_CACHE_PATH: /app/cache/step_cache.db
       LLM_PROVIDER: ${LLM_PROVIDER}
       LLM_BASE_URL: ${LLM_BASE_URL}
@@ -83,12 +93,15 @@ services:
       BROWSER_SLOW_MO: ${BROWSER_SLOW_MO:-0}
       BROWSER_SHOW_MOUSE_CURSOR: ${BROWSER_SHOW_MOUSE_CURSOR:-false}
       BROWSER_KEEP_BROWSER_OPEN: ${BROWSER_KEEP_BROWSER_OPEN:-false}
-      BROWSER_INTERACTIVE_TIMEOUT_SECONDS: ${BROWSER_INTERACTIVE_TIMEOUT_SECONDS:-300}
+      SESSION_STORE_TYPE: ${SESSION_STORE_TYPE:-redis}
       SERVICENOW_INSTANCE_URL: ${SERVICENOW_INSTANCE_URL}
       SERVICENOW_USERNAME: ${SERVICENOW_USERNAME}
       SERVICENOW_PASSWORD: ${SERVICENOW_PASSWORD}
+      SERVICENOW_IS_SUBPRODUCTION: ${SERVICENOW_IS_SUBPRODUCTION:-false}
       SERVICENOW_ALLOW_MUTATIONS: ${SERVICENOW_ALLOW_MUTATIONS:-false}
       SERVICENOW_ALLOWED_INSTANCES: ${SERVICENOW_ALLOWED_INSTANCES:-}
+      REDIS_TLS_DIR: /tls
+      REDIS_TLS_CA_CERT: /tls/ca.crt
       QA_ADMIN_USERNAME: ${QA_ADMIN_USERNAME}
       QA_ADMIN_PASSWORD: ${QA_ADMIN_PASSWORD}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set to a generated secret}
@@ -112,7 +125,8 @@ services:
       - reports_data:/app/reports
       - screenshots_data:/app/screenshots
       - step_cache_data:/app/cache
-    networks: [backend]
+      - ${REDIS_TLS_DIR:-./tls/redis}:/tls:ro
+    networks: [backend, egress]
     environment:
       <<: *backend-env
     depends_on:
@@ -137,7 +151,10 @@ services:
 
 networks:
   backend:
-    internal: false # set true when the agent needs no other egress
+    internal: true
+  egress:
+    # Allows outbound HTTPS to ServiceNow instances + LLM providers.
+    # db and redis are NOT attached to this network.
   frontend:
 
 volumes:

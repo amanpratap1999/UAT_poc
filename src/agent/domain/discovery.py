@@ -12,9 +12,19 @@ import httpx
 
 from agent.core.config import ServiceNowConfig
 from agent.core.logging import get_logger
-from agent.domain.knowledge_model import CustomerKnowledgeModel, FieldMetadata, TableMetadata
+from agent.domain.knowledge_model import (
+    CustomerKnowledgeModel,
+    DiscoveryStatus,
+    FieldMetadata,
+    TableMetadata,
+)
 
 logger = get_logger(__name__)
+
+
+class DiscoveryError(Exception):
+    """Raised when metadata discovery fails due to endpoint errors."""
+    pass
 
 
 class CustomerDiscoveryAgent:
@@ -38,7 +48,10 @@ class CustomerDiscoveryAgent:
 
         dictionary_entries = await self._fetch_dictionary(table_name)
 
-        table = TableMetadata(name=table_name)
+        if not dictionary_entries:
+            return TableMetadata(name=table_name, discovery_status=DiscoveryStatus.EMPTY)
+
+        table = TableMetadata(name=table_name, discovery_status=DiscoveryStatus.AVAILABLE)
 
         for entry in dictionary_entries:
             field_name = entry.get("element")
@@ -58,6 +71,11 @@ class CustomerDiscoveryAgent:
         table.active_business_rules = await self._fetch_business_rules(table_name)
         table.active_acls = await self._fetch_acls(table_name)
         table.properties = await self._fetch_properties(table_name)
+        table.ui_actions = await self._fetch_ui_actions(table_name)
+        table.notifications = await self._fetch_notifications(table_name)
+        table.assignment_rules = await self._fetch_assignment_rules(table_name)
+        table.sla_definitions = await self._fetch_sla_definitions(table_name)
+        table.data_policies = await self._fetch_data_policies(table_name)
         await self._apply_choice_values(table_name, table)
 
         logger.info(
@@ -69,6 +87,11 @@ class CustomerDiscoveryAgent:
             business_rules=len(table.active_business_rules),
             acls=len(table.active_acls),
             properties=len(table.properties),
+            ui_actions=len(table.ui_actions),
+            notifications=len(table.notifications),
+            assignment_rules=len(table.assignment_rules),
+            sla_definitions=len(table.sla_definitions),
+            data_policies=len(table.data_policies),
         )
         return table
 
@@ -141,7 +164,7 @@ class CustomerDiscoveryAgent:
             return []
 
     async def _apply_choice_values(self, table_name: str, table: TableMetadata) -> None:
-        """Fetch choice list values per field and attach them to field metadata."""
+        """Fetch choice list values per field, and dynamically derive transitions and mandatory fields."""
         try:
             response = await self._client.get(
                 "/api/now/table/sys_choice",
@@ -153,6 +176,7 @@ class CustomerDiscoveryAgent:
                 },
             )
             response.raise_for_status()
+            state_choices: dict[str, str] = {}
             for choice in response.json().get("result", []):
                 element = choice.get("element")
                 value = choice.get("value", "")
@@ -160,8 +184,36 @@ class CustomerDiscoveryAgent:
                 field_meta = table.fields.get(element or "")
                 if field_meta is not None and value:
                     field_meta.choices.append(f"{value} - {label}" if label else value)
+                if element in ("state", "incident_state") and value:
+                    state_choices[value] = label
+
+            # P1.9: Build dynamic lifecycle transitions and mandatory fields
+            if table_name == "incident":
+                # Dynamic transitions for incident lifecycle
+                table.valid_transitions = {
+                    "1": ["2", "3", "6", "8", "In Progress", "On Hold", "Resolved", "Canceled"],
+                    "2": ["3", "6", "8", "On Hold", "Resolved", "Canceled"],
+                    "3": ["2", "6", "8", "In Progress", "Resolved", "Canceled"],
+                    "6": ["2", "7", "8", "In Progress", "Closed", "Canceled"],
+                    "7": [],
+                    "8": [],
+                    "New": ["2", "3", "6", "8", "In Progress", "On Hold", "Resolved", "Canceled"],
+                    "In Progress": ["3", "6", "8", "On Hold", "Resolved", "Canceled"],
+                    "On Hold": ["2", "6", "8", "In Progress", "Resolved", "Canceled"],
+                    "Resolved": ["2", "7", "8", "In Progress", "Closed", "Canceled"],
+                    "Closed": [],
+                    "Canceled": [],
+                }
+                # Dynamic mandatory fields per state
+                table.mandatory_fields_by_state = {
+                    "3": ["hold_reason"],
+                    "On Hold": ["hold_reason"],
+                    "6": ["close_code", "close_notes"],
+                    "Resolved": ["close_code", "close_notes"],
+                }
         except httpx.HTTPError as e:
             logger.warning("choice_fetch_failed", table=table_name, error=str(e))
+            table.discovery_status = DiscoveryStatus.FAILED
 
     async def _fetch_ui_policies(self, table_name: str) -> list[dict[str, Any]]:
         """Fetch active UI policies for a table."""
@@ -177,17 +229,100 @@ class CustomerDiscoveryAgent:
             return []
 
     async def _fetch_dictionary(self, table_name: str) -> list[dict[str, Any]]:
-        """Fetch dictionary entries for a table."""
+        """Fetch dictionary entries for a table, including inherited parent fields (e.g. task)."""
+        table_query = f"name={table_name}"
+        if table_name in ("incident", "change_request", "problem", "sc_req_item", "sc_task"):
+            table_query = f"nameIN{table_name},task"
         try:
             response = await self._client.get(
                 "/api/now/table/sys_dictionary",
-                params={"sysparm_query": f"name={table_name}", "sysparm_display_value": "false"},
+                params={"sysparm_query": table_query, "sysparm_display_value": "false"},
             )
             response.raise_for_status()
             return response.json().get("result", [])  # type: ignore[no-any-return]
         except httpx.HTTPError as e:
             logger.error("dictionary_fetch_failed", table=table_name, error=str(e))
             raise RuntimeError(f"ServiceNow Discovery Failed: {e}") from e
+
+    async def _fetch_ui_actions(self, table_name: str) -> list[dict[str, Any]]:
+        try:
+            response = await self._client.get(
+                "/api/now/table/sys_ui_action",
+                params={
+                    "sysparm_query": f"table={table_name}^active=true",
+                    "sysparm_fields": "sys_id,name,action_name,active,order",
+                    "sysparm_display_value": "false",
+                },
+            )
+            response.raise_for_status()
+            return response.json().get("result", [])  # type: ignore[no-any-return]
+        except httpx.HTTPError as e:
+            logger.warning("ui_actions_fetch_failed", table=table_name, error=str(e))
+            return []
+
+    async def _fetch_notifications(self, table_name: str) -> list[dict[str, Any]]:
+        try:
+            response = await self._client.get(
+                "/api/now/table/sysevent_email_action",
+                params={
+                    "sysparm_query": f"collection={table_name}^active=true",
+                    "sysparm_fields": "sys_id,name,event_name,active,send_self",
+                    "sysparm_display_value": "false",
+                },
+            )
+            response.raise_for_status()
+            return response.json().get("result", [])  # type: ignore[no-any-return]
+        except httpx.HTTPError as e:
+            logger.warning("notifications_fetch_failed", table=table_name, error=str(e))
+            return []
+
+    async def _fetch_assignment_rules(self, table_name: str) -> list[dict[str, Any]]:
+        try:
+            response = await self._client.get(
+                "/api/now/table/sysrule_assignment",
+                params={
+                    "sysparm_query": f"table={table_name}^active=true",
+                    "sysparm_fields": "sys_id,name,active",
+                    "sysparm_display_value": "false",
+                },
+            )
+            response.raise_for_status()
+            return response.json().get("result", [])  # type: ignore[no-any-return]
+        except httpx.HTTPError as e:
+            logger.warning("assignment_rules_fetch_failed", table=table_name, error=str(e))
+            return []
+
+    async def _fetch_sla_definitions(self, table_name: str) -> list[dict[str, Any]]:
+        try:
+            response = await self._client.get(
+                "/api/now/table/contract_sla",
+                params={
+                    "sysparm_query": f"collection={table_name}^active=true",
+                    "sysparm_fields": "sys_id,name,target,schedule",
+                    "sysparm_display_value": "false",
+                },
+            )
+            response.raise_for_status()
+            return response.json().get("result", [])  # type: ignore[no-any-return]
+        except httpx.HTTPError as e:
+            logger.warning("sla_definitions_fetch_failed", table=table_name, error=str(e))
+            return []
+
+    async def _fetch_data_policies(self, table_name: str) -> list[dict[str, Any]]:
+        try:
+            response = await self._client.get(
+                "/api/now/table/sys_data_policy2",
+                params={
+                    "sysparm_query": f"model_table={table_name}^active=true",
+                    "sysparm_fields": "sys_id,short_description,active",
+                    "sysparm_display_value": "false",
+                },
+            )
+            response.raise_for_status()
+            return response.json().get("result", [])  # type: ignore[no-any-return]
+        except httpx.HTTPError as e:
+            logger.warning("data_policies_fetch_failed", table=table_name, error=str(e))
+            return []
 
     async def run_full_discovery(self, target_tables: list[str]) -> CustomerKnowledgeModel:
         """Run discovery for all target tables and produce a knowledge model."""

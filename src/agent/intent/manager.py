@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from agent.core.logging import get_logger
+from agent.core.untrusted import UNTRUSTED_DATA_POLICY, wrap_untrusted, scan_for_injection
 from agent.domain.intent import StructuredIntent
 from agent.planner.llm_client import BaseLLMClient
 
@@ -53,17 +54,21 @@ class IntentManager:
         """
         logger.info("parsing_user_intent", prompt=raw_prompt[:80])
 
+        prompt_safe = wrap_untrusted("raw_prompt", raw_prompt)
+        if scan_for_injection(raw_prompt):
+            logger.warning("prompt_injection_detected_in_intent_manager")
+
         if self._llm:
             try:
                 response = await self._llm.complete_json(
                     messages=[
                         {
                             "role": "system",
-                            "content": "You are a Goal Parsing Engine for ServiceNow QA Agent.",
+                            "content": f"You are a Goal Parsing Engine for ServiceNow QA Agent.\n\n{UNTRUSTED_DATA_POLICY}",
                         },
                         {
                             "role": "user",
-                            "content": INTENT_PARSER_PROMPT.format(raw_prompt=raw_prompt),
+                            "content": INTENT_PARSER_PROMPT.format(raw_prompt=prompt_safe),
                         },
                     ]
                 )

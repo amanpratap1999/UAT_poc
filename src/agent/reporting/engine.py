@@ -7,12 +7,15 @@ executive summaries with root-cause hypotheses.
 
 from __future__ import annotations
 
+import asyncio
+import os
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from agent.core.logging import get_logger
+from agent.core.redaction import redact_html, redact_string
 from agent.core.types import Severity
 from agent.domain.defect_scope import (
     VERIFIED_DEFECT_ERROR_TYPE,
@@ -643,15 +646,22 @@ class ReportingEngine:
         """
         if format == "markdown":
             content = await self.render_markdown(report)
+            content = redact_string(content)
             extension = "md"
         else:
             content = report.model_dump_json(indent=2)
+            content = redact_string(content)
             extension = "json"
 
         filename = f"{report.report_id}_{report.started_at.strftime('%Y%m%d_%H%M%S')}.{extension}"
         filepath = self._output_dir / filename
+        tmp_filepath = self._output_dir / f"{filename}.tmp.{uuid.uuid4().hex[:6]}"
 
-        filepath.write_text(content, encoding="utf-8")
+        def _write_report_file() -> None:
+            tmp_filepath.write_text(content, encoding="utf-8")
+            os.replace(tmp_filepath, filepath)
+
+        await asyncio.to_thread(_write_report_file)
 
         logger.info("report_saved", path=str(filepath), format=format)
         return str(filepath)
@@ -679,6 +689,7 @@ class ReportingEngine:
         tag = suffix or f"BATCH-{uuid.uuid4().hex[:8].upper()}"
         filename = f"{tag}_{stamp}.xlsx"
         filepath = self._output_dir / filename
+        tmp_filepath = self._output_dir / f"{filename}.tmp.{uuid.uuid4().hex[:6]}"
 
         wb = openpyxl.Workbook()
         ws = wb.active
@@ -733,24 +744,28 @@ class ReportingEngine:
             )
 
             row = [
-                tc.get("id", ""),
-                tc.get("story_id", "") or story_ctx.get("story_ref", ""),
-                tc.get("title", ""),
-                tc.get("description") or tc.get("source_user_story") or "",
-                _stringify_cell(tc.get("test_data") or ""),
-                "\n".join(tc.get("preconditions") or []),
-                steps_text,
-                expected_text,
-                actual,
+                redact_string(str(tc.get("id", ""))),
+                redact_string(str(tc.get("story_id", "") or story_ctx.get("story_ref", ""))),
+                redact_string(str(tc.get("title", ""))),
+                redact_string(str(tc.get("description") or tc.get("source_user_story") or "")),
+                redact_string(_stringify_cell(tc.get("test_data") or "")),
+                redact_string("\n".join(tc.get("preconditions") or [])),
+                redact_string(steps_text),
+                redact_string(expected_text),
+                redact_string(actual),
                 report.status.upper(),
-                error_details,
-                getattr(memory, "persona", None) or tc.get("actor_role", ""),
+                redact_string(error_details),
+                redact_string(str(getattr(memory, "persona", None) or tc.get("actor_role", ""))),
                 tc.get("test_type", "Functional"),
                 story_ctx.get("sheet_name", ""),
-                exec_meta,
+                redact_string(exec_meta),
             ]
             ws.append(row)
 
-        wb.save(filepath)
+        def _write_xlsx_file() -> None:
+            wb.save(tmp_filepath)
+            os.replace(tmp_filepath, filepath)
+
+        await asyncio.to_thread(_write_xlsx_file)
         logger.info("xlsx_results_exported", path=str(filepath), rows=len(results))
         return str(filepath)

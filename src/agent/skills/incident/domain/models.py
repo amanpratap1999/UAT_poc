@@ -112,6 +112,7 @@ class WorkNotes(BaseModel):
     """Activity stream and work notes."""
 
     entries: list[dict[str, Any]] = Field(default_factory=list)
+    additional_comments: list[str] = Field(default_factory=list)
     audit_trail: list[dict[str, Any]] = Field(default_factory=list)
 
 

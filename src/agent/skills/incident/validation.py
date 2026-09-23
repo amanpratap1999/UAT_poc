@@ -10,6 +10,8 @@ Validates semantic business outcomes rather than simple UI click events:
 
 from __future__ import annotations
 
+from typing import Any
+
 from agent.core.logging import get_logger
 from agent.domain.validation import ValidationCheck, ValidationResult
 from agent.skills.incident.domain.models import (
@@ -71,6 +73,12 @@ class IncidentValidator:
             )
         else:
             details["priority_check"] = "verified_from_observation"
+            if "priority" in expected_step.lower():
+                expected_prio = IncidentBusinessRules.calculate_priority(after.impact, after.urgency)
+                if after.priority != expected_prio:
+                    passed = False
+                    details["priority_check"] = "mismatch"
+                    error_msg = f"Priority calculation mismatch: expected {expected_prio.name}, actual {after.priority.name}"
 
         step_lower = expected_step.lower()
 
@@ -140,6 +148,49 @@ class IncidentValidator:
             details=details,
             error_message=error_msg,
         )
+
+    async def validate_side_effects(
+        self,
+        before: Incident,
+        after: Incident,
+        side_effect_validator: Any,
+        since_timestamp: str = "",
+    ) -> list[ValidationCheck]:
+        """Validate expected lifecycle side-effects (audit, notification, SLAs) using the Table API."""
+        from agent.skills.incident.knowledge.rules import IncidentLifecycle
+
+        checks: list[ValidationCheck] = []
+        if not side_effect_validator or not getattr(after, "sys_id", None):
+            return checks
+
+        expected_effects = IncidentLifecycle.expected_side_effects(before.state, after.state)
+        for effect in expected_effects:
+            if effect == "audit:state":
+                c = await side_effect_validator.verify_audit_entry(
+                    after.sys_id, "state", after.state.value, since_timestamp
+                )
+                checks.append(c)
+            elif effect == "notification:resolved":
+                c = await side_effect_validator.verify_notification_sent(
+                    after.sys_id, "incident.resolved", since_timestamp
+                )
+                checks.append(c)
+            elif effect == "notification:closed":
+                c = await side_effect_validator.verify_notification_sent(
+                    after.sys_id, "incident.closed", since_timestamp
+                )
+                checks.append(c)
+            elif effect == "sla:pause":
+                c = await side_effect_validator.verify_sla_state(
+                    after.sys_id, "Resolution", "paused"
+                )
+                checks.append(c)
+            elif effect == "sla:stop":
+                c = await side_effect_validator.verify_sla_state(
+                    after.sys_id, "Resolution", "completed"
+                )
+                checks.append(c)
+        return checks
 
     def validate_precondition(
         self,

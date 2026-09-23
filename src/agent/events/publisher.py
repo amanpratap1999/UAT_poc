@@ -31,9 +31,23 @@ class RunEventPublisher:
     async def _get_redis(self) -> Any:
         if self._redis is None:
             try:
+                import os
                 import redis.asyncio as aioredis
+                from agent.core.config import get_settings
 
-                self._redis = aioredis.from_url(self.redis_url, decode_responses=True)  # type: ignore[no-untyped-call]
+                settings = get_settings()
+                ssl_kwargs: dict[str, Any] = {}
+                if self.redis_url.startswith("rediss://"):
+                    ca_cert = settings.session.redis_tls_ca_cert or os.getenv("REDIS_TLS_CA_CERT", "")
+                    if ca_cert and os.path.exists(ca_cert):
+                        ssl_kwargs["ssl_ca_certs"] = ca_cert
+                        ssl_kwargs["ssl_cert_reqs"] = "required"
+                    else:
+                        ssl_kwargs["ssl_cert_reqs"] = "none"
+
+                self._redis = aioredis.from_url(
+                    self.redis_url, decode_responses=True, **ssl_kwargs
+                )  # type: ignore[no-untyped-call]
                 self._connected = True
             except Exception as e:
                 logger.warning("redis_event_publisher_connection_failed", error=str(e))

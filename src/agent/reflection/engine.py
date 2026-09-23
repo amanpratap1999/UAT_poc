@@ -9,6 +9,7 @@ Purpose:
 from __future__ import annotations
 
 from agent.core.logging import get_logger
+from agent.core.untrusted import UNTRUSTED_DATA_POLICY, wrap_untrusted, scan_for_injection
 from agent.domain.actions import ActionResult, AgentAction
 from agent.domain.reflection import ReflectionResult
 from agent.domain.world import SemanticWorldState
@@ -66,7 +67,17 @@ class ReflectionEngine:
         """
         logger.info("reflecting_on_action", action=action.action_type, success=result.success)
 
-        action_desc = f"{action.action_type} on '{action.target}' (value: '{action.value}')"
+        target_safe = wrap_untrusted("action.target", action.target)
+        value_safe = wrap_untrusted("action.value", action.value)
+        state_safe = wrap_untrusted("world_state", world_state.to_compact_cognitive_summary())
+        error_str = result.error or "None"
+        error_safe = wrap_untrusted("result.error", error_str)
+
+        if (scan_for_injection(action.target) or scan_for_injection(action.value) or 
+            scan_for_injection(world_state.to_compact_cognitive_summary()) or scan_for_injection(error_str)):
+            logger.warning("prompt_injection_detected_in_reflection")
+
+        action_desc = f"{action.action_type} on '{target_safe}' (value: '{value_safe}')"
         if not expected_outcome:
             expected_outcome = f"Page responds to {action.action_type}"
 
@@ -76,16 +87,16 @@ class ReflectionEngine:
                     messages=[
                         {
                             "role": "system",
-                            "content": "You are a Cognitive Reflection Engine evaluating autonomous agent actions.",  # noqa: E501
+                            "content": f"You are a Cognitive Reflection Engine evaluating autonomous agent actions.\n\n{UNTRUSTED_DATA_POLICY}",  # noqa: E501
                         },
                         {
                             "role": "user",
                             "content": REFLECTION_PROMPT.format(
                                 action_description=action_desc,
                                 expected_outcome=expected_outcome,
-                                world_state_summary=world_state.to_compact_cognitive_summary(),
+                                world_state_summary=state_safe,
                                 success=result.success,
-                                error=result.error or "None",
+                                error=error_safe,
                             ),
                         },
                     ]

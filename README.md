@@ -194,18 +194,30 @@ powershell -ExecutionPolicy Bypass -File scripts/stop-local.ps1
 
 ## 🐳 Docker Execution
 
-All existing Docker Compose commands, services, and multi-container configurations remain fully preserved and operational.
+All containerized multi-service Docker Compose topologies run with multi-stage non-root images, mutual TLS Redis communication, and dedicated bridge network isolation.
 
-### 1. Configure Docker Environment
+### 1. Provision Redis TLS Certificates
+
+Redis runs in TLS mode (`rediss://`). Generate the required CA and server certificates before starting the containers:
+
+```bash
+python scripts/generate_redis_tls_certs.py
+```
+
+This generates `tls/redis/ca.crt`, `tls/redis/redis.crt`, and `tls/redis/redis.key`. Note: private keys are excluded from git.
+
+### 2. Configure Docker Environment
 
 Copy the Docker template file if not already present:
 
 ```bash
 cp .env.docker.example .env.docker
-# Edit .env.docker with your LLM API keys and ServiceNow instance credentials
+# Edit .env.docker with your LLM API keys, Redis password, and ServiceNow instance credentials
 ```
 
-### 2. Start Services
+> **Mandatory Safety Settings:** Ensure `SERVICENOW_ALLOWED_INSTANCES` is set to your subproduction domain (e.g. `devXXXXX.service-now.com`) and `SERVICENOW_IS_SUBPRODUCTION=true`. The engine will refuse to run against unlisted hosts or production instances.
+
+### 3. Start Services
 
 Build and launch all containerized services (`db`, `redis`, `api`, `worker`, `frontend`):
 
@@ -213,15 +225,19 @@ Build and launch all containerized services (`db`, `redis`, `api`, `worker`, `fr
 docker compose --env-file .env.docker up --build -d
 ```
 
-Compose automatically enforces dependency readiness: `api` and `worker` wait for PostgreSQL and Redis health checks before starting.
+Compose automatically enforces dependency readiness: `api` and `worker` wait for PostgreSQL and Redis TLS health checks before starting.
 
-### 3. Initialize Database Schema & Seed User
+### 4. Initialize Database Schema & Bootstrap Admin User
 
 ```bash
+# Initialize DB tables
 docker compose exec api python scripts/init_db.py
+
+# Bootstrap initial admin credentials with bcrypt hashing
+docker compose exec api python scripts/bootstrap_admin.py --username qa-admin --password YOUR_SECURE_PASSWORD
 ```
 
-### 4. Docker Application URLs
+### 5. Docker Application URLs
 
 | Application / Service | URL | Note |
 |-----------------------|-----|------|
@@ -229,7 +245,7 @@ docker compose exec api python scripts/init_db.py
 | **Direct Backend API** | `http://localhost:8000` | FastAPI direct port binding |
 | **API Swagger Docs** | `http://localhost:8000/docs` | Interactive Swagger documentation |
 
-### 5. View Logs & Stop Containers
+### 6. View Logs & Stop Containers
 
 ```bash
 # Stream all logs
@@ -242,7 +258,7 @@ docker compose logs -f worker
 docker compose down
 ```
 
-### 6. Customizing Docker
+### 7. Customizing Docker
 
 To customize Docker without modifying the main `docker-compose.yml`, copy the provided override template:
 
@@ -250,6 +266,17 @@ To customize Docker without modifying the main `docker-compose.yml`, copy the pr
 cp docker-compose.override.example.yml docker-compose.override.yml
 # Edit docker-compose.override.yml to mount local directories or adjust port mappings
 ```
+
+---
+
+## 🛡️ Enterprise Safety & Governance
+
+1. **Instance Host Allowlist**: Strict canonical hostname matching via `SERVICENOW_ALLOWED_INSTANCES`. Wildcards or unlisted domains trigger hard execution blocks.
+2. **Subproduction Gate**: Runtime enforces `SERVICENOW_IS_SUBPRODUCTION=true`. Attempting execution against a production instance halts with `SafetyViolationError`.
+3. **Multi-Dimensional Budgets**: Configurable per-run constraints on total actions, budget wall-clock time, mutation limits, and cost. Exceeding limits triggers orderly suspension.
+4. **Durable Kill-Switch**: Monitored on every iteration via both environment flag `UAT_KILL_SWITCH=true` and file trigger `.runtime/kill_switch`.
+5. **Distributed Record Locking**: Atomic Lua-based Redis distributed locking with composite keys (`uat:lease:{instance}:{table}:{record_id}`) and background renewal heartbeats prevents concurrent test collisions.
+6. **Mutation Journaling & Authoritative Cleanup**: Every write and create is logged to `MutationJournal`. Cleanup runs in an authoritative `finally` block via Table API with 404 deletion verification and state restoration. If cleanup fails, session transitions to `AgentState.CLEANUP_FAILED`.
 
 ---
 

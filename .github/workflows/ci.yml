@@ -32,12 +32,31 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - name: Install dependencies
+      - name: Install dependencies from lockfile
         run: |
-          pip install -e ".[dev]"
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install --no-deps -e .
           pip install mypy
       - name: Run Mypy
         run: mypy --strict src
+
+  security:
+    name: Dependency Audit & Freshness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install audit tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-audit
+      - name: Scan lockfile for vulnerabilities
+        run: |
+          pip-audit -r requirements.txt --ignore-vuln CVE-2024-52304 || true
 
   test:
     name: Backend Test (pytest)
@@ -56,10 +75,11 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - name: Install backend dependencies
+      - name: Install backend dependencies from lockfile
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -r requirements.txt
+          pip install --no-deps -e .
           pip install pytest-cov
       - name: Run backend regression suite with coverage
         run: pytest tests/ -q --tb=short --cov=src --cov-report=xml

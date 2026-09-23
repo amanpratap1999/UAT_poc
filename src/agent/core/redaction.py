@@ -17,6 +17,11 @@ SENSITIVE_FIELD_PATTERNS = [
 SENSITIVE_VALUE_PATTERNS = [
     re.compile(r"ey[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"),  # JWT
     re.compile(r"gh[ps]_[a-zA-Z0-9]{36}"),  # GitHub tokens
+    re.compile(r"Bearer\s+[A-Za-z0-9_\-\.]+", re.IGNORECASE),  # Bearer tokens
+    re.compile(r"Basic\s+[A-Za-z0-9+/=]+", re.IGNORECASE),  # Basic auth tokens
+    re.compile(r"AKIA[0-9A-Z]{16}"),  # AWS Access Key
+    re.compile(r"-----BEGIN [A-Z ]+ PRIVATE KEY-----[\s\S]*?-----END [A-Z ]+ PRIVATE KEY-----"),  # Private Keys
+    re.compile(r"://([^:]+):([^@]+)@"),  # URL credentials (user:pass@host)
 ]
 
 def is_sensitive_field(field_name: str) -> bool:
@@ -34,9 +39,29 @@ def redact_string(value: str) -> str:
         value = pattern.sub(REDACTED_MARKER, value)
     return value
 
+def redact_html(html: str) -> str:
+    """Mask password and credential input elements in HTML content."""
+    if not html:
+        return html
+    # Mask input value attributes on password elements
+    html = re.sub(
+        r'(<input[^>]*type=["\']password["\'][^>]*value=["\'])([^"\']+)(["\'])',
+        r'\1[REDACTED]\3',
+        html,
+        flags=re.IGNORECASE,
+    )
+    # Mask values on fields named password/secret/token
+    html = re.sub(
+        r'(<input[^>]*name=["\'][^"\']*(?:password|secret|token)[^"\']*["\'][^>]*value=["\'])([^"\']+)(["\'])',
+        r'\1[REDACTED]\3',
+        html,
+        flags=re.IGNORECASE,
+    )
+    return redact_string(html)
+
 def redact_dict(data: Mapping[str, Any]) -> dict[str, Any]:
     """Recursively redact sensitive fields and values in a dictionary."""
-    result = {}
+    result: dict[str, Any] = {}
     for k, v in data.items():
         if is_sensitive_field(k):
             result[k] = REDACTED_MARKER

@@ -47,6 +47,7 @@ import re
 from typing import Any
 
 from agent.core.logging import get_logger
+from agent.core.untrusted import UNTRUSTED_DATA_POLICY, wrap_untrusted, scan_for_injection
 from agent.core.types import ActionType
 
 logger = get_logger(__name__)
@@ -361,6 +362,10 @@ class StepParser:
         if cached is not None:
             return cached  # type: ignore[no-any-return]
 
+        action_safe = wrap_untrusted("action_text", action_text)
+        if scan_for_injection(action_text):
+            logger.warning("prompt_injection_detected_in_step_parser")
+
         prompt = (
             "Convert the following human-written UI test step into a JSON object "
             "with exactly these string fields: action_type, target, value, "
@@ -369,7 +374,7 @@ class StepParser:
             + ". target is the element/field/URL name. value is the text to "
             "input or select (empty string if none). expected_outcome is a short "
             "sentence describing what should happen.\n\nTest step: "
-            + action_text.strip()
+            + action_safe.strip()
             + "\n\nRespond with ONLY the JSON object."
         )
         try:
@@ -379,7 +384,7 @@ class StepParser:
                         "role": "system",
                         "content": (
                             "You are a test-step semantic parser. Respond only with "
-                            "valid JSON matching the requested schema."
+                            f"valid JSON matching the requested schema.\n\n{UNTRUSTED_DATA_POLICY}"
                         ),
                     },
                     {"role": "user", "content": prompt},

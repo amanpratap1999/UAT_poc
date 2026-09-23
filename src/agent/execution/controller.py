@@ -123,17 +123,36 @@ class ExecutionController:
                     error="Mutations are denied by default. Set SERVICENOW_ALLOW_MUTATIONS=true.",
                     duration_ms=0,
                 )
-            
-            from urllib.parse import urlparse
-            url = getattr(self._servicenow_config, "instance_url", "")
-            hostname = urlparse(url).hostname if url else ""
+
             allowed = getattr(self._servicenow_config, "allowed_instances", [])
-            
-            if allowed and hostname not in allowed:
+            if not allowed:
                 return ActionResult(
                     success=False,
                     action=action,
-                    error=f"Instance {hostname} is not in SERVICENOW_ALLOWED_INSTANCES for mutations.",
+                    error="Mutations are denied: SERVICENOW_ALLOWED_INSTANCES is empty. An explicit hostname allowlist is mandatory.",
+                    duration_ms=0,
+                )
+
+            from urllib.parse import urlparse
+            url = getattr(self._servicenow_config, "instance_url", "")
+            hostname = (urlparse(url).hostname or "").strip().lower()
+
+            canonical_allowed: set[str] = set()
+            for inst in allowed:
+                inst_clean = str(inst).strip().lower()
+                if not inst_clean or "*" in inst_clean or inst_clean.startswith("."):
+                    logger.warning("invalid_allowlist_entry_ignored", entry=inst)
+                    continue
+                canonical_allowed.add(inst_clean)
+
+            if not hostname or hostname not in canonical_allowed:
+                return ActionResult(
+                    success=False,
+                    action=action,
+                    error=(
+                        f"Instance '{hostname}' is not in verified SERVICENOW_ALLOWED_INSTANCES "
+                        f"({sorted(canonical_allowed)}) for mutations."
+                    ),
                     duration_ms=0,
                 )
 

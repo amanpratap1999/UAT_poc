@@ -64,6 +64,10 @@ class CognitiveOrchestrator:
         self._stop_requested = False
         self._event_publisher: Any | None = None
         self._control_receiver: Any | None = None
+        self._journal: Any | None = None
+        self._lock_manager: Any | None = None
+        self._locked_records: set[str] = set()
+        self.session_id: str = ""
 
     def set_event_publisher(self, publisher: Any) -> None:
         """Set the live run event publisher."""
@@ -236,7 +240,10 @@ class CognitiveOrchestrator:
         return field, value
 
     async def _verify_persistence_via_api(
-        self, record_number: str, assertion_pairs: list[tuple[str, str]]
+        self,
+        record_number: str,
+        assertion_pairs: list[tuple[str, str]],
+        pre_snapshot: Any = None,
     ) -> tuple[str, Any]:
         """Fetch the record via the Table API and verify assertions against
         the server-side values.
@@ -259,24 +266,73 @@ class CognitiveOrchestrator:
                 ApiVerificationResult,
                 IncidentApiOracle,
             )
+            from agent.skills.incident.side_effects import IncidentSideEffectValidator
 
             oracle = IncidentApiOracle(sn_cfg)  # type: ignore[arg-type]
             try:
                 snapshot = await oracle.fetch_incident(str(record_number))
                 if snapshot is None:
                     return "not_found", None
+
+                # P1.6: Verify sys_updated_on advanced compared to pre-mutation snapshot
+                if pre_snapshot is not None:
+                    pre_updated = getattr(pre_snapshot, "sys_updated_on", "") or ""
+                    post_updated = getattr(snapshot, "sys_updated_on", "") or ""
+                    if pre_updated and post_updated and post_updated <= pre_updated:
+                        logger.warning(
+                            "persistence_verification_timestamp_did_not_advance",
+                            record=record_number,
+                            pre=pre_updated,
+                            post=post_updated,
+                        )
+                        return "mismatch", ApiVerificationResult(
+                            status="mismatch",
+                            snapshot=snapshot,
+                            mismatches=[
+                                f"sys_updated_on did not advance after mutation: pre={pre_updated}, post={post_updated}"
+                            ],
+                            evidence={
+                                "record_exists": True,
+                                "timestamp_advanced": False,
+                                "pre_updated": pre_updated,
+                                "post_updated": post_updated,
+                            },
+                        )
+
                 if assertion_pairs:
                     api_result = IncidentApiOracle.verify_assertions(
                         assertion_pairs, snapshot
                     )
+
+                    # P1.6 / P1.10: Check sys_audit entries for mutated audited fields
+                    if snapshot.sys_id:
+                        side_effects = IncidentSideEffectValidator(oracle)
+                        since_ts = getattr(pre_snapshot, "sys_updated_on", "") if pre_snapshot else ""
+                        for fname, fval in assertion_pairs:
+                            if fname.lower() in ("state", "priority", "assignment_group", "assigned_to"):
+                                try:
+                                    audit_chk = await side_effects.verify_audit_entry(
+                                        sys_id=snapshot.sys_id,
+                                        field=fname.lower(),
+                                        expected_new=fval,
+                                        since=str(since_ts or ""),
+                                    )
+                                    api_result.evidence[f"audit_{fname}"] = "verified" if audit_chk.passed else "missing"
+                                    if not audit_chk.passed:
+                                        logger.warning(
+                                            "audit_entry_missing_for_mutation",
+                                            field=fname,
+                                            expected=fval,
+                                            record=record_number,
+                                        )
+                                except Exception as audit_err:
+                                    logger.warning("audit_check_error", error=str(audit_err))
+
                     if api_result.status == "not_found":
-                        # Record exists server-side but none of the asserted
-                        # fields are API-verifiable: persistence of the record
-                        # itself is proven by its existence + sys_updated_on,
-                        # but the field values were NOT independently confirmed.
                         api_result.evidence["record_exists"] = True
                         return "partial", api_result
                     return api_result.status, api_result
+
                 return "partial", ApiVerificationResult(
                     status="partial",
                     snapshot=snapshot,
@@ -789,6 +845,45 @@ class CognitiveOrchestrator:
                             error_type="InvestigationVerifiedDefect",
                             error_message=f"Hypothesis {hypothesis.id}: {investigation.reasoning}",
                         )
+                    elif str(
+                        getattr(investigation, "classification", "") or ""
+                    ).startswith("inconclusive"):
+                        reproduced, repro_evidence = await self._attempt_reproduction(
+                            action, validation
+                        )
+                        memory.add_timeline_entry(
+                            action=f"Reproduction attempt on hypothesis {hypothesis.id}",
+                            result=repro_evidence,
+                        )
+                        if reproduced:
+                            investigation = await self._investigation_engine.investigate_mismatch(
+                                action=action,
+                                expected=hypothesis.expected_outcome,
+                                actual=validation.to_summary(),
+                                table_name=hypothesis.capability,
+                                result=result,
+                                validation=validation,
+                                reproduced=True,
+                            )
+                        if investigation.is_defect:
+                            memory.add_failure(
+                                error_type="InvestigationVerifiedDefect",
+                                error_message=f"Hypothesis {hypothesis.id}: {investigation.reasoning}",
+                            )
+                        else:
+                            memory.add_failure(
+                                error_type="InconclusiveVerification",
+                                error_message=f"Hypothesis {hypothesis.id}: {investigation.reasoning}",
+                            )
+                        kr = getattr(investigation, "knowledge_reference", None)
+                        memory.add_defect_verdict(
+                            step_index=memory.current_step_index - 1,
+                            hypothesis_id=f"{hypothesis.id}-reproduction",
+                            is_defect=investigation.is_defect,
+                            classification=investigation.classification,
+                            reasoning=f"{investigation.reasoning} [{repro_evidence}]",
+                            knowledge_reference=kr if isinstance(kr, str) else None,
+                        )
                     else:
                         logger.info(
                             "false_positive_prevented", classification=investigation.classification
@@ -838,15 +933,14 @@ class CognitiveOrchestrator:
         # are re-checked against the Table API each time the record is saved.
         pending_api_assertions: list[tuple[str, str]] = []
         api_mismatch_found = False
+        pre_mutation_snapshot: Any = None
 
         for step in plan.steps:
-            if hasattr(self, "_lock_manager") and self._lock_manager:
+            if self._lock_manager:
                 rec_num = (memory.current_record or {}).get("number")
                 if rec_num:
-                    if not hasattr(self, "_locked_records"):
-                        self._locked_records = set()
                     if rec_num not in self._locked_records:
-                        acquired = await self._lock_manager.acquire_lease(rec_num, getattr(self, "session_id", "default"))
+                        acquired = await self._lock_manager.acquire_lease(rec_num, self.session_id or "default")
                         if not acquired:
                             reason = f"Concurrency Isolation: Record {rec_num} is currently locked by another test session."
                             step.mark_failed(reason)
@@ -1193,6 +1287,44 @@ class CognitiveOrchestrator:
                 mutation = self._mutation_assertion(action)
                 if mutation is not None:
                     pending_api_assertions.append(mutation)
+                    if pre_mutation_snapshot is None:
+                        rec_candidate = (
+                            (memory.current_record or {}).get("number")
+                            or getattr(raw_obs, "record_number", None)
+                            or getattr(raw_obs_after, "record_number", None)
+                        )
+                        if rec_candidate:
+                            try:
+                                from agent.skills.incident.api_oracle import IncidentApiOracle
+                                sn_cfg = getattr(self._settings, "servicenow", None) if self._settings else None
+                                if sn_cfg and getattr(sn_cfg, "instance_url", None) and getattr(sn_cfg, "api_oracle_enabled", True):
+                                    pre_oracle = IncidentApiOracle(sn_cfg)
+                                    pre_mutation_snapshot = await pre_oracle.fetch_incident(str(rec_candidate))
+                                    await pre_oracle.aclose()
+                            except Exception as pre_err:
+                                logger.debug("pre_mutation_snapshot_failed", error=str(pre_err))
+
+                    if hasattr(self, "_journal") and self._journal:
+                        rec_id = (
+                            (memory.current_record or {}).get("number")
+                            or getattr(raw_obs, "record_number", None)
+                            or getattr(raw_obs_after, "record_number", None)
+                            or "unknown"
+                        )
+                        pre_vals = {}
+                        if pre_mutation_snapshot:
+                            pre_vals = {
+                                "state": getattr(pre_mutation_snapshot, "state", None),
+                                "priority": getattr(pre_mutation_snapshot, "priority", None),
+                                "assignment_group": getattr(pre_mutation_snapshot, "assignment_group", None),
+                            }
+                        self._journal.record_update(
+                            table="incident",
+                            record_id=str(rec_id),
+                            pre_state=pre_vals,
+                            post_state={mutation[0]: mutation[1]},
+                            sys_id=getattr(pre_mutation_snapshot, "sys_id", None) if pre_mutation_snapshot else None,
+                        )
 
                 api_failed = False
                 if self._is_save_click(action) and pending_api_assertions:
@@ -1211,7 +1343,7 @@ class CognitiveOrchestrator:
                     )
                     if record_number:
                         api_status, api_result = await self._verify_persistence_via_api(
-                            str(record_number), list(latest_assertions.values())
+                            str(record_number), list(latest_assertions.values()), pre_snapshot=pre_mutation_snapshot
                         )
                         memory.api_verification_status = api_status
                         if api_status != "verified":
@@ -1481,7 +1613,7 @@ class CognitiveOrchestrator:
                             assertion_pairs.append((fname, fval))
 
                     api_status, api_result = await self._verify_persistence_via_api(
-                        str(record_number), assertion_pairs
+                        str(record_number), assertion_pairs, pre_snapshot=pre_mutation_snapshot
                     )
                     api_verification_status = api_status
                     if api_status == "mismatch" and api_result is not None:

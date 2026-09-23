@@ -24,7 +24,9 @@ logger = get_logger(__name__)
 
 _API_FIELDS = (
     "sys_id,number,state,priority,impact,urgency,hold_reason,"
-    "short_description,sys_updated_on"
+    "short_description,sys_updated_on,caller_id,assignment_group,"
+    "assigned_to,category,subcategory,description,close_code,close_notes,"
+    "resolved_by,resolved_at,closed_at,sys_created_on"
 )
 
 
@@ -41,6 +43,19 @@ class IncidentApiSnapshot:
     hold_reason: str = ""
     short_description: str = ""
     sys_updated_on: str = ""
+    caller_id: str = ""
+    assignment_group: str = ""
+    assigned_to: str = ""
+    category: str = ""
+    subcategory: str = ""
+    description: str = ""
+    close_code: str = ""
+    close_notes: str = ""
+    resolved_by: str = ""
+    resolved_at: str = ""
+    closed_at: str = ""
+    sys_created_on: str = ""
+    display_values: dict[str, str] = field(default_factory=dict)
     raw: dict[str, Any] = field(default_factory=dict)
 
 
@@ -52,11 +67,13 @@ class ApiVerificationResult:
     mismatches: list[str] = field(default_factory=list)
     snapshot: IncidentApiSnapshot | None = None
     evidence: dict[str, Any] = field(default_factory=dict)
+    timestamp_verified: bool = False
+    audit_entries: list[dict[str, Any]] = field(default_factory=list)
 
 
 class IncidentApiOracle:
-    """Reads incident records from the ServiceNow Table API as an independent
-    verification oracle.
+    """Reads incident records and audit history from the ServiceNow Table API as an
+    independent verification oracle.
 
     The oracle is strictly read-only: it never mutates records.
     """
@@ -77,15 +94,7 @@ class IncidentApiOracle:
         await self._client.aclose()
 
     async def fetch_incident(self, number: str) -> IncidentApiSnapshot | None:
-        """Fetch the server-side incident record by number.
-
-        Returns:
-            An IncidentApiSnapshot, or None when the record does not exist.
-
-        Raises:
-            RuntimeError: When the Table API is unreachable or rejects the
-                request (auth/permission problems).
-        """
+        """Fetch the server-side incident record by number."""
         logger.info("api_oracle_fetch_incident", number=number)
         try:
             response = await self._client.get(
@@ -94,7 +103,7 @@ class IncidentApiOracle:
                     "sysparm_query": f"number={number}",
                     "sysparm_fields": _API_FIELDS,
                     "sysparm_limit": "1",
-                    "sysparm_display_value": "false",
+                    "sysparm_display_value": "all",
                 },
             )
             response.raise_for_status()
@@ -106,35 +115,100 @@ class IncidentApiOracle:
         if not results:
             return None
         record = results[0]
+
+        disp_dict: dict[str, str] = {}
+
+        def _val(k: str) -> str:
+            v = record.get(k, "")
+            if isinstance(v, dict):
+                dv = str(v.get("display_value", "") or "")
+                if dv:
+                    disp_dict[k] = dv
+                return str(v.get("value", "") or "")
+            return str(v or "")
+
+        num_val = _val("number") or str(record.get("number", ""))
+        sys_id_val = _val("sys_id") or record.get("sys_id")
+        if isinstance(sys_id_val, dict):
+            sys_id_val = sys_id_val.get("value")
+
         return IncidentApiSnapshot(
-            number=record.get("number", ""),
-            sys_id=record.get("sys_id"),
-            state=str(record.get("state", "") or ""),
-            priority=str(record.get("priority", "") or ""),
-            impact=str(record.get("impact", "") or ""),
-            urgency=str(record.get("urgency", "") or ""),
-            hold_reason=record.get("hold_reason", "") or "",
-            short_description=record.get("short_description", "") or "",
-            sys_updated_on=record.get("sys_updated_on", "") or "",
+            number=num_val,
+            sys_id=str(sys_id_val) if sys_id_val else None,
+            state=_val("state"),
+            priority=_val("priority"),
+            impact=_val("impact"),
+            urgency=_val("urgency"),
+            hold_reason=_val("hold_reason"),
+            short_description=_val("short_description"),
+            sys_updated_on=_val("sys_updated_on"),
+            caller_id=_val("caller_id"),
+            assignment_group=_val("assignment_group"),
+            assigned_to=_val("assigned_to"),
+            category=_val("category"),
+            subcategory=_val("subcategory"),
+            description=_val("description"),
+            close_code=_val("close_code"),
+            close_notes=_val("close_notes"),
+            resolved_by=_val("resolved_by"),
+            resolved_at=_val("resolved_at"),
+            closed_at=_val("closed_at"),
+            sys_created_on=_val("sys_created_on"),
+            display_values=disp_dict,
             raw=record,
         )
+
+    async def fetch_audit_trail(self, sys_id: str, since: str = "") -> list[dict[str, Any]]:
+        """Fetch audit trail history for an incident document from sys_audit."""
+        query = f"documentkey={sys_id}"
+        if since:
+            query += f"^sys_created_on>{since}"
+        try:
+            response = await self._client.get(
+                "/api/now/table/sys_audit",
+                params={
+                    "sysparm_query": query,
+                    "sysparm_fields": "fieldname,oldvalue,newvalue,sys_created_on,user",
+                    "sysparm_display_value": "false",
+                    "sysparm_limit": "50",
+                },
+            )
+            response.raise_for_status()
+            return response.json().get("result", [])  # type: ignore[no-any-return]
+        except httpx.HTTPError as e:
+            logger.warning("api_oracle_fetch_audit_failed", sys_id=sys_id, error=str(e))
+            return []
+
+    async def verify_mutation_in_audit(
+        self, sys_id: str, field_name: str, expected_new_value: str, since: str = ""
+    ) -> bool:
+        """Verify that an audit entry exists documenting the field mutation."""
+        entries = await self.fetch_audit_trail(sys_id, since=since)
+        fn_clean = field_name.strip().lower().replace("incident.", "")
+        exp_clean = expected_new_value.strip().lower()
+        for e in entries:
+            e_field = str(e.get("fieldname", "")).strip().lower()
+            e_new = str(e.get("newvalue", "")).strip().lower()
+            if e_field == fn_clean and (e_new == exp_clean or not exp_clean):
+                return True
+        return False
+
+    @staticmethod
+    def verify_timestamp_advanced(
+        before_timestamp: str, snapshot: IncidentApiSnapshot
+    ) -> bool:
+        """Verify that sys_updated_on advanced after the mutation."""
+        if not snapshot.sys_updated_on:
+            return False
+        if not before_timestamp:
+            return True
+        return snapshot.sys_updated_on > before_timestamp
 
     @staticmethod
     def check_assertion(
         field_name: str, expected: str, snapshot: IncidentApiSnapshot
     ) -> bool | None:
-        """Check one assertion field against the server-side snapshot.
-
-        Args:
-            field_name: Canonical field name from the assertion (e.g. "state").
-            expected: The asserted value (value or label, e.g. "2" or
-                "In Progress").
-            snapshot: The Table API snapshot.
-
-        Returns:
-            True/False when the field is API-verifiable, or None when the
-            oracle cannot verify this field (not part of the API snapshot).
-        """
+        """Check one assertion field against the server-side snapshot."""
         fname = (field_name or "").strip().lower()
         expected_val = (expected or "").strip()
 
@@ -143,25 +217,50 @@ class IncidentApiOracle:
                 IncidentState.from_string(snapshot.state)
                 == IncidentState.from_string(expected_val)
             )
-        if fname == "priority":
+        if fname in ("priority", "incident.priority"):
             return (
                 IncidentPriority.from_string(snapshot.priority)
                 == IncidentPriority.from_string(expected_val)
             )
-        if fname == "impact":
-            return snapshot.impact.strip() == expected_val or (
-                bool(snapshot.impact.strip())
-                and expected_val.startswith(snapshot.impact.strip())
-            )
-        if fname == "urgency":
-            return snapshot.urgency.strip() == expected_val or (
-                bool(snapshot.urgency.strip())
-                and expected_val.startswith(snapshot.urgency.strip())
-            )
-        if fname in ("hold_reason", "on hold reason", "hold reason"):
+        if fname in ("impact", "incident.impact"):
+            exp_code = expected_val.split("-")[0].strip().lower() if "-" in expected_val else expected_val.strip().lower()
+            disp = snapshot.display_values.get("impact", "").strip().lower()
+            val = snapshot.impact.strip().lower()
+            return val == exp_code or val == expected_val.strip().lower() or (bool(disp) and disp == expected_val.strip().lower())
+        if fname in ("urgency", "incident.urgency"):
+            exp_code = expected_val.split("-")[0].strip().lower() if "-" in expected_val else expected_val.strip().lower()
+            disp = snapshot.display_values.get("urgency", "").strip().lower()
+            val = snapshot.urgency.strip().lower()
+            return val == exp_code or val == expected_val.strip().lower() or (bool(disp) and disp == expected_val.strip().lower())
+        if fname in ("hold_reason", "on hold reason", "hold reason", "incident.hold_reason"):
             return snapshot.hold_reason.strip().lower() == expected_val.lower()
-        if fname in ("short_description", "short description"):
+        if fname in ("short_description", "short description", "incident.short_description"):
             return snapshot.short_description.strip().lower() == expected_val.lower()
+        if fname in ("assignment_group", "assignment group", "incident.assignment_group"):
+            exp = expected_val.strip().lower()
+            val = snapshot.assignment_group.strip().lower()
+            disp = snapshot.display_values.get("assignment_group", "").strip().lower()
+            return exp == val or (bool(disp) and exp == disp)
+        if fname in ("assigned_to", "assigned to", "incident.assigned_to"):
+            exp = expected_val.strip().lower()
+            val = snapshot.assigned_to.strip().lower()
+            disp = snapshot.display_values.get("assigned_to", "").strip().lower()
+            return exp == val or (bool(disp) and exp == disp)
+        if fname in ("caller_id", "incident.caller_id"):
+            exp = expected_val.strip().lower()
+            val = snapshot.caller_id.strip().lower()
+            disp = snapshot.display_values.get("caller_id", "").strip().lower()
+            return exp == val or (bool(disp) and exp == disp)
+        if fname in ("category", "incident.category"):
+            return snapshot.category.strip().lower() == expected_val.lower()
+        if fname in ("subcategory", "incident.subcategory"):
+            return snapshot.subcategory.strip().lower() == expected_val.lower()
+        if fname in ("description", "incident.description"):
+            return snapshot.description.strip().lower() == expected_val.lower()
+        if fname in ("close_code", "resolution code", "incident.close_code"):
+            return snapshot.close_code.strip().lower() == expected_val.lower()
+        if fname in ("close_notes", "resolution notes", "incident.close_notes"):
+            return snapshot.close_notes.strip().lower() == expected_val.lower()
         return None
 
     @classmethod

@@ -307,9 +307,10 @@ async def test_inconclusive_mismatch_reproduced_becomes_verified_defect(orchestr
     _app_scope_failure_setup(orchestrator)
 
     orchestrator._investigation_engine = AsyncMock()
-    orchestrator._investigation_engine.investigate_mismatch.return_value = (
-        _inconclusive_investigation()
-    )
+    orchestrator._investigation_engine.investigate_mismatch.side_effect = [
+        _inconclusive_investigation(),
+        _verified_investigation(),
+    ]
     orchestrator._attempt_reproduction = AsyncMock(
         return_value=(True, "mismatch REPRODUCED on a clean re-run")
     )

@@ -4,6 +4,8 @@ import os
 import socket
 import sys
 
+from typing import Any
+
 from celery import Celery  # type: ignore
 
 from agent.core.config import get_settings
@@ -109,3 +111,22 @@ celery_app.conf.update(
     task_track_started=True,
     task_time_limit=3600,  # 1 hour max
 )
+
+# Redis TLS configuration for Celery
+if broker_url and broker_url.startswith("rediss://"):
+    import ssl
+    ca_cert = _settings.session.redis_tls_ca_cert or os.getenv("REDIS_TLS_CA_CERT", "")
+    ssl_opts: dict[str, Any] = {
+        "ssl_cert_reqs": ssl.CERT_REQUIRED if (ca_cert and os.path.exists(ca_cert)) else ssl.CERT_NONE,
+    }
+    if ca_cert and os.path.exists(ca_cert):
+        ssl_opts["ssl_ca_certs"] = ca_cert
+    client_cert = _settings.session.redis_tls_cert or os.getenv("REDIS_TLS_CERT", "")
+    client_key = _settings.session.redis_tls_key or os.getenv("REDIS_TLS_KEY", "")
+    if client_cert and os.path.exists(client_cert):
+        ssl_opts["ssl_certfile"] = client_cert
+    if client_key and os.path.exists(client_key):
+        ssl_opts["ssl_keyfile"] = client_key
+    celery_app.conf.broker_use_ssl = ssl_opts
+    celery_app.conf.redis_backend_use_ssl = ssl_opts
+

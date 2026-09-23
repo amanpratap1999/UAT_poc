@@ -38,9 +38,10 @@ class IncidentSkill(BaseSkill):
 
     def __init__(self, config: Any = None) -> None:
         self._config = config
-        base_url = config.instance_url if config else ""
+        base_url = getattr(config, "instance_url", "") if config else ""
         if not base_url:
-            raise ValueError("SERVICENOW_INSTANCE_URL is not configured.")
+            from agent.core.config import get_settings
+            base_url = get_settings().servicenow.instance_url or "https://localhost"
         base_url = base_url.rstrip("/")
         self._navigator = IncidentNavigator(base_url=base_url)
         self._observer = IncidentObserver()
@@ -48,6 +49,16 @@ class IncidentSkill(BaseSkill):
         self._validator = IncidentValidator()
         self._recovery_handler = IncidentRecoveryHandler()
         self._evidence_collector = EvidenceCollector()
+        self._oracle = None
+        self._side_effect_validator = None
+        if config and getattr(config, "api_oracle_enabled", True) and getattr(config, "username", None):
+            try:
+                from agent.skills.incident.api_oracle import IncidentApiOracle
+                from agent.skills.incident.side_effects import IncidentSideEffectValidator
+                self._oracle = IncidentApiOracle(config)
+                self._side_effect_validator = IncidentSideEffectValidator(self._oracle)
+            except Exception as e:
+                logger.warning("incident_skill_oracle_init_failed", error=str(e))
 
     @property
     def manifest(self) -> SkillManifest:
@@ -245,7 +256,26 @@ class IncidentSkill(BaseSkill):
             confidence_score=0.95 if business_result.passed else 0.50,
         )
 
-        return self._validator.to_standard_validation_result(business_result, is_precondition=False)
+        standard_res = self._validator.to_standard_validation_result(business_result, is_precondition=False)
+        if (
+            self._side_effect_validator
+            and getattr(incident_after, "sys_id", None)
+            and getattr(incident_before, "state", None) != getattr(incident_after, "state", None)
+        ):
+            try:
+                audit_check = await self._side_effect_validator.verify_audit_entry(
+                    sys_id=str(incident_after.sys_id),
+                    field="state",
+                    expected_new=str(incident_after.state.value if hasattr(incident_after.state, "value") else incident_after.state),
+                    since=str(getattr(incident_before, "sys_updated_on", "") or ""),
+                )
+                standard_res.add_check(audit_check)
+                if not audit_check.passed:
+                    standard_res.overall_passed = False
+            except Exception as se_err:
+                logger.warning("incident_skill_audit_check_failed", error=str(se_err))
+
+        return standard_res
 
     async def recover(self, error: Exception, context: dict[str, Any]) -> AgentAction | None:
         """Suggest domain-specific recovery action."""

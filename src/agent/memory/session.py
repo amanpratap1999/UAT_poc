@@ -170,11 +170,11 @@ class SessionMemory(BaseModel):
         """Add a page observation, maintaining the rolling window."""
         from agent.core.redaction import redact_dict
         
-        # Redact the DOM structure and fields
-        if observation.dom_structure:
-            observation.dom_structure = redact_dict(observation.dom_structure)
-        if observation.fields:
-            observation.fields = redact_dict(observation.fields)
+        # Redact sensitive field values in visible_fields
+        from agent.core.redaction import redact_string
+        for f in observation.visible_fields:
+            if f.value:
+                f.value = redact_string(f.value)
 
         self.observations.append(observation)
         self.current_url = observation.url

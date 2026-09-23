@@ -358,8 +358,11 @@ async def get_run_perception(
 
     try:
         data = _json.loads(evidence_path.read_text(encoding="utf-8"))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to read perception evidence: {e}")
+    except (OSError, _json.JSONDecodeError) as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to read perception evidence: {e}",
+        )
 
     data["status"] = run.status
     return data
@@ -638,7 +641,7 @@ async def stream_run_events(
                     if seq >= from_sequence:
                         yield f"data: {raw}\n\n"
                         last_replayed_seq = max(last_replayed_seq, seq)
-                except Exception:
+                except (json.JSONDecodeError, TypeError):
                     continue
 
             # 3. Stream live events
@@ -650,7 +653,7 @@ async def stream_run_events(
                         data = json.loads(payload)
                         if data.get("sequence", 0) > last_replayed_seq:
                             yield f"data: {payload}\n\n"
-                    except Exception:
+                    except (json.JSONDecodeError, TypeError):
                         yield f"data: {payload}\n\n"
                 else:
                     yield ": keepalive\n\n"
@@ -671,12 +674,12 @@ async def stream_run_events(
                 try:
                     await pubsub.unsubscribe()
                     await pubsub.close()
-                except Exception:
+                except OSError:
                     pass
             if r:
                 try:
                     await r.close()
-                except Exception:
+                except OSError:
                     pass
 
     return StreamingResponse(
@@ -1263,7 +1266,7 @@ async def export_test_case_results(
             continue
         try:
             snapshot = json.loads(snap_path.read_text(encoding="utf-8"))
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             continue
 
         tenant = (snapshot.get("test_case") or {}).get("tenant_id")
@@ -1343,7 +1346,7 @@ async def compare_test_case_personas(
             continue
         try:
             snapshot = json.loads(snap_path.read_text(encoding="utf-8"))
-        except Exception:
+        except (OSError, json.JSONDecodeError):
             continue
         if (snapshot.get("test_case") or {}).get("id") != test_case_id:
             continue

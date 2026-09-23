@@ -136,7 +136,7 @@ class ServiceNowConfig(BaseSubConfig):
         default=False,
         description="Explicitly declare this instance as sub-production. Production instances cannot be mutated.",
     )
-    username: str = Field(default="admin", description="Login username")
+    username: str = Field(default="", description="Login username")
     password: str = Field(default="", description="Login password")
 
     # P1.9 Role/Persona Execution
@@ -170,8 +170,8 @@ class ServiceNowConfig(BaseSubConfig):
         """Get credentials for the active persona, falling back to defaults."""
         if self.active_persona and self.personas and self.active_persona in self.personas:
             p = self.personas[self.active_persona]
-            return p.get("username", self.username), p.get("password", self.password)
-        return self.username, self.password
+            return p.get("username", self.username or "admin"), p.get("password", self.password)
+        return self.username or "admin", self.password
 
 
 class BrowserConfig(BaseSubConfig):
@@ -233,7 +233,9 @@ class SessionConfig(BaseSubConfig):
     )
 
     store_type: Literal["memory", "redis"] = Field(
-        default="memory", description="Backend to use ('memory' or 'redis')"
+        default="memory",
+        validation_alias=AliasChoices("SESSION_STORE_TYPE", "store_type"),
+        description="Backend to use ('memory' or 'redis')",
     )
     redis_url: str = Field(
         default="redis://localhost:6379/0",
@@ -241,6 +243,21 @@ class SessionConfig(BaseSubConfig):
         description="Redis connection URL",
     )
     redis_prefix: str = Field(default="session:", description="Redis key prefix")
+    redis_tls_ca_cert: str = Field(
+        default="",
+        validation_alias=AliasChoices("REDIS_TLS_CA_CERT", "redis_tls_ca_cert"),
+        description="Path to Redis TLS CA cert file",
+    )
+    redis_tls_cert: str = Field(
+        default="",
+        validation_alias=AliasChoices("REDIS_TLS_CERT", "redis_tls_cert"),
+        description="Path to Redis TLS client certificate file",
+    )
+    redis_tls_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("REDIS_TLS_KEY", "redis_tls_key"),
+        description="Path to Redis TLS client key file",
+    )
     celery_broker_url: str = Field(
         default="",
         validation_alias="CELERY_BROKER_URL",
@@ -314,6 +331,51 @@ class SecurityConfig(BaseSubConfig):
     allow_js_evaluation: bool = Field(
         default=False,
         description="Whether to permit arbitrary JS script evaluation",
+    )
+
+
+class SafetyBudgetConfig(BaseSubConfig):
+    """Execution safety budgets for QA engine runs (QA-016)."""
+
+    model_config = SettingsConfigDict(
+        env_file_encoding="utf-8",
+        env_prefix="SAFETY_BUDGET_",
+        extra="ignore",
+    )
+
+    max_actions_per_run: int = Field(
+        default=50,
+        validation_alias=AliasChoices("SAFETY_BUDGET_MAX_ACTIONS", "max_actions_per_run"),
+        description="Max total browser/agent actions per run",
+    )
+    max_mutations_per_run: int = Field(
+        default=20,
+        validation_alias=AliasChoices("SAFETY_BUDGET_MAX_MUTATIONS", "max_mutations_per_run"),
+        description="Max mutating actions (fill/select/submit) per run",
+    )
+    max_records_per_run: int = Field(
+        default=10,
+        validation_alias=AliasChoices("SAFETY_BUDGET_MAX_RECORDS", "max_records_per_run"),
+        description="Max distinct records allowed to be touched per run",
+    )
+    max_tables_per_run: int = Field(
+        default=5,
+        validation_alias=AliasChoices("SAFETY_BUDGET_MAX_TABLES", "max_tables_per_run"),
+        description="Max distinct tables allowed to be touched per run",
+    )
+    max_destructive_operations: int = Field(
+        default=0,
+        validation_alias=AliasChoices(
+            "SAFETY_BUDGET_MAX_DESTRUCTIVE", "max_destructive_operations"
+        ),
+        description="Max destructive actions (delete, drop, truncate) per run",
+    )
+    max_run_time_seconds: float = Field(
+        default=1800.0,
+        validation_alias=AliasChoices(
+            "SAFETY_BUDGET_MAX_RUN_TIME_SECONDS", "max_run_time_seconds"
+        ),
+        description="Max total wall-clock runtime in seconds before forced abort",
     )
 
 
@@ -414,6 +476,7 @@ class Settings(BaseSubConfig):
     perception: PerceptionConfig = Field(default_factory=PerceptionConfig)
     domain: DomainConfig = Field(default_factory=DomainConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
+    safety_budgets: SafetyBudgetConfig = Field(default_factory=SafetyBudgetConfig)
 
     # Logging
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
@@ -490,6 +553,20 @@ class Settings(BaseSubConfig):
                 "not development. Generate one with: "
                 "python -c \"import secrets; print(secrets.token_urlsafe(48))\""
             )
+        return self
+
+    @model_validator(mode="after")
+    def _validate_redis_tls_certs(self) -> "Settings":
+        """Fail startup clearly if Redis TLS is configured but certificates do not exist."""
+        for name, path_str in [
+            ("REDIS_TLS_CA_CERT", self.session.redis_tls_ca_cert),
+            ("REDIS_TLS_CERT", self.session.redis_tls_cert),
+            ("REDIS_TLS_KEY", self.session.redis_tls_key),
+        ]:
+            if path_str and not Path(path_str).exists():
+                raise ValueError(
+                    f"Refusing to start: {name} is configured ({path_str}) but file does not exist."
+                )
         return self
 
     def ensure_directories(self) -> None:

@@ -33,6 +33,15 @@ class ClassificationResult(BaseModel):
     )
 
 
+class DiscoveryStatus(StrEnum):
+    """Status of schema and rule discovery for a ServiceNow table."""
+
+    AVAILABLE = "AVAILABLE"
+    EMPTY = "EMPTY"
+    UNAVAILABLE = "UNAVAILABLE"
+    FAILED = "FAILED"
+
+
 class FieldMetadata(BaseModel):
     """Metadata for a single field in a table."""
 
@@ -48,12 +57,18 @@ class TableMetadata(BaseModel):
     """Metadata for a ServiceNow table."""
 
     name: str
+    discovery_status: DiscoveryStatus = DiscoveryStatus.AVAILABLE
     fields: dict[str, FieldMetadata] = Field(default_factory=dict)
     active_ui_policies: list[dict[str, Any]] = Field(default_factory=list)
     active_client_scripts: list[dict[str, Any]] = Field(default_factory=list)
     active_business_rules: list[dict[str, Any]] = Field(default_factory=list)
     active_acls: list[dict[str, Any]] = Field(default_factory=list)
     properties: list[dict[str, Any]] = Field(default_factory=list)
+    ui_actions: list[dict[str, Any]] = Field(default_factory=list)
+    notifications: list[dict[str, Any]] = Field(default_factory=list)
+    assignment_rules: list[dict[str, Any]] = Field(default_factory=list)
+    sla_definitions: list[dict[str, Any]] = Field(default_factory=list)
+    data_policies: list[dict[str, Any]] = Field(default_factory=list)
     valid_transitions: dict[str, list[str]] = Field(default_factory=dict)
     mandatory_fields_by_state: dict[str, list[str]] = Field(default_factory=dict)
 
@@ -82,9 +97,11 @@ class CustomerKnowledgeModel:
     ) -> bool:
         """Check if transition from current to target state is permitted."""
         table = self.get_table(table_name)
-        if not table or not table.valid_transitions:
-            # Fallback to permissive if we don't have transition data for this table
-            return True
+        if not table or table.discovery_status in (DiscoveryStatus.UNAVAILABLE, DiscoveryStatus.FAILED):
+            # Fail closed: eliminate permissive fallback when discovery is missing or failed
+            return False
+        if not table.valid_transitions:
+            return False
         allowed = table.valid_transitions.get(str(current_state), [])
         return str(target_state) in allowed
 

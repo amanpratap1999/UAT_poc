@@ -134,9 +134,16 @@ dump.rdb
 Thumbs.db
 .DS_Store
 
-
 # Debug dumps
 last_prompt.txt
 prompt_full.txt
 *prompt*.txt
 .venv_bak/
+
+# TLS / SSL Certificates and Keys (never commit private keys or generated certs)
+tls/**/*.key
+tls/**/*.crt
+tls/**/*.csr
+tls/**/*.pem
+!tls/**/README.md
+!tls/**/.gitkeep

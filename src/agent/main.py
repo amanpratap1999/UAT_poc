@@ -60,6 +60,7 @@ from agent.core.logging import get_logger, setup_logging
 from agent.core.state_machine import AgentStateMachine
 from agent.core.types import AgentState
 from agent.decision.engine import DecisionEngine
+from agent.domain.journal import MutationJournal
 from agent.domain.knowledge_model import CustomerKnowledgeModel
 from agent.domain.report import TestReport
 from agent.execution.controller import ExecutionController
@@ -233,7 +234,9 @@ class AgentOrchestrator:
         )
         from agent.core.locks import RecordLockManager
         self._lock_manager = RecordLockManager()
-        self._locked_records = set()
+        self._locked_records: set[str] = set()
+        self._journal = MutationJournal()
+        self._cognitive_orchestrator._journal = self._journal
         self._stop_requested = False
         self._report: TestReport | None = None
         self._report_file: str | None = None
@@ -614,6 +617,37 @@ class AgentOrchestrator:
                         self._memory.cleanup_status = "unverified"
                         self._memory.cleanup_details = f"Cleanup verification error: {cv_err}"
                         logger.warning("cleanup_verification_error", error=str(cv_err))
+
+                # P1.7 Authoritative Mutation Journal cleanup (runs even if step 0 failed)
+                if hasattr(self, "_journal") and self._journal and self._journal.entries:
+                    try:
+                        from agent.skills.incident.api_oracle import IncidentApiOracle
+                        sn_cfg = getattr(self._settings, "servicenow", None) if self._settings else None
+                        if sn_cfg and getattr(sn_cfg, "instance_url", None) and getattr(sn_cfg, "username", None):
+                            oracle = IncidentApiOracle(sn_cfg)
+                            j_success, j_errors, j_orphaned = await self._journal.execute_cleanup(
+                                client=oracle._client,
+                                base_url=str(sn_cfg.instance_url),
+                            )
+                            await oracle.aclose()
+                            if not j_success:
+                                self._memory.cleanup_status = "cleanup_failed"
+                                self._memory.cleanup_details = "; ".join(j_errors)
+                                self._memory.add_failure(
+                                    error_type="MutationJournalCleanupFailed",
+                                    error_message=f"Journal cleanup failed for {len(j_orphaned)} records: " + "; ".join(j_errors),
+                                )
+                                self._transition_safe(AgentState.CLEANUP_FAILED, "Mutation journal cleanup failed")
+                            elif self._memory.cleanup_status != "cleanup_failed":
+                                self._memory.cleanup_status = "verified"
+                    except Exception as j_err:
+                        logger.error("journal_cleanup_exception", error=str(j_err))
+                        self._memory.cleanup_status = "cleanup_failed"
+                        self._memory.add_failure(
+                            error_type="MutationJournalCleanupException",
+                            error_message=f"Exception during journal cleanup: {j_err}",
+                        )
+                        self._transition_safe(AgentState.CLEANUP_FAILED, "Mutation journal cleanup exception")
             except Exception as e:
                 logger.error("cleanup_execution_failed", error=str(e))
                 self._memory.cleanup_status = "cleanup_failed"
@@ -852,6 +886,11 @@ async def root_health_check() -> HealthResponse:
 async def root_readiness_check() -> Any:
     """Root readiness check alias for /api/v1/ready."""
     return await readiness_check()
+
+
+# Export AgentRunner alias for evaluation and benchmark suites
+AgentRunner = AgentOrchestrator
+
 
 
 

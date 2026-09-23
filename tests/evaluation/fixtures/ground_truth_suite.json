@@ -1,0 +1,132 @@
+{
+  "name": "ServiceNow UAT Ground Truth Benchmark Suite",
+  "description": "Versioned golden benchmark suite for evaluating defect detection quality, false-pass rates, and false-alarm rates.",
+  "version": "1.0.0",
+  "scenarios": [
+    {
+      "id": "GT-001-CLEAN-INCIDENT",
+      "title": "Clean Control: Standard Incident Lifecycle",
+      "description": "Verify standard incident creation and lifecycle transition to In Progress and Resolved with valid mandatory closure fields.",
+      "steps": [
+        "Create new incident with short_description='Email server latency', category='Software', caller_id='system_admin'",
+        "Verify state is 1 (New) and priority is calculated",
+        "Set state to 2 (In Progress) and assigned_to='system_admin'",
+        "Save and verify sys_updated_on advanced",
+        "Set state to 6 (Resolved) with close_code='Solved (Permanently)' and close_notes='Restarted MTA daemon'",
+        "Save and verify incident state is 6 (Resolved)"
+      ],
+      "expected_outcome": "Incident progresses cleanly through states to Resolved without defect.",
+      "is_exploratory": false,
+      "risk_score": 2,
+      "risk_reasoning": "Standard happy path test control.",
+      "strategies_applied": ["happy_path", "lifecycle_validation"],
+      "is_clean": true,
+      "expected_defect_ids": [],
+      "expected_defect_fields": [],
+      "cleanup_steps": ["DELETE incident record"],
+      "story_context": {
+        "story_ref": "US-001",
+        "sheet_name": "Standard_Incident"
+      },
+      "workflow_type": "incident"
+    },
+    {
+      "id": "GT-002-DEFECT-PRIORITY",
+      "title": "Seeded Defect: Priority Matrix Calculation Failure",
+      "description": "Set impact=1 (High) and urgency=1 (High); verify system calculates priority=1 (Critical). In seeded defect, priority remains 3 (Moderate).",
+      "steps": [
+        "Open incident in state 1 (New)",
+        "Set impact to '1' and urgency to '1'",
+        "Submit form",
+        "Verify priority field equals '1' (Critical)"
+      ],
+      "expected_outcome": "Priority calculated as 1 (Critical). Seeded defect leaves priority unchanged or at 3.",
+      "is_exploratory": true,
+      "risk_score": 8,
+      "risk_reasoning": "Critical priority matrix calculation error affects SLA timers and paging.",
+      "strategies_applied": ["boundary_value", "matrix_rule_check"],
+      "is_clean": false,
+      "expected_defect_ids": ["DEF-PRIORITY-CALC"],
+      "expected_defect_fields": ["priority"],
+      "cleanup_steps": ["DELETE incident record"],
+      "story_context": {
+        "story_ref": "US-002",
+        "sheet_name": "Priority_Matrix"
+      },
+      "workflow_type": "incident"
+    },
+    {
+      "id": "GT-003-DEFECT-MANDATORY-CLOSE",
+      "title": "Seeded Defect: Missing Mandatory Close Code on Resolution",
+      "description": "Attempt to resolve incident without close_code and close_notes. System should enforce data policy. In seeded defect, resolution succeeds without closure notes.",
+      "steps": [
+        "Open active incident in state 2 (In Progress)",
+        "Set state to 6 (Resolved) leaving close_code and close_notes blank",
+        "Click Save",
+        "Verify client/data policy blocks transition and displays mandatory field validation error"
+      ],
+      "expected_outcome": "Form submission blocked with mandatory field error on close_code and close_notes.",
+      "is_exploratory": true,
+      "risk_score": 7,
+      "risk_reasoning": "Missing mandatory closure notes breaches ITIL data governance.",
+      "strategies_applied": ["negative_validation", "data_policy_enforcement"],
+      "is_clean": false,
+      "expected_defect_ids": ["DEF-MANDATORY-CLOSE-CODE"],
+      "expected_defect_fields": ["close_code", "close_notes"],
+      "cleanup_steps": ["DELETE incident record"],
+      "story_context": {
+        "story_ref": "US-003",
+        "sheet_name": "Resolution_Governance"
+      },
+      "workflow_type": "incident"
+    },
+    {
+      "id": "GT-004-DEFECT-ASSIGNMENT-ROUTING",
+      "title": "Seeded Defect: Category-Based Assignment Group Rule Bypass",
+      "description": "Create incident with category='Network' and subcategory='VPN'. Assignment rule should auto-assign to 'Network Support'. In seeded defect, group remains empty.",
+      "steps": [
+        "Create incident with short_description='VPN gateway unreachable', category='Network', subcategory='VPN'",
+        "Save incident",
+        "Verify assignment_group is populated with 'Network Support'"
+      ],
+      "expected_outcome": "Incident automatically routes to 'Network Support'.",
+      "is_exploratory": false,
+      "risk_score": 6,
+      "risk_reasoning": "Unrouted incidents linger without SLA ownership.",
+      "strategies_applied": ["assignment_routing_verification"],
+      "is_clean": false,
+      "expected_defect_ids": ["DEF-ASSIGNMENT-ROUTING"],
+      "expected_defect_fields": ["assignment_group"],
+      "cleanup_steps": ["DELETE incident record"],
+      "story_context": {
+        "story_ref": "US-004",
+        "sheet_name": "Assignment_Rules"
+      },
+      "workflow_type": "incident"
+    },
+    {
+      "id": "GT-005-DEFECT-SLA-BREACH-NOTIFICATION",
+      "title": "Seeded Defect: Missing Event Notification on Escalation",
+      "description": "Escalate priority to Critical. Business rule should queue sysevent 'incident.escalated'. In seeded defect, event is never fired.",
+      "steps": [
+        "Update incident priority to 1 (Critical)",
+        "Save incident",
+        "Verify sysevent entry created for name='incident.escalated' and instance=incident sys_id"
+      ],
+      "expected_outcome": "Sysevent queued for on-call notification.",
+      "is_exploratory": true,
+      "risk_score": 9,
+      "risk_reasoning": "Missing on-call notifications for P1 outages breaches enterprise SLA.",
+      "strategies_applied": ["side_effect_sysevent_verification"],
+      "is_clean": false,
+      "expected_defect_ids": ["DEF-NOTIFICATION-MISSING"],
+      "expected_defect_fields": ["sysevent"],
+      "cleanup_steps": ["DELETE incident record"],
+      "story_context": {
+        "story_ref": "US-005",
+        "sheet_name": "Notifications"
+      },
+      "workflow_type": "incident"
+    }
+  ]
+}

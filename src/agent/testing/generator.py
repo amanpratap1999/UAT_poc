@@ -14,6 +14,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from agent.core.logging import get_logger
+from agent.core.untrusted import UNTRUSTED_DATA_POLICY, wrap_untrusted, scan_for_injection
 from agent.domain.knowledge_model import CustomerKnowledgeModel
 from agent.domain.story import (
     AcceptanceCriterion,
@@ -98,9 +99,13 @@ class ScenarioGenerator:
                     experience_context += f"- Observation: {e.observation}\n  Outcome: {e.outcome}\n  Confidence: {e.confidence:.2f}\n"
                 experience_context += "\nUse this historical experience to influence the prioritization and focus of your exploratory scenarios.\n"
 
+        req_safe = wrap_untrusted("requirement", requirement)
+        if scan_for_injection(requirement):
+            logger.warning("prompt_injection_detected_in_generator")
+
         prompt = f"""
         You are a senior QA engineer. Generate test scenarios for the following requirement:
-        '{requirement}'
+        '{req_safe}'
         {domain_facts}
         The following test strategies MUST be applied, based on our rules:
         {json.dumps(strategies, indent=2)}
@@ -118,7 +123,7 @@ class ScenarioGenerator:
         try:
             response = await self._llm.complete_json(
                 messages=[
-                    {"role": "system", "content": "You are a senior QA Test Strategist."},
+                    {"role": "system", "content": f"You are a senior QA Test Strategist.\n\n{UNTRUSTED_DATA_POLICY}"},
                     {"role": "user", "content": prompt},
                 ]
             )

@@ -52,6 +52,7 @@ class PlanStep(BaseModel):
         description="Expected field/state values for this step",
     )
     status: StepStatus = StepStatus.PENDING
+    classification: str | None = None
     error: str | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None

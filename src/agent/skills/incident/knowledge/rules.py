@@ -48,6 +48,19 @@ class IncidentLifecycle:
         """Get set of allowed target states from current state."""
         return cls.VALID_TRANSITIONS.get(current, set())
 
+    SIDE_EFFECT_MAP: ClassVar[dict[tuple[IncidentState, IncidentState], list[str]]] = {
+        (IncidentState.NEW, IncidentState.IN_PROGRESS): ["audit:state", "sla:start"],
+        (IncidentState.IN_PROGRESS, IncidentState.ON_HOLD): ["audit:state", "sla:pause", "notification:on_hold"],
+        (IncidentState.ON_HOLD, IncidentState.IN_PROGRESS): ["audit:state", "sla:resume"],
+        (IncidentState.IN_PROGRESS, IncidentState.RESOLVED): ["audit:state", "notification:resolved", "sla:stop"],
+        (IncidentState.RESOLVED, IncidentState.CLOSED): ["audit:state", "notification:closed"],
+        (IncidentState.RESOLVED, IncidentState.IN_PROGRESS): ["audit:state", "sla:restart"],
+    }
+
+    @classmethod
+    def expected_side_effects(cls, from_state: IncidentState, to_state: IncidentState) -> list[str]:
+        return cls.SIDE_EFFECT_MAP.get((from_state, to_state), [])
+
 
 class IncidentBusinessRules:
     """Calculates priority and determines mandatory fields for Incident transitions."""
@@ -64,7 +77,11 @@ class IncidentBusinessRules:
         (Impact.LOW, Urgency.MEDIUM): IncidentPriority.LOW,
         (Impact.LOW, Urgency.LOW): IncidentPriority.PLANNING,
     }
-    """Determines mandatory fields for Incident transitions."""
+
+    @classmethod
+    def calculate_priority(cls, impact: Impact, urgency: Urgency) -> IncidentPriority:
+        """Calculate expected Priority from Impact x Urgency according to ServiceNow standard matrix."""
+        return cls._PRIORITY_MATRIX.get((impact, urgency), IncidentPriority.MODERATE)
 
     # Mandatory fields per state transition target
     _TRANSITION_MANDATORY_FIELDS: ClassVar[dict[IncidentState, list[str]]] = {

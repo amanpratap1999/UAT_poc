@@ -12,6 +12,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from agent.core.logging import get_logger
+from agent.core.untrusted import UNTRUSTED_DATA_POLICY, wrap_untrusted, scan_for_injection
 from agent.planner.llm_client import OpenAILLMClient
 
 logger = get_logger(__name__)
@@ -74,6 +75,14 @@ class LLMBehavioralVerifier(BehavioralVerifier):
             else ""
         )
 
+        before_safe = wrap_untrusted("before_state", before_state_summary)
+        after_safe = wrap_untrusted("after_state", after_state_summary)
+        diff_safe = wrap_untrusted("dom_diff", diff_text)
+        error_safe = wrap_untrusted("js_error", js_error_text)
+
+        if scan_for_injection(before_state_summary) or scan_for_injection(after_state_summary) or scan_for_injection(diff_text) or scan_for_injection(js_error_text):
+            logger.warning("prompt_injection_detected_in_verifier")
+
         prompt = f"""
 You are verifying whether a browser automation action succeeded on ServiceNow.
 
@@ -81,12 +90,12 @@ Action Attempted: {action_description}
 Expected Outcome: {expected_outcome}
 
 Before State:
-{before_state_summary}
+{before_safe}
 
 After State:
-{after_state_summary}
-{diff_text}
-{js_error_text}
+{after_safe}
+{diff_safe}
+{error_safe}
 
 Visual Evidence Available: {bool(after_screenshot_path)}
 
@@ -114,7 +123,7 @@ Respond in JSON format with the following keys:
         )
         try:
             messages = [
-                {"role": "system", "content": "You are a precise ServiceNow QA verification engine."},
+                {"role": "system", "content": f"You are a precise ServiceNow QA verification engine.\n\n{UNTRUSTED_DATA_POLICY}"},
                 {"role": "user", "content": prompt},
             ]
 

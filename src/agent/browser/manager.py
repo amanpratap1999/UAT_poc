@@ -346,9 +346,26 @@ class BrowserManager:
         if hide_cursor:
             with suppress(Exception):
                 await page.evaluate("document.body.classList.add('pw-cursor-hidden')")
+        # Mask sensitive inputs (passwords, tokens, keys) before screenshot
+        with suppress(Exception):
+            await page.evaluate("""() => {
+                const inputs = document.querySelectorAll('input[type="password"], input[name*="password" i], input[id*="password" i], input[name*="secret" i], input[id*="secret" i], input[name*="token" i], input[id*="token" i]');
+                inputs.forEach(el => {
+                    el.setAttribute('data-uat-orig-filter', el.style.filter || '');
+                    el.style.filter = 'blur(10px)';
+                });
+            }""")
         try:
             await page.screenshot(path=str(filepath), full_page=False)
         finally:
+            with suppress(Exception):
+                await page.evaluate("""() => {
+                    const inputs = document.querySelectorAll('[data-uat-orig-filter]');
+                    inputs.forEach(el => {
+                        el.style.filter = el.getAttribute('data-uat-orig-filter') || '';
+                        el.removeAttribute('data-uat-orig-filter');
+                    });
+                }""")
             if hide_cursor:
                 with suppress(Exception):
                     await page.evaluate("document.body.classList.remove('pw-cursor-hidden')")

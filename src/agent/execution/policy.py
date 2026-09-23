@@ -7,11 +7,14 @@ and controls JavaScript script evaluation permissions.
 
 from __future__ import annotations
 
+import os
+import time
+from pathlib import Path
 from urllib.parse import urlparse
 
 from pydantic import BaseModel
 
-from agent.core.config import SecurityConfig
+from agent.core.config import SafetyBudgetConfig, SecurityConfig, get_settings
 from agent.core.logging import get_logger
 from agent.core.types import ActionType
 from agent.domain.actions import AgentAction
@@ -29,40 +32,158 @@ class PolicyValidationResult(BaseModel):
 
 
 class ActionPolicy:
-    """Enforces execution safety policies on agent actions."""
+    """Enforces execution safety policies and budgets on agent actions."""
 
-    def __init__(self, config: SecurityConfig | None = None) -> None:
+    def __init__(
+        self,
+        config: SecurityConfig | None = None,
+        safety_budgets: SafetyBudgetConfig | None = None,
+        run_id: str = "",
+    ) -> None:
         self._config = config or SecurityConfig()
-        self._action_budget = 50  # Hard budget limit
+        settings = get_settings()
+        self._budgets: SafetyBudgetConfig = safety_budgets or getattr(settings, "safety_budgets", None) or SafetyBudgetConfig()
+        self.run_id = run_id
+
+        # Budget tracking state
         self._actions_executed = 0
+        self._mutations_executed = 0
+        self._destructive_executed = 0
+        self._records_touched: set[str] = set()
+        self._tables_touched: set[str] = set()
+        self._start_time = time.monotonic()
+
+    def check_kill_switch(self) -> str | None:
+        """Check whether execution has been killed via environment or durable state."""
+        if os.getenv("UAT_KILL_SWITCH") == "1":
+            return "UAT_KILL_SWITCH environment variable is enabled."
+
+        # Check durable file kill switch
+        kill_file = Path(".runtime/kill_switch")
+        if kill_file.exists():
+            return "Durable file kill switch (.runtime/kill_switch) is active."
+
+        if self.run_id:
+            run_kill_file = Path(f".runtime/kill_switch_{self.run_id}")
+            if run_kill_file.exists():
+                return f"Durable run kill switch for run {self.run_id} is active."
+
+        return None
 
     def validate(self, action: AgentAction, current_url: str = "") -> PolicyValidationResult:
-        """Validate an action before execution.
-
-        Checks:
-        1. Action type not in blocked_actions
-        2. Navigation target host is in allowed_hosts
-        3. JavaScript evaluation permissions
-        4. Kill switch
-        5. Action budget
-        """
-        import os
-        if os.getenv("UAT_KILL_SWITCH") == "1":
+        """Validate an action before execution against policies and safety budgets."""
+        # 1. Kill switch
+        kill_reason = self.check_kill_switch()
+        if kill_reason:
+            logger.critical("execution_killed_by_switch", reason=kill_reason)
             return PolicyValidationResult(
                 is_allowed=False,
-                reason="UAT_KILL_SWITCH is enabled. Execution aborted.",
+                reason=f"Execution aborted: {kill_reason}",
                 action_type=action.action_type,
                 target=action.target,
             )
 
+        # 2. Time budget
+        elapsed = time.monotonic() - self._start_time
+        if elapsed > self._budgets.max_run_time_seconds:
+            reason = f"Time budget exceeded ({elapsed:.1f}s > {self._budgets.max_run_time_seconds:.1f}s limit)."
+            logger.warning("policy_budget_exceeded", metric="time", elapsed=elapsed)
+            return PolicyValidationResult(
+                is_allowed=False,
+                reason=reason,
+                action_type=action.action_type,
+                target=action.target,
+            )
+
+        # 3. Action budget
         self._actions_executed += 1
-        if self._actions_executed > self._action_budget:
+        if self._actions_executed > self._budgets.max_actions_per_run:
+            reason = f"Action budget exceeded ({self._actions_executed} > {self._budgets.max_actions_per_run} actions limit)."
+            logger.warning("policy_budget_exceeded", metric="actions", current=self._actions_executed)
             return PolicyValidationResult(
                 is_allowed=False,
-                reason=f"Action budget exceeded ({self._action_budget} actions max).",
+                reason=reason,
                 action_type=action.action_type,
                 target=action.target,
             )
+
+        action_type_str = (action.action_type or "").lower().strip()
+        target_lower = (action.target or "").lower().strip()
+
+        # 4. Destructive operations budget
+        is_destructive = (
+            "delete" in action_type_str
+            or "sysverb_delete" in target_lower
+            or "delete record" in target_lower
+            or action.metadata.get("is_destructive") is True
+        )
+        if is_destructive:
+            if self._destructive_executed >= self._budgets.max_destructive_operations:
+                reason = (
+                    f"Destructive operation budget exceeded ({self._destructive_executed} >= "
+                    f"{self._budgets.max_destructive_operations} limit). Action blocked."
+                )
+                logger.error("policy_destructive_budget_blocked", action=action_type_str, target=action.target)
+                return PolicyValidationResult(
+                    is_allowed=False,
+                    reason=reason,
+                    action_type=action_type_str,
+                    target=action.target,
+                )
+            self._destructive_executed += 1
+
+        # 5. Mutation budget
+        is_mutating = action_type_str in ("fill", "select", "check", "uncheck") or (
+            action_type_str == "click"
+            and any(v in target_lower for v in ("sysverb_update", "sysverb_insert", "sysverb_delete", "submit"))
+        )
+        if is_mutating:
+            self._mutations_executed += 1
+            if self._mutations_executed > self._budgets.max_mutations_per_run:
+                reason = (
+                    f"Mutation budget exceeded ({self._mutations_executed} > "
+                    f"{self._budgets.max_mutations_per_run} mutations limit)."
+                )
+                logger.warning("policy_budget_exceeded", metric="mutations", current=self._mutations_executed)
+                return PolicyValidationResult(
+                    is_allowed=False,
+                    reason=reason,
+                    action_type=action_type_str,
+                    target=action.target,
+                )
+
+        # 6. Record and Table budget
+        record_id = action.metadata.get("record_id") or action.metadata.get("sys_id") or action.metadata.get("number")
+        if record_id:
+            self._records_touched.add(str(record_id))
+            if len(self._records_touched) > self._budgets.max_records_per_run:
+                reason = (
+                    f"Record budget exceeded ({len(self._records_touched)} > "
+                    f"{self._budgets.max_records_per_run} distinct records limit)."
+                )
+                logger.warning("policy_budget_exceeded", metric="records", current=len(self._records_touched))
+                return PolicyValidationResult(
+                    is_allowed=False,
+                    reason=reason,
+                    action_type=action_type_str,
+                    target=action.target,
+                )
+
+        table_name = action.metadata.get("table")
+        if table_name:
+            self._tables_touched.add(str(table_name))
+            if len(self._tables_touched) > self._budgets.max_tables_per_run:
+                reason = (
+                    f"Table budget exceeded ({len(self._tables_touched)} > "
+                    f"{self._budgets.max_tables_per_run} distinct tables limit)."
+                )
+                logger.warning("policy_budget_exceeded", metric="tables", current=len(self._tables_touched))
+                return PolicyValidationResult(
+                    is_allowed=False,
+                    reason=reason,
+                    action_type=action_type_str,
+                    target=action.target,
+                )
 
         action_type_str = action.action_type
 
