@@ -67,8 +67,20 @@ class IntentManager:
                             "content": f"You are a Goal Parsing Engine for ServiceNow QA Agent.\n\n{UNTRUSTED_DATA_POLICY}",
                         },
                         {
+                            # Audit issue I20 (P1): previously used
+                            # INTENT_PARSER_PROMPT.format(raw_prompt=prompt_safe)
+                            # but the wrapped prompt_safe may contain literal
+                            # { or } characters (the wrap_untrusted helper
+                            # neutralizes </untrusted_data> but does NOT
+                            # escape Python str.format placeholders). A
+                            # literal '{' in user input would raise
+                            # KeyError/ValueError and silently fall back to
+                            # the heuristic rule path, defeating the LLM-based
+                            # intent parsing for any goal containing braces.
+                            # Fix: use str.replace() which does NOT interpret
+                            # format-spec syntax.
                             "role": "user",
-                            "content": INTENT_PARSER_PROMPT.format(raw_prompt=prompt_safe),
+                            "content": INTENT_PARSER_PROMPT.replace("{raw_prompt}", prompt_safe),
                         },
                     ]
                 )
