@@ -126,8 +126,6 @@ class InMemoryKnowledgeStore(KnowledgeStore):
 
         return sections
 
-        return sections
-
     async def index_documents(self) -> None:
         """Index documents (in memory, this just loads them)."""
         self._load_docs()
