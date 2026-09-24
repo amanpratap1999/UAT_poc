@@ -19,6 +19,7 @@ from agent.api.v1.auth import (
     TokenData,
     create_sse_ticket,
     get_current_user_token,
+    require_qa_engineer,
     require_qa_manager,
     validate_sse_ticket,
     validate_token_string,
@@ -57,10 +58,22 @@ from agent.worker.tasks import execute_run
 
 class TicketRedactionMiddleware:
     """ASGI Middleware to redact SSE tickets from Uvicorn access logs.
-    
+
     SSE clients (EventSource) cannot send headers, so tokens must be in the query string.
-    To prevent Uvicorn from logging these tokens, we mutate the scope's query string 
+    To prevent Uvicorn from logging these tokens, we mutate the scope's query string
     *after* FastAPI has processed the request but *before* Uvicorn writes the access log.
+
+    Audit issue I13 (P2) — known limitation: Uvicorn's access logger captures the request
+    line at request-entry time (in RequestResponseCycle setup), so for some logger
+    configurations the original `ticket=<jwt>` value is already in stdout/log file by
+    the time we mutate `scope["query_string"]` after FastAPI returns. This middleware
+    still helps for loggers that re-read `scope` on completion, but for full coverage,
+    production deployments should EITHER:
+      (a) run uvicorn with a custom access-log formatter that strips
+          `(ticket|token)=[^&]+` patterns, OR
+      (b) disable uvicorn's access log entirely (use --no-access-log) and rely on
+          the structured application logs from `agent.core.logging` instead, which
+          never see the raw query string.
     """
     def __init__(self, app):
         self.app = app
@@ -70,13 +83,16 @@ class TicketRedactionMiddleware:
             query_string = scope.get("query_string", b"")
             if b"ticket=" in query_string or b"token=" in query_string:
                 # Let FastAPI process the request with the real query string
+                # (FastAPI needs the real ticket to validate_sse_ticket()).
                 await self.app(scope, receive, send)
-                # Mutate in-place so Uvicorn's access logger sees the redacted version
+                # Mutate in-place so any logger that re-reads scope on completion
+                # sees the redacted version. For loggers that captured the request
+                # line on entry, see the docstring note about using a custom
+                # uvicorn access-log formatter in production.
                 redacted = re.sub(b"(ticket|token)=[^&]+", b"\\1=***", query_string)
                 scope["query_string"] = redacted
                 return
         await self.app(scope, receive, send)
-
 router = APIRouter(prefix="/api/v1", tags=["agent"])
 
 
@@ -116,20 +132,36 @@ async def get_screenshot(
     if not target.is_file():
         raise HTTPException(status_code=404, detail="Screenshot not found")
 
-    # Enforce tenant isolation
+    # Enforce tenant isolation (audit issue I11 — P0).
+    # Previous code only enforced tenant isolation when the filename matched
+    # a Screenshot row OR started with a UUID run_id; any other filename
+    # (e.g. 'action_click_123.png', 'error_fill.png') fell through to
+    # FileResponse and was served to ANY authenticated user, leaking other
+    # tenants' action and error screenshots.
+    # Fix: require EVERY screenshot filename to resolve to either a
+    # Screenshot row matching token.tenant_id OR a Run row (looked up via
+    # filename's UUID run_id prefix) matching token.tenant_id. Anything
+    # else returns 404.
     sc_res = await db.execute(select(Screenshot).where(Screenshot.filename == filename))
     screenshot_rec = sc_res.scalars().first()
     if screenshot_rec:
         if screenshot_rec.tenant_id != token.tenant_id:
             raise HTTPException(status_code=404, detail="Screenshot not found or unauthorized")
     else:
-        # Fallback check if filename starts with a run_id UUID
+        # No Screenshot row. Fallback: filename must start with a run_id UUID
+        # whose Run row matches the caller's tenant. Without this strict
+        # requirement, unregistered files on disk would be served to any
+        # authenticated user (cross-tenant leak).
         m = _re.match(r"^([0-9a-fA-F-]{36})", filename)
-        if m:
-            r_res = await db.execute(select(Run).where(Run.id == m.group(1)))
-            r_obj = r_res.scalars().first()
-            if r_obj and r_obj.tenant_id != token.tenant_id:
-                raise HTTPException(status_code=404, detail="Screenshot not found or unauthorized")
+        if not m:
+            raise HTTPException(
+                status_code=404,
+                detail="Screenshot not found or not registered to a tenant",
+            )
+        r_res = await db.execute(select(Run).where(Run.id == m.group(1)))
+        r_obj = r_res.scalars().first()
+        if not r_obj or r_obj.tenant_id != token.tenant_id:
+            raise HTTPException(status_code=404, detail="Screenshot not found or unauthorized")
 
     content_type, _ = _mimetypes.guess_type(str(target))
     media_type = content_type or "image/png"
@@ -326,7 +358,8 @@ async def get_diagnostic_paths(
 @router.post("/runs", response_model=RunResponse)
 async def create_run(
     request: RunRequest,
-    token: Annotated[TokenData, Depends(get_current_user_token)],
+    token: Annotated[TokenData, Depends(require_qa_engineer)],
+    # audit issue I12 (P0): mutating endpoint requires qa engineer role
     db: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> RunResponse:
     """Start an autonomous agent run. Queues a Celery task."""
@@ -477,7 +510,8 @@ async def list_findings(
 async def update_finding(
     finding_id: str,
     request: FindingUpdateRequest,
-    token: Annotated[TokenData, Depends(get_current_user_token)],
+    token: Annotated[TokenData, Depends(require_qa_manager)],
+    # audit issue I12 (P0): mutating endpoint requires qa manager role
     db: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> Any:
     """Update or override a finding (e.g. classification, is_defect flag, severity)."""
@@ -815,9 +849,16 @@ async def stream_run_events(
                 except (json.JSONDecodeError, TypeError):
                     continue
 
-            # 3. Stream live events
+            # 3. Stream live events (audit issue I14 — P2 fix).
+            # Previous loop called pubsub.get_message(timeout=1.0) THEN awaited
+            # asyncio.sleep(0.2) on every iteration, making each loop take up
+            # to 1.2s and the intended 0.2s keepalive interval become 1.2s in
+            # practice. Bursty events were also delayed by the sleep.
+            # Fix: use a 15s timeout (so keepalive fires exactly every 15s
+            # when idle) and drop the post-iteration sleep entirely so a real
+            # message is yielded immediately.
             while True:
-                message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=15.0)
                 if message and message.get("type") == "message":
                     payload = message.get("data")
                     try:
@@ -827,8 +868,8 @@ async def stream_run_events(
                     except (json.JSONDecodeError, TypeError):
                         yield f"data: {payload}\n\n"
                 else:
+                    # Timeout — no message in 15s. Send keepalive comment.
                     yield ": keepalive\n\n"
-                await asyncio.sleep(0.2)
         except asyncio.CancelledError:
             pass
         except Exception as e:
@@ -873,7 +914,8 @@ async def stream_run_events(
 async def pause_run(
     run_id: str,
     request: PauseRequest,
-    token: Annotated[TokenData, Depends(get_current_user_token)],
+    token: Annotated[TokenData, Depends(require_qa_engineer)],
+    # audit issue I12 (P0): mutating endpoint requires qa engineer role
     db: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> ActionResponse:
     """Pause execution of a running agent with tenant isolation and database persistence."""
@@ -914,7 +956,8 @@ async def pause_run(
 async def resume_run(
     run_id: str,
     request: ResumeRequest,
-    token: Annotated[TokenData, Depends(get_current_user_token)],
+    token: Annotated[TokenData, Depends(require_qa_engineer)],
+    # audit issue I12 (P0): mutating endpoint requires qa engineer role
     db: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> ActionResponse:
     """Resume execution of a paused agent with tenant isolation and database persistence."""
@@ -956,7 +999,8 @@ async def resume_run(
 async def cancel_run(
     run_id: str,
     request: CancelRequest,
-    token: Annotated[TokenData, Depends(get_current_user_token)],
+    token: Annotated[TokenData, Depends(require_qa_manager)],
+    # audit issue I12 (P0): mutating endpoint requires qa manager role
     db: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> ActionResponse:
     """Cancel execution of a running agent with tenant isolation and lowercase status."""
@@ -997,7 +1041,8 @@ async def cancel_run(
 async def answer_clarification(
     run_id: str,
     request: ClarifyAnswerRequest,
-    token: Annotated[TokenData, Depends(get_current_user_token)],
+    token: Annotated[TokenData, Depends(require_qa_engineer)],
+    # audit issue I12 (P0): mutating endpoint requires qa engineer role
     db: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> ActionResponse:
     """Provide user clarification with request-specific key and tenant isolation."""
@@ -1024,7 +1069,8 @@ async def answer_clarification(
 async def submit_approval(
     run_id: str,
     request: ApprovalDecisionRequest,
-    token: Annotated[TokenData, Depends(get_current_user_token)],
+    token: Annotated[TokenData, Depends(require_qa_manager)],
+    # audit issue I12 (P0): mutating endpoint requires qa manager role
     db: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> ActionResponse:
     """Submit approval decision with prompt-specific key and tenant isolation."""
@@ -1056,7 +1102,8 @@ async def submit_approval(
 @router.post("/test-cases/generate", response_model=GenerateTestCasesResponse)
 async def generate_test_cases(
     request: GenerateTestCasesRequest,
-    token: Annotated[TokenData, Depends(get_current_user_token)],
+    token: Annotated[TokenData, Depends(require_qa_engineer)],
+    # audit issue I12 (P0): mutating endpoint requires qa engineer role
 ) -> GenerateTestCasesResponse:
     """Generate structured test cases preserving acceptance criteria and persisting them to the store."""
     from agent.api.v1.dependencies import (
@@ -1141,7 +1188,8 @@ async def generate_test_cases(
 @router.post("/test-cases/{test_case_id}/execute", response_model=RunResponse)
 async def execute_test_case(
     test_case_id: str,
-    token: Annotated[TokenData, Depends(get_current_user_token)],
+    token: Annotated[TokenData, Depends(require_qa_engineer)],
+    # audit issue I12 (P0): mutating endpoint requires qa engineer role
     db: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> RunResponse:
     """Execute a stored structured test case by ID with tenant isolation."""
@@ -1198,7 +1246,8 @@ _MAX_IMPORT_BYTES = 10 * 1024 * 1024  # 10 MB workbook cap
 
 @router.post("/test-cases/import", response_model=list[ImportTestCasesResponse])
 async def import_test_cases(
-    token: Annotated[TokenData, Depends(get_current_user_token)],
+    token: Annotated[TokenData, Depends(require_qa_engineer)],
+    # audit issue I12 (P0): mutating endpoint requires qa engineer role
     file: UploadFile = File(...),
     execute: bool = Form(False),
     personas: str | None = Form(None),
@@ -1349,7 +1398,8 @@ class SweepRequest(BaseModel):
 async def execute_test_case_sweep(
     test_case_id: str,
     request: SweepRequest,
-    token: Annotated[TokenData, Depends(get_current_user_token)],
+    token: Annotated[TokenData, Depends(require_qa_engineer)],
+    # audit issue I12 (P0): mutating endpoint requires qa engineer role
     db: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> list[RunResponse]:
     """Execute a test case for multiple personas (P1 Requirement 10)."""
@@ -1408,7 +1458,8 @@ async def execute_test_case_sweep(
 @router.post("/test-cases/export-results")
 async def export_test_case_results(
     run_ids: list[str],
-    token: Annotated[TokenData, Depends(get_current_user_token)],
+    token: Annotated[TokenData, Depends(require_qa_engineer)],
+    # audit issue I12 (P0): mutating endpoint requires qa engineer role
 ) -> FileResponse:
     """Export one or multiple completed test-case results as an XLSX file.
 
@@ -1481,7 +1532,8 @@ async def export_test_case_results(
 async def compare_test_case_personas(
     test_case_id: str,
     request: SweepRequest,
-    token: Annotated[TokenData, Depends(get_current_user_token)],
+    token: Annotated[TokenData, Depends(require_qa_engineer)],
+    # audit issue I12 (P0): mutating endpoint requires qa engineer role
     db: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> PersonaComparisonResponse:
     """Compare behavior and permissions of a test case across personas.
