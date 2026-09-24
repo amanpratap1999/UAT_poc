@@ -31,13 +31,57 @@ from agent.planner.llm_client import BaseLLMClient
 
 @pytest.fixture
 def test_settings() -> Settings:
-    """Settings configured for testing."""
+    """Settings configured for testing — defaults to a sub-production instance
+    that allows mutations.
+
+    Audit issue I45 (P2): previously omitted is_subproduction=True,
+    allow_mutations=True, and allowed_instances=[...]. Any test that drove a
+    mutating action through ExecutionController would fail at the prod-mutation
+    gate (controller.py lines 112-158), so this fixture silently exercised
+    only the read paths.
+
+    For tests that explicitly exercise the prod-mutation gate (i.e., assert
+    that a mutating action is REJECTED when is_subproduction is False), use
+    the prod_settings fixture below.
+    """
     return Settings(
         llm=LLMConfig(provider="openai", api_key="test-key", model="gpt-4o-mini"),
         servicenow=ServiceNowConfig(
             instance_url="https://test.service-now.com",
             username="admin",
             password="test",
+            is_subproduction=True,
+            allow_mutations=True,
+            allowed_instances=["test.service-now.com"],
+        ),
+        browser=BrowserConfig(headless=True, keep_browser_open=False),
+        agent=AgentConfig(max_steps=10, max_retries=2, observation_window=5),
+        log_level="DEBUG",
+    )
+
+
+@pytest.fixture
+def prod_settings() -> Settings:
+    """Settings configured to look like a production ServiceNow instance.
+
+    Used for tests that explicitly exercise the prod-mutation gate (i.e.,
+    assert that a mutating action is REJECTED when is_subproduction is False
+    OR when allow_mutations is False OR when the host is not in
+    allowed_instances).
+
+    Audit issue I45 (P2): added the prod_settings fixture variant so test
+    authors can explicitly opt into testing the rejection path rather than
+    silently relying on the test_settings fixture's missing mutation flags.
+    """
+    return Settings(
+        llm=LLMConfig(provider="openai", api_key="test-key", model="gpt-4o-mini"),
+        servicenow=ServiceNowConfig(
+            instance_url="https://prod-instance.service-now.com",
+            username="admin",
+            password="test",
+            is_subproduction=False,  # ← looks like production
+            allow_mutations=False,
+            allowed_instances=["test.service-now.com"],  # ← prod-instance NOT in allowlist
         ),
         browser=BrowserConfig(headless=True, keep_browser_open=False),
         agent=AgentConfig(max_steps=10, max_retries=2, observation_window=5),
