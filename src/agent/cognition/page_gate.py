@@ -129,24 +129,50 @@ class PageGate:
         """Attempt to recover by navigating directly to the correct record form."""
         if not browser_manager:
             return False
-        
+
         try:
             page = browser_manager.get_page()
             if not page:
                 return False
-                
-            # e.g., https://instance.service-now.com/nav_to.do?uri=incident.do%3Fsysparm_query=number=INC0000007
-            # If the current URL has the base part, we can do a relative navigation, or just replace path
-            # We can also just use the absolute path from the domain
+
+            # Audit issue I27 (P2): previously derived base_url from
+            # page.url (the current browser URL) — if the agent was on a
+            # different sub-domain or a stale tab, the gate's recovery
+            # navigated to https://<wrong-host>/nav_to.do?uri=...,
+            # potentially mutating the wrong ServiceNow instance.
+            # Fix: use the configured ServiceNow instance URL from settings
+            # (the trusted source), and reject if the parsed netloc is
+            # not in the allowed_instances list.
             from urllib.parse import urlparse
-            
-            current_url = page.url
-            parsed = urlparse(current_url)
+
+            # Lazy-import to avoid circular imports and to keep the
+            # page_gate module independent of the settings module for
+            # unit testing (tests can pass a mock browser_manager).
+            from agent.core.config import get_settings
+            settings = get_settings()
+            instance_url = (settings.servicenow.instance_url or "").rstrip("/")
+            if not instance_url:
+                logger.warning("page_gate_no_instance_url_configured")
+                return False
+            parsed = urlparse(instance_url)
             base_url = f"{parsed.scheme}://{parsed.netloc}"
-            
+
+            # Defense-in-depth: verify the configured host is in the
+            # allowed_instances list (matches the safety gate in
+            # ExecutionController for action validation).
+            allowed_hosts = {str(h).strip().lower().rstrip(".") for h in
+                             settings.servicenow.allowed_instances}
+            if allowed_hosts and parsed.netloc.lower().rstrip(".") not in allowed_hosts:
+                logger.warning(
+                    "page_gate_instance_not_in_allowlist",
+                    instance=parsed.netloc,
+                    allowed=sorted(allowed_hosts),
+                )
+                return False
+
             target_url = f"{base_url}/nav_to.do?uri={table}.do%3Fsysparm_query=number={number}"
-            logger.info("page_gate_navigating", target_url=target_url)
-            
+            logger.info("page_gate_navigating", target_url=target_url, instance=base_url)
+
             await page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
             # brief pause to let SNOW render
             await page.wait_for_timeout(2000)
