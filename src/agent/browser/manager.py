@@ -11,6 +11,7 @@ import asyncio
 import contextlib
 import os
 import sys
+import time
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
@@ -240,10 +241,14 @@ class BrowserManager:
             return
 
         logger.info("keeping_browser_open", timeout_seconds=timeout_seconds)
-        start_time = asyncio.get_event_loop().time()
+        # Audit issue I33 (P2): asyncio.get_event_loop() is deprecated since Python
+        # 3.10 and emits DeprecationWarning in 3.12+ when no running loop exists.
+        # time.monotonic() is exactly what Loop.time() returns under the hood —
+        # removes the asyncio dependency for timestamp code.
+        start_time = time.monotonic()
         while self._page and not self._page.is_closed():
             if timeout_seconds is not None:
-                elapsed = asyncio.get_event_loop().time() - start_time
+                elapsed = time.monotonic() - start_time
                 if elapsed >= timeout_seconds:
                     logger.info("keep_browser_open_timeout_reached")
                     break
@@ -339,7 +344,8 @@ class BrowserManager:
             The absolute file path of the saved screenshot.
         """
         page = self.get_page()
-        timestamp = asyncio.get_event_loop().time()
+        # Audit issue I33 (P2): time.monotonic() is exactly what Loop.time() returns.
+        timestamp = time.monotonic()
         filename = f"{name}_{int(timestamp)}.png"
         filepath = self._screenshot_dir / filename
 
@@ -462,7 +468,17 @@ class BrowserManager:
         return list(self._console_logs)
 
     def get_new_console_errors(self) -> list[str]:
-        """Return console error messages logged since the last call."""
+        """Return console error messages logged since the last call.
+
+        DESTRUCTIVE READ: advances the internal cursor so the next call returns
+        only errors logged since THIS call (not since the start). Calling twice
+        in a row returns an empty list the second time.
+
+        Audit issue I34 (P2): the previous method was non-idempotent — concurrent
+        SSE/REST consumers racing on this method silently dropped errors. For
+        non-destructive reads, use peek_new_console_errors(since_index) which
+        takes an explicit cursor and does not mutate state.
+        """
         errors = [
             log["message"]
             for log in self._console_logs[self._last_console_index:]
@@ -470,6 +486,33 @@ class BrowserManager:
         ]
         self._last_console_index = len(self._console_logs)
         return errors
+
+    def peek_new_console_errors(self, since_index: int) -> list[str]:
+        """Non-destructive read of console errors since `since_index`.
+
+        Audit issue I34 (P2): added for callers that need an idempotent read.
+        Does NOT advance the internal cursor — multiple consumers can call
+        this with the same `since_index` and all get the same result.
+
+        Returns:
+            List of console error messages captured since `since_index`.
+            Pass `len(self._console_logs)` from a previous observation to get
+            only the errors logged since that observation.
+        """
+        if since_index < 0:
+            since_index = 0
+        if since_index > len(self._console_logs):
+            return []
+        return [
+            log["message"]
+            for log in self._console_logs[since_index:]
+            if log.get("level") == "error"
+        ]
+
+    @property
+    def console_log_count(self) -> int:
+        """Total number of console logs captured (for use as a cursor with peek_new_console_errors)."""
+        return len(self._console_logs)
 
     def get_page_errors(self) -> list[str]:
         """Return all captured JavaScript page errors."""
