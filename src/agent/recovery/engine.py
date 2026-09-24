@@ -58,7 +58,21 @@ class RecoveryEngine:
         self._max_retries = max_retries
         self._max_recovery_depth = max_recovery_depth
         self._max_backoff = max_backoff
+        # Per-action_key failure counter — reset to 0 on successful recovery.
+        # Used to detect "stuck" actions that keep failing within a short window.
+        # Audit issue I18 (P1): previously this counter was never reset, so a
+        # transient 3-failure burst permanently poisoned the action_key and any
+        # future failure on the same action_type:target raised
+        # RecoveryExhaustedError on the very first attempt, blocking legitimate
+        # retries for the rest of the run.
         self._action_failures: dict[str, int] = {}
+        # Lifetime failure count per action_key — never reset, used for hard
+        # ceiling detection (action that has failed many times across multiple
+        # recovery cycles likely indicates a real bug, not a transient issue).
+        self._lifetime_failures: dict[str, int] = {}
+        # Hard ceiling: if lifetime failures exceed this, the action is
+        # considered permanently broken and recovery is skipped.
+        self._max_lifetime_failures = max_recovery_depth * 5
 
         # Map exception types to applicable recovery strategies
         self._strategy_map: dict[type, list[RecoveryStrategy]] = {
@@ -93,7 +107,29 @@ class RecoveryEngine:
         error_type = type(error)
         action_key = f"{action.action_type}:{action.target}"
         self._action_failures[action_key] = self._action_failures.get(action_key, 0) + 1
+        # Also track lifetime failures — these are NOT reset on success and
+        # serve as a hard ceiling so an action that consistently fails across
+        # many recovery cycles is eventually given up on.
+        self._lifetime_failures[action_key] = self._lifetime_failures.get(action_key, 0) + 1
 
+        # Hard ceiling: lifetime failures exceed the maximum allowed.
+        if self._lifetime_failures[action_key] > self._max_lifetime_failures:
+            logger.error(
+                "recovery_lifetime_ceiling_hit",
+                action=action_key,
+                lifetime=self._lifetime_failures[action_key],
+                ceiling=self._max_lifetime_failures,
+            )
+            raise RecoveryExhaustedError(
+                f"Terminal failure: Action {action_key} hit lifetime failure ceiling "
+                f"of {self._max_lifetime_failures} (likely a real bug, not transient).",
+                original_error=error,
+                attempts=self._lifetime_failures[action_key],
+                details={"action_key": action_key, "lifetime": self._lifetime_failures[action_key]},
+            )
+
+        # Soft ceiling: depth within the current recovery cycle exceeded.
+        # (Was previously permanent — now reset on success below.)
         if self._action_failures[action_key] > self._max_recovery_depth:
             logger.error("recovery_depth_exceeded", action=action_key, depth=self._action_failures[action_key])
             raise RecoveryExhaustedError(
@@ -138,7 +174,12 @@ class RecoveryEngine:
 
             if result and result.success:
                 logger.info("recovery_successful", strategy=strategy.value)
-                # Note: don't clear depth map, let it track total failures for this node
+                # Audit issue I18 (P1): reset the per-cycle depth counter so a
+                # transient failure burst doesn't permanently poison this
+                # action_key. The lifetime counter (_lifetime_failures) is
+                # NOT reset — it serves as a hard ceiling for genuinely broken
+                # actions that consistently fail across many cycles.
+                self._action_failures[action_key] = 0
                 result.attempts = attempt
                 return result
             if result:
