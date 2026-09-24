@@ -43,6 +43,13 @@ class PlanStep(BaseModel):
         default="Medium",
         description="Risk level: Low, Medium, High, Critical",
     )
+    # INC-UAT-12 (Major, D1/D6): requirement traceability — each step
+    # is linked to the acceptance criterion it tests. This enables
+    # requirement→test→step→finding→retest traceability end-to-end.
+    requirement_id: str | None = Field(
+        default=None,
+        description="Acceptance criterion ID this step tests (e.g., 'AC-001').",
+    )
     observed_values: dict[str, Any] = Field(
         default_factory=dict,
         description="Observed field/state values captured during step execution",

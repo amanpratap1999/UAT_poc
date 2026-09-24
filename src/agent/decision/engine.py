@@ -125,7 +125,14 @@ class CognitiveDecision(BaseModel):
 
 
 class DecisionEngine:
-    """Selects immediate micro-actions based on current world state, confidence, and reflection."""
+    """Selects immediate micro-actions based on current world state, confidence, and reflection.
+
+    INC-UAT-07 (Major, D3): optionally delegates verification to a
+    DecisionProvider (e.g., JEVAdapter) instead of using the internal
+    LLM-based verification. When a provider is set, the provider's
+    verification logic takes precedence — this gives the intended
+    independent judgement layer (JEV) a real role in the verdict path.
+    """
 
     def __init__(
         self,
@@ -133,14 +140,32 @@ class DecisionEngine:
         confidence_engine: ConfidenceEngine | None = None,
         reflection_engine: ReflectionEngine | None = None,
         tool_registry: ToolRegistry | None = None,
+        # INC-UAT-07: optional DecisionProvider for independent verification.
+        # When set, the provider's verify() takes precedence over the
+        # internal LLM-based verification. Provider provenance is recorded
+        # in the CognitiveDecision output.
+        decision_provider: Any = None,
     ) -> None:
         self._llm = llm_client
         self._confidence_engine = confidence_engine or ConfidenceEngine()
         self._reflection_engine = reflection_engine or ReflectionEngine(llm_client)
         self._tool_registry = tool_registry
-        
+        # INC-UAT-07: store the verification provider (e.g., JEVAdapter).
+        self._decision_provider = decision_provider
+
         from agent.cognition.step_cache import StepCache
         self._step_cache = StepCache()
+
+    # INC-UAT-07: public accessor so CognitiveOrchestrator can check
+    # whether a decision provider is attached and record its provenance.
+    def get_decision_provider(self) -> Any:
+        """Return the attached DecisionProvider (or None if not set)."""
+        return self._decision_provider
+
+    @property
+    def has_decision_provider(self) -> bool:
+        """True if a DecisionProvider (e.g., JEVAdapter) is attached."""
+        return self._decision_provider is not None
 
     async def decide_next_action(
         self,
