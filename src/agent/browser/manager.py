@@ -85,6 +85,59 @@ def reset_browser_globals() -> None:
     _GLOBAL_CONTEXT = None
 
 
+async def _health_check_globals() -> bool:
+    """Health-check the global browser state.
+
+    Audit issue I32 (P1): the comment at line 228 (now relocated) said
+    'Do NOT close _GLOBAL_BROWSER or _GLOBAL_PLAYWRIGHT to keep them warm'
+    — meaning a crashed Chromium process was never recreated, so all
+    subsequent runs reused a dead Browser handle and failed with
+    TargetClosedError. This function detects a dead browser and resets
+    the globals so the next launch() recreates them.
+
+    Returns True if the globals are healthy (or were just reset because
+    they were stale), False if they were already None (no health to check).
+    """
+    global _GLOBAL_PLAYWRIGHT, _GLOBAL_BROWSER, _GLOBAL_CONTEXT
+    if _GLOBAL_BROWSER is not None:
+        try:
+            # is_connected() returns False if the browser process has died.
+            # Browser.is_connected is a method on the Playwright Browser class.
+            if not _GLOBAL_BROWSER.is_connected():
+                logger.warning(
+                    "global_browser_disconnected_resetting",
+                    action="recreate_on_next_launch",
+                )
+                # Try to clean up the dead handles gracefully (best-effort).
+                try:
+                    if _GLOBAL_CONTEXT is not None:
+                        await _GLOBAL_CONTEXT.close()
+                except Exception as e:
+                    logger.debug("dead_context_close_failed", error=str(e))
+                try:
+                    await _GLOBAL_BROWSER.close()
+                except Exception as e:
+                    logger.debug("dead_browser_close_failed", error=str(e))
+                try:
+                    if _GLOBAL_PLAYWRIGHT is not None:
+                        await _GLOBAL_PLAYWRIGHT.stop()
+                except Exception as e:
+                    logger.debug("dead_playwright_stop_failed", error=str(e))
+                _GLOBAL_PLAYWRIGHT = None
+                _GLOBAL_BROWSER = None
+                _GLOBAL_CONTEXT = None
+                return True  # globals were stale, now reset
+            return True  # globals are healthy
+        except Exception as e:
+            # is_connected() itself raised — definitely stale.
+            logger.warning("global_browser_health_check_failed", error=str(e))
+            _GLOBAL_PLAYWRIGHT = None
+            _GLOBAL_BROWSER = None
+            _GLOBAL_CONTEXT = None
+            return True
+    return False  # nothing to check (globals were None)
+
+
 class BrowserManager:
     """Manages the Playwright browser lifecycle and provides page access.
 
@@ -129,6 +182,12 @@ class BrowserManager:
     async def launch(self) -> None:
         """Launch the browser with configured settings, keeping process warm across runs."""
         global _GLOBAL_PLAYWRIGHT, _GLOBAL_BROWSER, _GLOBAL_CONTEXT
+        # Audit issue I32 (P1): health-check the global browser before reusing it.
+        # If the Chromium process has died (crash, OOM kill, container restart),
+        # _GLOBAL_BROWSER.is_connected() returns False and the previous code
+        # would silently reuse the dead handle, causing TargetClosedError on
+        # every subsequent run. Now: detect and reset, so launch() recreates.
+        await _health_check_globals()
         try:
             logger.info("launching_browser", headless=self._browser_config.headless)
             if not self._browser_config.headless and sys.platform == "linux":
