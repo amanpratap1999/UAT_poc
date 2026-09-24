@@ -168,6 +168,31 @@ class PerceptionDecisionEngine:
             perception_route = route_result.route
             if route_result.success and route_result.candidate is not None:
                 selected_candidate = route_result.candidate
+
+                # Cross-reference Moondream with DOM
+                if perception_route == "MOONDREAM" and not selected_candidate.locator_str and selected_candidate.bounding_box:
+                    overlap_found = False
+                    bb = selected_candidate.bounding_box
+                    for dc in dom_candidates:
+                        if dc.bounding_box:
+                            dbb = dc.bounding_box
+                            if (bb.x <= dbb.x + dbb.width and bb.x + bb.width >= dbb.x and
+                                bb.y <= dbb.y + dbb.height and bb.y + bb.height >= dbb.y):
+                                overlap_found = True
+                                break
+                    
+                    if dom_candidates and not overlap_found:
+                        logger.error("moondream_dom_mismatch", target=target)
+                        return ActionResult(
+                            success=False,
+                            action=action,
+                            error="Vision candidate bounding box does not overlap any matching DOM element",
+                            error_type="PerceptionFailure"
+                        )
+                    elif not dom_candidates:
+                        # No DOM corroboration -> cap confidence at 0.6
+                        selected_candidate.confidence = min(selected_candidate.confidence or 1.0, 0.6)
+
                 self._apply_candidate_to_action(final_action, selected_candidate)
                 used_vision = perception_route not in ("DOM", "DOM_DISAMBIGUATED")
                 logger.info(
@@ -203,11 +228,35 @@ class PerceptionDecisionEngine:
                     if v_cand:
                         selected_candidate = v_cand
                         perception_route = "MOONDREAM"
+
+                        # Cross-reference Moondream with DOM
+                        if not selected_candidate.locator_str and selected_candidate.bounding_box:
+                            overlap_found = False
+                            bb = selected_candidate.bounding_box
+                            for dc in dom_candidates:
+                                if dc.bounding_box:
+                                    dbb = dc.bounding_box
+                                    if (bb.x <= dbb.x + dbb.width and bb.x + bb.width >= dbb.x and
+                                        bb.y <= dbb.y + dbb.height and bb.y + bb.height >= dbb.y):
+                                        overlap_found = True
+                                        break
+                            
+                            if dom_candidates and not overlap_found:
+                                logger.error("moondream_dom_mismatch", target=target)
+                                return ActionResult(
+                                    success=False,
+                                    action=action,
+                                    error="Vision candidate bounding box does not overlap any matching DOM element",
+                                    error_type="PerceptionFailure"
+                                )
+                            elif not dom_candidates:
+                                selected_candidate.confidence = min(selected_candidate.confidence or 1.0, 0.6)
+
                         self._apply_candidate_to_action(final_action, selected_candidate)
                         logger.info(
                             "visual_candidate_found",
                             target=target,
-                            conf=v_cand.confidence,
+                            conf=selected_candidate.confidence,
                         )
                 except GroundingFailure as e:
                     logger.error("grounding_failure", error=str(e))

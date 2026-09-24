@@ -133,3 +133,17 @@ if broker_url and broker_url.startswith("rediss://"):
     celery_app.conf.broker_use_ssl = ssl_opts
     celery_app.conf.redis_backend_use_ssl = ssl_opts
 
+
+from celery.signals import worker_ready
+
+@worker_ready.connect
+def publish_worker_ready(sender: Any, **kwargs: Any) -> None:
+    "\""Emit a readiness event when the Celery worker has fully booted."\""
+    try:
+        import redis
+        client = redis.Redis.from_url(broker_url)
+        client.publish('worker_status', 'ready')
+        client.close()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f'Failed to publish worker ready event: {e}')

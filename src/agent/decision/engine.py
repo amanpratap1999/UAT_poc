@@ -36,6 +36,24 @@ from agent.core.untrusted import (
 
 logger = get_logger(__name__)
 
+# HTTP status codes that indicate billing/auth exhaustion — the LLM provider
+# will never recover during this run, so fail fast instead of falling back to
+# heuristics that blindly click the first visible button.
+_LLM_BILLING_CODES = {401, 402, 403, 429}
+
+
+class LLMBillingError(RuntimeError):
+    """Raised when the LLM provider returns a billing/auth/quota error.
+
+    The run should abort with a clear diagnostic rather than silently
+    degrading to heuristic fallback.
+    """
+
+    def __init__(self, status_code: int, detail: str) -> None:
+        self.status_code = status_code
+        self.detail = detail
+        super().__init__(f"LLM provider returned HTTP {status_code}: {detail}")
+
 DECISION_PROMPT = """You are the Decision Engine of an autonomous ServiceNow QA agent.
 Select the single best immediate action to execute to advance the plan.
 
@@ -81,6 +99,21 @@ Respond with a JSON object:
 }}
 """
 
+
+def _extract_http_status(e: Exception) -> int | None:
+    """Extract HTTP status code from generic exceptions if present."""
+    import re
+    msg = str(e)
+    # Simple heuristic to find HTTP status codes in exception strings
+    match = re.search(r"HTTP\s+(\d{3})", msg, re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+    match = re.search(r"status[_ ]code[=:]?\s*(\d{3})", msg, re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+    if hasattr(e, "status_code"):
+        return getattr(e, "status_code")
+    return None
 
 class CognitiveDecision(BaseModel):
     """Output of the DecisionEngine."""
@@ -178,6 +211,11 @@ class DecisionEngine:
                         "prompt_injection_patterns_detected",
                         patterns=page_findings[:5],
                     )
+                
+                # Telemetry
+                if hasattr(memory, "planner_calls"):
+                    memory.planner_calls += 1
+
                 response = await self._llm.complete_json(
                     messages=[
                         {
@@ -212,6 +250,18 @@ class DecisionEngine:
                     reasoning=rationale,
                 )
             except Exception as e:
+                # Classify billing/auth/quota errors vs transient failures.
+                # Billing errors will never recover — abort the run instead of
+                # wasting time with heuristic fallback that clicks random buttons.
+                status_code = _extract_http_status(e)
+                if status_code in _LLM_BILLING_CODES:
+                    logger.error(
+                        "llm_billing_error_aborting",
+                        status_code=status_code,
+                        error=str(e),
+                    )
+                    raise LLMBillingError(status_code, str(e)) from e
+
                 logger.warning("llm_decision_failed_fallback_to_heuristic", error=str(e))
                 chosen_action = self._heuristic_decision(world_state, memory)
                 rationale = chosen_action.reasoning
@@ -243,11 +293,13 @@ class DecisionEngine:
             return AgentAction(
                 action_type=ActionType.CLICK,
                 target=first_action.target,
-                reasoning=f"Heuristic choice: click available action {first_action.action_name}",
+                reasoning=f"[HEURISTIC FALLBACK] click available action {first_action.action_name}",
+                metadata={"is_heuristic_fallback": True},
             )
         return AgentAction(
             action_type=ActionType.WAIT,
             target="",
             value="1000",
-            reasoning="Heuristic fallback: wait for page state",
+            reasoning="[HEURISTIC FALLBACK] wait for page state",
+            metadata={"is_heuristic_fallback": True},
         )

@@ -29,6 +29,16 @@ class ValidationCheck(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
+from enum import Enum
+
+class FailureCategory(str, Enum):
+    NETWORK_ERROR = "NETWORK_ERROR"
+    ELEMENT_NOT_FOUND = "ELEMENT_NOT_FOUND"
+    SEMANTIC_MISMATCH = "SEMANTIC_MISMATCH"
+    VALIDATION_ERROR = "VALIDATION_ERROR"
+    TIMEOUT = "TIMEOUT"
+    UNKNOWN = "UNKNOWN"
+
 class ValidationResult(BaseModel):
     """Aggregated result of all validation checks for a single action.
 
@@ -42,6 +52,8 @@ class ValidationResult(BaseModel):
     checks: list[ValidationCheck] = Field(default_factory=list)
     overall_passed: bool = False
     classification: str = Field(default="INCONCLUSIVE", description="PASSED, FAILED, INCONCLUSIVE, BLOCKED, CLEANUP_FAILED")
+    failure_category: FailureCategory | None = None
+    root_cause: str | None = None
     is_precondition_check: bool = False
     precondition_failed: bool = False
     precondition_details: dict[str, Any] = Field(default_factory=dict)

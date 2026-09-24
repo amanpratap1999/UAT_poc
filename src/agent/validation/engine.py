@@ -14,7 +14,8 @@ from agent.core.logging import get_logger
 from agent.core.types import ActionType
 from agent.domain.actions import ActionResult, AgentAction
 from agent.domain.observation import PageObservation
-from agent.domain.validation import ValidationCheck, ValidationResult
+from agent.domain.validation import ValidationCheck, ValidationResult, FailureCategory
+from agent.cognition.intent import StructuredIntent
 
 logger = get_logger(__name__)
 
@@ -34,6 +35,7 @@ class ValidationEngine:
         before: PageObservation,
         after: PageObservation,
         console_errors: list[str] | None = None,
+        intent: StructuredIntent | None = None,
     ) -> ValidationResult:
         """Run all applicable validations after an action.
 
@@ -43,6 +45,7 @@ class ValidationEngine:
             before: Page observation before the action.
             after: Page observation after the action.
             console_errors: Any browser console errors captured.
+            intent: The active StructuredIntent/Objective.
 
         Returns:
             A ValidationResult with individual checks.
@@ -55,6 +58,9 @@ class ValidationEngine:
 
         # Always check: action succeeded
         validation.add_check(self._check_action_success(result))
+        if not result.success:
+            validation.failure_category = FailureCategory.ELEMENT_NOT_FOUND
+            validation.root_cause = result.error
 
         # Always check: no new validation messages
         validation.add_check(self._check_no_new_errors(before, after))
@@ -80,7 +86,11 @@ class ValidationEngine:
             raw_new_network_errors
         )
         if new_network_errors:
-            validation.add_check(self._check_no_network_errors(new_network_errors))
+            chk = self._check_no_network_errors(new_network_errors)
+            validation.add_check(chk)
+            if not chk.passed:
+                validation.failure_category = FailureCategory.NETWORK_ERROR
+                validation.root_cause = "Failed network requests observed: " + str(chk.error_message)
         elif suppressed_network:
             # Everything was suppressed as platform noise — record the
             # suppressed evidence explicitly rather than silently passing.
@@ -108,7 +118,14 @@ class ValidationEngine:
             validation.add_check(self._check_field_update(action, after))
 
         if action_type == ActionType.CLICK:
-            validation.add_check(self._check_page_changed(before, after, action))
+            chk = self._check_page_changed(before, after, action)
+            validation.add_check(chk)
+            if intent:
+                sem_chk = self._verify_semantic_context(intent, after)
+                validation.add_check(sem_chk)
+                if not sem_chk.passed:
+                    validation.failure_category = FailureCategory.SEMANTIC_MISMATCH
+                    validation.root_cause = sem_chk.error_message
 
         if action_type == ActionType.SELECT:
             validation.add_check(self._check_field_update(action, after))
@@ -308,6 +325,49 @@ class ValidationEngine:
             expected=expected_url,
             actual=after.url,
             error_message="URL mismatch" if not url_matches else None,
+        )
+
+    def _verify_semantic_context(self, intent: StructuredIntent, after: PageObservation) -> ValidationCheck:
+        """Verify that the page context semantically matches the intent."""
+        import re
+        
+        expected = "Any page context"
+        actual = f"Page: {after.url}"
+        passed = True
+        error_message = None
+        
+        target_record = intent.target_record
+        if not target_record:
+            # Try to parse from goal
+            match = re.search(r'(INC\d+|CHG\d+|REQ\d+|RITM\d+|SCTASK\d+|CS\d+)', intent.goal)
+            if match:
+                target_record = match.group(1)
+        
+        if target_record:
+            expected = f"Page containing {target_record}"
+            
+            # Use record_number if observed by observer
+            observed_record = getattr(after, "record_number", None)
+            if observed_record:
+                actual = f"Page containing {observed_record}"
+                if observed_record.lower() != target_record.lower():
+                    passed = False
+                    error_message = f"Agent navigated to {observed_record}, but expected {target_record}. Semantic target mismatch."
+            else:
+                # If observer didn't find it, fallback to checking URL or title
+                if target_record.lower() not in after.url.lower() and target_record.lower() not in after.page_title.lower():
+                    # We might be on a dashboard or completely wrong page
+                    actual = f"Page without {target_record} (URL: {after.url})"
+                    passed = False
+                    error_message = f"Expected record {target_record} is not in the page context after clicking."
+
+        return ValidationCheck(
+            check_name="semantic_context",
+            description="Verify the outcome matches the expected semantic context",
+            passed=passed,
+            expected=expected,
+            actual=actual,
+            error_message=error_message
         )
 
     def _check_field_update(

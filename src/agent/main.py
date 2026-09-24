@@ -863,6 +863,9 @@ custom_origins = os.getenv("CORS_ALLOWED_ORIGINS", "")
 if custom_origins:
     cors_origins.extend([o.strip() for o in custom_origins.split(",") if o.strip()])
 
+from agent.api.v1.router import router, TicketRedactionMiddleware
+
+app.add_middleware(TicketRedactionMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,

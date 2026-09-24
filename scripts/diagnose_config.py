@@ -12,8 +12,8 @@ from pathlib import Path
 repo_root = Path(__file__).resolve().parent.parent
 src_dir = repo_root / "src"
 if str(src_dir) not in sys.path:
-    from agent.core.config import get_settings
-sys.path.insert(0, str(src_dir))
+    sys.path.insert(0, str(src_dir))
+from agent.core.config import get_settings
 
 
 def main() -> None:

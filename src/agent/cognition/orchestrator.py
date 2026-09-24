@@ -12,6 +12,8 @@ from typing import Any
 from agent.capabilities.registry import CapabilityRegistry
 from agent.cognition.investigation import InvestigationEngine
 from agent.cognition.models import TestHypothesis
+from agent.cognition.page_gate import PageGate
+from agent.cognition.stuck_detector import StuckDetector
 from agent.core.logging import get_logger
 from agent.core.types import ActionType, AgentState, RunEventType, StepStatus
 from agent.domain.plan import ExecutionPlan
@@ -61,6 +63,7 @@ class CognitiveOrchestrator:
             knowledge_model=knowledge_model, learning_service=learning_service
         )
         self._world_model = WorldModel()
+        self._stuck_detector = StuckDetector()
         self._stop_requested = False
         self._event_publisher: Any | None = None
         self._control_receiver: Any | None = None
@@ -714,6 +717,25 @@ class CognitiveOrchestrator:
                 "executing_hypothesis", hyp_id=hypothesis.id, capability=hypothesis.capability
             )
 
+            # Stuck detection: check before executing next step
+            stuck_result = self._stuck_detector.check()
+            if stuck_result.is_stuck:
+                logger.warning(
+                    "agent_stuck_detected",
+                    reason=stuck_result.reason,
+                    repeated_action=stuck_result.repeated_action,
+                    repetition_count=stuck_result.repetition_count,
+                )
+                memory.add_timeline_entry(
+                    action="Stuck detection triggered",
+                    result=stuck_result.reason,
+                )
+                self._transition(
+                    AgentState.FAILED,
+                    f"Agent stuck in action loop: {stuck_result.reason}",
+                )
+                return
+
             # Capability Selection (Dynamic)
             try:
                 skill = self._skill_registry.get_skill_for_module(hypothesis.capability)
@@ -753,8 +775,21 @@ class CognitiveOrchestrator:
             self._transition(AgentState.EXECUTING, "Executing action for hypothesis")
             if self._perception_engine:
                 result = await self._perception_engine.execute_with_perception(action)
+                # Telemetry
+                route = result.details.get("perception", {}).get("route", "")
+                if route == "MOONDREAM":
+                    memory.moondream_calls += 1
+                elif route == "GEMINI":
+                    memory.gemini_calls += 1
             else:
                 result = await self._execution_controller.execute(action)  # type: ignore[union-attr]
+
+            # Record action for stuck detection
+            self._stuck_detector.record(
+                str(action.action_type),
+                str(action.target),
+                url=raw_obs.url if raw_obs and hasattr(raw_obs, "url") else "",
+            )
 
             # B. OBSERVATION AFTER EXECUTION
             self._transition(AgentState.OBSERVING, "Post-action observation")
@@ -765,11 +800,13 @@ class CognitiveOrchestrator:
             self._transition(AgentState.VALIDATING, "Comparing expected vs actual")
 
             # Check expectation
+            memory.verification_calls += 1
             validation = await self._validation_engine.validate_action(  # type: ignore[union-attr]
                 action=action,
                 result=result,
                 before=raw_obs,
                 after=raw_obs_after,
+                intent=objective,
             )
 
             if skill and hasattr(skill, "validate"):
@@ -976,6 +1013,7 @@ class CognitiveOrchestrator:
         pending_api_assertions: list[tuple[str, str]] = []
         api_mismatch_found = False
         pre_mutation_snapshot: Any = None
+        page_gate = PageGate()
 
         for step in plan.steps:
             if self._lock_manager:
@@ -1005,6 +1043,40 @@ class CognitiveOrchestrator:
                 plan.skip_remaining_steps(step.step_index + 1, "Execution cancelled by user")
                 self._transition(AgentState.CANCELLED, "Run cancelled by user")
                 await self._publish_event(RunEventType.RUN_CANCELLED)
+                return
+
+            # Stuck detection: check before executing next step
+            stuck_result = self._stuck_detector.check()
+            if stuck_result.is_stuck:
+                logger.warning(
+                    "agent_stuck_detected",
+                    reason=stuck_result.reason,
+                    repeated_action=stuck_result.repeated_action,
+                    repetition_count=stuck_result.repetition_count,
+                )
+                step.mark_failed(f"Agent stuck: {stuck_result.reason}")
+                memory.add_timeline_entry(
+                    action="Stuck detection triggered",
+                    result=stuck_result.reason,
+                )
+                await self._publish_event(
+                    RunEventType.STEP_FINISHED,
+                    {
+                        "step_index": step.step_index,
+                        "description": step.description,
+                        "status": "failed",
+                        "actual_result": f"Agent stuck: {stuck_result.reason}",
+                    },
+                )
+                # Abort remaining steps — don't waste more time
+                plan.skip_remaining_steps(
+                    step.step_index + 1,
+                    f"Skipped: agent detected stuck in loop ({stuck_result.repeated_action})",
+                )
+                self._transition(
+                    AgentState.FAILED,
+                    f"Agent stuck in action loop: {stuck_result.reason}",
+                )
                 return
 
             step.mark_in_progress()
@@ -1038,6 +1110,49 @@ class CognitiveOrchestrator:
             raw_obs = await self._observation_engine.observe(page)  # type: ignore[union-attr]
             memory.add_observation(raw_obs)
             world_state = self._world_model.build_semantic_state(raw_obs)
+
+            # Page-context gate: verify agent is on the correct page
+            gate_result = page_gate.check(raw_obs, memory.structured_intent)
+            if not gate_result.passed:
+                logger.warning(
+                    "page_gate_failed",
+                    reason=gate_result.reason,
+                    observed_url=gate_result.observed_url,
+                    expected_record=gate_result.expected_record,
+                )
+                # Attempt auto-navigation recovery
+                if gate_result.expected_record and gate_result.expected_table:
+                    nav_ok = await page_gate.navigate_to_record(
+                        self._browser_manager,
+                        gate_result.expected_table,
+                        gate_result.expected_record,
+                    )
+                    if nav_ok:
+                        # Re-observe after navigation
+                        raw_obs = await self._observation_engine.observe(page)
+                        memory.add_observation(raw_obs)
+                        world_state = self._world_model.build_semantic_state(raw_obs)
+                        # Re-check gate
+                        gate_result = page_gate.check(raw_obs, memory.structured_intent)
+                
+                if not gate_result.passed:
+                    reason = f"Page context verification failed: {gate_result.reason}"
+                    step.mark_failed(reason)
+                    memory.add_timeline_entry(
+                        action="Page gate check",
+                        result=reason,
+                    )
+                    await self._publish_event(
+                        RunEventType.STEP_FINISHED,
+                        {
+                            "step_index": step.step_index,
+                            "description": step.description,
+                            "status": "failed",
+                            "actual_result": reason,
+                            "screenshot": None,
+                        },
+                    )
+                    continue
 
             # 3. Decision
             self._transition(AgentState.DECISION, f"Deciding action for: {step.description}")
@@ -1185,8 +1300,21 @@ class CognitiveOrchestrator:
             )
             if self._perception_engine:
                 result = await self._perception_engine.execute_with_perception(action)
+                # Telemetry
+                route = result.details.get("perception", {}).get("route", "")
+                if route == "MOONDREAM":
+                    memory.moondream_calls += 1
+                elif route == "GEMINI":
+                    memory.gemini_calls += 1
             else:
                 result = await self._execution_controller.execute(action)  # type: ignore[union-attr]
+
+            # Record action for stuck detection
+            self._stuck_detector.record(
+                str(action.action_type),
+                str(action.target),
+                url=raw_obs.url if raw_obs and hasattr(raw_obs, "url") else "",
+            )
 
             # P0 QA-005 Fix: Reload page to verify mutations after save/update
             action_type_val = getattr(action.action_type, "value", action.action_type)
@@ -1224,11 +1352,13 @@ class CognitiveOrchestrator:
 
             # 7. Validation
             self._transition(AgentState.VALIDATING, f"Validating: {step.description}")
+            memory.verification_calls += 1
             validation = await self._validation_engine.validate_action(  # type: ignore[union-attr]
                 action=action,
                 result=result,
                 before=raw_obs,
                 after=raw_obs_after,
+                intent=plan.intent,
             )
 
             if skill and hasattr(skill, "validate"):

@@ -55,6 +55,28 @@ from agent.core.db import get_db_session
 from agent.domain.models import Finding, Run, Screenshot
 from agent.worker.tasks import execute_run
 
+class TicketRedactionMiddleware:
+    """ASGI Middleware to redact SSE tickets from Uvicorn access logs.
+    
+    SSE clients (EventSource) cannot send headers, so tokens must be in the query string.
+    To prevent Uvicorn from logging these tokens, we mutate the scope's query string 
+    *after* FastAPI has processed the request but *before* Uvicorn writes the access log.
+    """
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http":
+            query_string = scope.get("query_string", b"")
+            if b"ticket=" in query_string or b"token=" in query_string:
+                # Let FastAPI process the request with the real query string
+                await self.app(scope, receive, send)
+                # Mutate in-place so Uvicorn's access logger sees the redacted version
+                redacted = re.sub(b"(ticket|token)=[^&]+", b"\\1=***", query_string)
+                scope["query_string"] = redacted
+                return
+        await self.app(scope, receive, send)
+
 router = APIRouter(prefix="/api/v1", tags=["agent"])
 
 
