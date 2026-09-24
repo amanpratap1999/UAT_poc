@@ -182,7 +182,7 @@ class DecisionEngine:
 
         if plan_desc:
             intent_type_str = str(intent.intent_type.value) if hasattr(intent.intent_type, "value") else str(intent.intent_type)
-            cached = self._step_cache.get_action(intent.goal, intent_type_str, plan_desc, plan_expected)
+            cached = self._step_cache.get_action(intent.goal, intent_type_str, plan_desc, plan_expected, memory.tenant_id)
             if cached:
                 chosen_action = cached
                 rationale = "Retrieved from StepCache"
