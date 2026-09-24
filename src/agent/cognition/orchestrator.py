@@ -113,6 +113,47 @@ class CognitiveOrchestrator:
     def request_stop(self) -> None:
         self._stop_requested = True
 
+    # Audit issue I43 (P1): the constructor accepts most engines as
+    # `Any | None` (optional, for testability and DI flexibility), but the
+    # cognitive loop body assumes they are non-None and dereferences them
+    # with `# type: ignore[union-attr]` comments. A wiring failure (e.g.,
+    # a dependency factory raising in dependencies.py) would raise
+    # `AttributeError: 'NoneType' object has no attribute 'get_page'`
+    # mid-run, which is hard to debug because it surfaces far from the
+    # root cause (the missing wiring).
+    #
+    # This method fails fast at the entry of each public entry-point
+    # method with a clear error message that lists exactly which
+    # dependencies are missing.
+    _REQUIRED_DEPENDENCIES = (
+        "_decision_engine",
+        "_execution_controller",
+        "_browser_manager",
+        "_observation_engine",
+        "_validation_engine",
+        "_perception_engine",
+        "_settings",
+    )
+
+    def _ensure_required_dependencies(self, context: str) -> None:
+        """Fail fast if any required dependency is None.
+
+        Called at the top of every public entry-point method (run_cognitive_loop,
+        _execute_canonical_plan) so a wiring failure surfaces as a clear
+        RuntimeError instead of an AttributeError deep in the loop body.
+        """
+        missing = [
+            dep for dep in self._REQUIRED_DEPENDENCIES
+            if getattr(self, dep, None) is None
+        ]
+        if missing:
+            raise RuntimeError(
+                f"CognitiveOrchestrator.{context} cannot run: required "
+                f"dependencies not wired: {', '.join(missing)}. Check the "
+                f"dependency factory in agent.api.v1.dependencies and the "
+                f"orchestrator construction in agent.main.create_orchestrator."
+            )
+
     def _transition(self, state: AgentState, reason: str) -> None:
         if self._state_machine:
             try:
@@ -666,6 +707,14 @@ class CognitiveOrchestrator:
 
     async def run_cognitive_loop(self, memory: SessionMemory, objective: str) -> None:
         """The dynamic reasoning loop replacing the fixed single-skill loop."""
+        # Audit issue I43 (P1): the constructor declares most engines as
+        # `Any | None` (optional), but the loop body assumes they are non-None
+        # and dereferences them with `# type: ignore[union-attr]` comments.
+        # A wiring failure (e.g., a dependency factory raising in
+        # dependencies.py) would raise AttributeError mid-run instead of a
+        # clear startup error. This guard fails fast with a clear message.
+        self._ensure_required_dependencies("run_cognitive_loop")
+
         max_steps = self._settings.agent.max_steps if self._settings else 20
 
         # Canonical ExecutionPlan execution path
@@ -988,6 +1037,9 @@ class CognitiveOrchestrator:
         self, memory: SessionMemory, plan: ExecutionPlan, objective: str
     ) -> None:
         """Execute the single canonical ExecutionPlan sequentially."""
+        # Audit issue I43 (P1): fail fast if required deps are missing.
+        self._ensure_required_dependencies("_execute_canonical_plan")
+
         max_steps = self._settings.agent.max_steps if self._settings else 20
 
         # Emit plan created event
