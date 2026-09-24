@@ -15,7 +15,7 @@ import sys
 from sqlalchemy import select
 
 from agent.api.v1.auth import get_password_hash
-from agent.core.db import AsyncSessionLocal
+from agent.core.db import async_session_maker as AsyncSessionLocal
 from agent.domain.models import User
 
 
