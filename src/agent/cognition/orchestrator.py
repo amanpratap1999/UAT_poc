@@ -604,8 +604,11 @@ class CognitiveOrchestrator:
                 "description": "General UI interactions (clicking buttons, toggling controls, filling inputs, login verification)",
             }
         ]
-        for _name, skill_tuple in self._skill_registry._skills.items():
-            _skill, definition = skill_tuple
+        # Audit issue I15 (P2): use the public iter_skills() method
+        # instead of reaching into the private _skills dict. Refactors
+        # to CapabilityRegistry's internal storage layout won't break
+        # this call site.
+        for _name, _skill, definition in self._skill_registry.iter_skills():
             capabilities_list.append(
                 {
                     "name": definition.name,
