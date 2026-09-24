@@ -15,7 +15,7 @@ from agent.core.types import ActionType
 from agent.domain.actions import ActionResult, AgentAction
 from agent.domain.observation import PageObservation
 from agent.domain.validation import ValidationCheck, ValidationResult, FailureCategory
-from agent.cognition.intent import StructuredIntent
+from agent.domain.intent import StructuredIntent
 
 logger = get_logger(__name__)
 
