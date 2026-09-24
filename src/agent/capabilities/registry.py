@@ -71,3 +71,16 @@ class CapabilityRegistry:
     def list_skills(self) -> list[str]:
         """List names of all registered skills."""
         return list(self._skills.keys())
+
+    # Audit issue I15 (P2): public iterator so callers (e.g. CognitiveOrchestrator)
+    # don't have to reach into the private _skills dict. Refactors to this
+    # class's internal storage layout won't break callers.
+    def iter_skills(self):
+        """Yield (name, skill, definition) tuples for all registered skills.
+
+        Returns an iterator (NOT a list) so callers that break early
+        don't pay for materializing the full list. Use list(...) to
+        materialize if needed.
+        """
+        for name, (skill, definition) in self._skills.items():
+            yield name, skill, definition
