@@ -7,6 +7,7 @@ with CSS fallbacks for ServiceNow's dynamic DOM.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from playwright.async_api import Locator, Page
@@ -19,6 +20,54 @@ from agent.core.logging import get_logger
 from agent.perception.models import BoundingBox, PerceptionCandidate
 
 logger = get_logger(__name__)
+
+
+# Audit issue I31 (P1): CSS selector sanitization helpers.
+# LLM-supplied selectors (action.target) come from a chain that includes
+# attacker-controllable ServiceNow page content. Without sanitization, an
+# action.target containing ']', ';', or quote chars could break out of CSS
+# attribute-selector context (e.g. `input[name='{selector}']` →
+# `input[name='evil']; *{color:red}']`) and either match unintended
+# elements or apply arbitrary CSS to the page.
+# These helpers validate against strict char allowlists and reject any
+# selector that does not match.
+
+# Safe CSS selector: allow letters, digits, common CSS metachars
+# (#, ., [, ], :, ::, -, _, space, >, +, ~, =, *, ", ', (, ))
+# but reject characters that have CSS injection potential when
+# interpolated into a string-context attribute selector.
+_SAFE_CSS_SELECTOR_RE = re.compile(
+    r'^[A-Za-z0-9\s\-_:#\.\[\]=>"\+\*\(\)~]+$'
+)
+
+# Safe CSS id value: alphanumeric + hyphen + underscore only.
+# Used when interpolating selector into `#{value}` (CSS id selector).
+_SAFE_CSS_ID_VALUE_RE = re.compile(r'^[A-Za-z0-9_\-]+$')
+
+# Safe CSS attribute value: alphanumeric + hyphen + underscore + dot only.
+# Used when interpolating selector into `input[name='{value}']`.
+_SAFE_CSS_ATTR_VALUE_RE = re.compile(r'^[A-Za-z0-9_\-.]+$')
+
+
+def _is_safe_css_selector(selector: str) -> bool:
+    """Return True if the selector matches the strict allowlist for raw CSS."""
+    if not selector:
+        return False
+    return bool(_SAFE_CSS_SELECTOR_RE.fullmatch(selector))
+
+
+def _sanitize_css_id_value(selector: str) -> str:
+    """Return the selector if it's safe to use as a CSS id value, else empty string."""
+    if selector and _SAFE_CSS_ID_VALUE_RE.fullmatch(selector):
+        return selector
+    return ""
+
+
+def _sanitize_css_attr_value(selector: str) -> str:
+    """Return the selector if it's safe to use as a CSS attribute value, else empty string."""
+    if selector and _SAFE_CSS_ATTR_VALUE_RE.fullmatch(selector):
+        return selector
+    return ""
 
 
 class PageInteractor:
@@ -595,19 +644,55 @@ class PageInteractor:
 
         # 3. Check if it looks like a clean CSS or XPath selector (e.g. starts with #, ., [, //)
         if selector.startswith("#") or selector.startswith(".") or selector.startswith("[") or selector.startswith("//"):
-            return ctx.locator(selector)  # type: ignore[no-any-return]
+            # Audit issue I31 (P1): the selector here comes from the LLM
+            # (action.target) which is influenced by page content (the
+            # observation/prompt chain). An attacker controlling ServiceNow
+            # record text could trick the LLM into emitting a selector
+            # containing quotes/brackets that breaks out of CSS attribute
+            # selector context. Validate against a strict allowlist before
+            # passing to Playwright.
+            if not _is_safe_css_selector(selector):
+                logger.warning("unsafe_selector_blocked", selector=selector[:80])
+                # Fall through to the semantic-string path below instead of
+                # passing the raw selector to Playwright.
+            else:
+                return ctx.locator(selector)  # type: ignore[no-any-return]
 
         # 4. Unprefixed semantic string fallback
-        return (  # type: ignore[no-any-return]
+        # Audit issue I31 (P1): the previous f-string interpolations
+        # `f"#{selector}"`, `f"input[name='{selector}']"`, etc. used raw
+        # LLM-supplied selector text inside CSS attribute selectors.
+        # An action.target containing ']' or ';' could break out of the
+        # [id='...'] context and match arbitrary elements on the page,
+        # enabling prompt-injection-driven CSS injection. Fix: validate
+        # selector against a strict char allowlist; fall back to safe
+        # Playwright semantic locators (get_by_role, get_by_label) for
+        # selectors that don't match.
+        safe_id = _sanitize_css_id_value(selector)
+        safe_name = _sanitize_css_attr_value(selector)
+        if not safe_id and not safe_name:
+            # Selector contains chars that are unsafe in CSS context —
+            # skip the f-string interpolations and rely only on the
+            # get_by_* semantic locators below.
+            return (  # type: ignore[no-any-return]
+                ctx.get_by_role("button", name=selector)
+                .or_(ctx.get_by_role("link", name=selector))
+                .or_(ctx.get_by_label(selector))
+                .or_(ctx.get_by_title(selector, exact=False))
+                .or_(ctx.get_by_text(selector, exact=False))
+            )
+        loc_chain = (
             ctx.get_by_role("button", name=selector)
             .or_(ctx.get_by_role("link", name=selector))
             .or_(ctx.get_by_label(selector))
             .or_(ctx.get_by_title(selector, exact=False))
             .or_(ctx.get_by_text(selector, exact=False))
-            .or_(ctx.locator(f"select[name$='.{selector.lower()}']"))
-            .or_(ctx.locator(f"input[name='{selector}']"))
-            .or_(ctx.locator(f"#{selector}"))
         )
+        if safe_name:
+            loc_chain = loc_chain.or_(ctx.locator(f"input[name='{safe_name}']"))
+        if safe_id:
+            loc_chain = loc_chain.or_(ctx.locator(f"#{safe_id}"))
+        return loc_chain  # type: ignore[no-any-return]
 
     async def _disambiguate_locator(
         self, locator: Locator, selector: str, action_type: str, timeout: int
