@@ -43,6 +43,42 @@ class IntentManager:
     def __init__(self, llm_client: BaseLLMClient | None = None) -> None:
         self._llm = llm_client
 
+    def detect_ambiguity(self, raw_prompt: str) -> tuple[bool, str | None]:
+        """Detect whether the raw prompt is ambiguous and generate a clarification question.
+
+        Item 9 (P1, D4): Ambiguity/clarification workflow. The agent should
+        detect conflicting/incomplete acceptance criteria and enter
+        AWAITING_USER_INPUT state, recording the question and answer.
+
+        This is a heuristic detector (not LLM-based) that checks for:
+        - Vague quantifiers ("some", "certain", "various")
+        - Missing field references ("check the fields" without specifying which)
+        - Conflicting requirements ("must be X and not X")
+        - Missing persona ("as a user" without specifying which role)
+
+        Returns (is_ambiguous, clarification_question).
+        """
+        prompt_lower = raw_prompt.lower()
+        ambiguous_patterns = [
+            ("some", "You mentioned 'some' — could you specify exactly which records/fields you mean?"),
+            ("certain", "You mentioned 'certain' — which specific items are you referring to?"),
+            ("various", "You mentioned 'various' — please list the specific items to test."),
+            ("etc", "You used 'etc.' — please list the complete set of items to test."),
+            ("as a user", "Which persona should execute this test? (e.g., requester, fulfiller, admin)"),
+            ("check the fields", "Which specific fields should be checked? Please list field names."),
+            ("verify everything", "Please specify which acceptance criteria to verify — 'everything' is too broad for a UAT run."),
+        ]
+        for pattern, question in ambiguous_patterns:
+            if pattern in prompt_lower:
+                return True, question
+        # Check for conflicting requirements
+        if "must" in prompt_lower and "must not" in prompt_lower:
+            return True, "The goal contains both 'must' and 'must not' — please clarify which is the intended behavior."
+        # Check for missing acceptance criteria
+        if len(raw_prompt.strip()) < 20:
+            return True, "The goal is very short — please provide more detail about what acceptance criteria should be tested."
+        return False, None
+
     async def parse_intent(self, raw_prompt: str) -> StructuredIntent:
         """Parse natural language prompt into a StructuredIntent.
 

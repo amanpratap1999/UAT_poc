@@ -249,6 +249,36 @@ class ReportingEngine:
                     if defect.defect_id == defect_id:
                         defect.root_cause_hypothesis = hypothesis.get("hypothesis", "")
 
+        # INC-UAT-12 (Major): collect requirement IDs from the plan steps
+        if memory.plan and memory.plan.steps:
+            report.requirement_ids_covered = list(set(
+                s.requirement_id for s in memory.plan.steps
+                if getattr(s, "requirement_id", None)
+            ))
+
+        # INC-UAT-15 (Minor): evaluate exit criteria and embed in the report
+        try:
+            from agent.reporting.exit_criteria import IncidentExitCriteriaEngine
+            exit_engine = IncidentExitCriteriaEngine()
+            major_defects = sum(1 for d in defects if getattr(d, "severity", "").lower() in ("critical", "high", "major"))
+            minor_defects = sum(1 for d in defects if getattr(d, "severity", "").lower() in ("minor", "low"))
+            unverified = sum(1 for v in memory.completed_validations if not v.overall_passed and not v.failed_checks)
+            exit_result = exit_engine.evaluate(
+                requirements_total=len(report.requirement_ids_covered),
+                requirements_covered=len(report.requirement_ids_covered),
+                open_major_defects=major_defects,
+                open_minor_defects=minor_defects,
+                unverified_items=unverified,
+            )
+            report.exit_criteria = exit_result.to_dict()
+            logger.info(
+                "exit_criteria_evaluated",
+                verdict=exit_result.verdict,
+                reason=exit_result.reason,
+            )
+        except Exception as e:
+            logger.warning("exit_criteria_evaluation_failed", error=str(e))
+
         logger.info(
             "report_generated",
             report_id=report_id,
