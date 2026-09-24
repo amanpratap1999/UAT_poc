@@ -66,9 +66,16 @@ class StepCache:
                 """
             )
 
-    def _hash_intent(self, goal: str, intent_type: str, step_desc: str, expected: str) -> str:
-        """Create a reproducible hash for the semantic intent."""
-        raw = f"{goal}::{intent_type}::{step_desc}::{expected}".lower()
+    def _hash_intent(self, goal: str, intent_type: str, step_desc: str, expected: str, tenant_id: str) -> str:
+        """Create a reproducible hash for the semantic intent, scoped to tenant_id.
+
+        The tenant_id is REQUIRED (audit issue I25): without it, two tenants
+        that happen to share the same (goal, intent_type, step_desc, expected)
+        tuple would share cached actions across tenants — leaking tenant-A
+        record IDs (embedded in the goal text, e.g. "INC0001234") into
+        tenant-B's action resolutions.
+        """
+        raw = f"{tenant_id}::{goal}::{intent_type}::{step_desc}::{expected}".lower()
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
     @staticmethod
@@ -77,9 +84,9 @@ class StepCache:
         normalized = " ".join((step_text or "").split()).strip().lower()
         return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
-    def get_action(self, goal: str, intent_type: str, step_desc: str, expected: str) -> Optional[AgentAction]:
-        """Retrieve a cached action if available."""
-        h = self._hash_intent(goal, intent_type, step_desc, expected)
+    def get_action(self, goal: str, intent_type: str, step_desc: str, expected: str, tenant_id: str) -> Optional[AgentAction]:
+        """Retrieve a cached action if available. ``tenant_id`` is REQUIRED."""
+        h = self._hash_intent(goal, intent_type, step_desc, expected, tenant_id)
         try:
             with self._connect() as conn:
                 cursor = conn.execute("SELECT action_json FROM step_cache WHERE intent_hash = ?", (h,))
@@ -87,15 +94,15 @@ class StepCache:
                 if row:
                     data = json.loads(row[0])
                     action = AgentAction(**data)
-                    logger.info("step_cache_hit", hash=h[:8], action_type=action.action_type)
+                    logger.info("step_cache_hit", hash=h[:8], action_type=action.action_type, tenant=tenant_id)
                     return action
         except Exception as e:
             logger.warning("step_cache_read_error", error=str(e))
         return None
 
-    def save_action(self, goal: str, intent_type: str, step_desc: str, expected: str, action: AgentAction) -> None:
-        """Save a successful action to the cache."""
-        h = self._hash_intent(goal, intent_type, step_desc, expected)
+    def save_action(self, goal: str, intent_type: str, step_desc: str, expected: str, action: AgentAction, tenant_id: str) -> None:
+        """Save a successful action to the cache. ``tenant_id`` is REQUIRED."""
+        h = self._hash_intent(goal, intent_type, step_desc, expected, tenant_id)
         try:
             # Need to handle enum serialization correctly
             data = action.model_dump(mode="json")
@@ -104,7 +111,7 @@ class StepCache:
                     "INSERT OR REPLACE INTO step_cache (intent_hash, action_json) VALUES (?, ?)",
                     (h, json.dumps(data))
                 )
-                logger.info("step_cache_saved", hash=h[:8], action_type=action.action_type)
+                logger.info("step_cache_saved", hash=h[:8], action_type=action.action_type, tenant=tenant_id)
         except Exception as e:
             logger.warning("step_cache_write_error", error=str(e))
 

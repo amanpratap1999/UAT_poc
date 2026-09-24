@@ -97,6 +97,11 @@ class SessionMemory(BaseModel):
     # Identity
     session_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     started_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    # Tenant isolation key (audit issue I25): propagates to StepCache
+    # _hash_intent so that cached actions never leak across tenants.
+    # Default "unknown" for backward compatibility with test fixtures that
+    # do not set it; production callers (worker/tasks.py) set it explicitly.
+    tenant_id: str = "unknown"
 
     # Goal & Cognitive Intent
     goal: str = ""

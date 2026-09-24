@@ -1400,7 +1400,8 @@ class CognitiveOrchestrator:
                             intent_type=intent_type_str,
                             step_desc=memory.plan.current_step.description,
                             expected=memory.plan.current_step.expected_outcome,
-                            action=action
+                            action=action,
+                            tenant_id=memory.tenant_id,
                         )
                     except Exception as cache_err:
                         logger.warning("cache_save_failed", error=str(cache_err))

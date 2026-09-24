@@ -283,6 +283,9 @@ async def _run_agent_async(run_id: str, goal: str, tenant_id: str, test_case_id:
 
             # Keep report/evidence/session identifiers aligned with the API run.
             orchestrator.memory.session_id = run_id
+            # Propagate tenant_id to SessionMemory so StepCache (audit issue I25)
+            # and other tenant-scoped consumers can scope their caches correctly.
+            orchestrator.memory.tenant_id = tenant_id or "unknown"
             logger.info(
                 "agent_browser_configuration run_id=%s headless=%s slow_mo=%s "
                 "show_mouse_cursor=%s keep_browser_open=%s",
