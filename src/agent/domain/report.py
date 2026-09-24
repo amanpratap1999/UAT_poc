@@ -118,6 +118,21 @@ class TestReport(BaseModel):
     summary: str = Field(default="", description="LLM-generated executive summary")
     recommendations: list[str] = Field(default_factory=list)
 
+    # INC-UAT-12 (Major, D1/D6): requirement traceability — the set of
+    # acceptance-criterion IDs that were covered during this run. Enables
+    # the reporting engine to answer "which requirements were tested?".
+    requirement_ids_covered: list[str] = Field(
+        default_factory=list,
+        description="Acceptance-criterion IDs tested during this run.",
+    )
+    # INC-UAT-15 (Minor, D8): exit-criteria engine verdict. If populated,
+    # this gives human project leads a deterministic go/no-go decision
+    # package instead of requiring manual coverage interpretation.
+    exit_criteria: dict[str, Any] | None = Field(
+        default=None,
+        description="Deterministic exit-criteria verdict from IncidentExitCriteriaEngine.",
+    )
+
     # Metadata
     environment: dict[str, str] = Field(
         default_factory=dict,
