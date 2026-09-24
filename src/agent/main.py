@@ -89,7 +89,21 @@ logger = get_logger(__name__)
 
 
 class AgentOrchestrator:
-    """Coordinates planning, execution, validation and reporting for a run."""
+    """The autonomous cognitive agent runtime.
+
+    Orchestrates all engines through the cognitive loop:
+        Intent → Skill Resolution → Planning → World Modeling → Confidence
+        → Decision → Tool Invocation → Observation → Validation
+        → Reflection → Learning → Reasoning Trace
+
+    Audit issue I17 (P2): previously this class had TWO docstrings — a
+    short one at line 92 (\"Coordinates planning, execution, validation
+    and reporting for a run.\") and a longer orphan one at line 148 that
+    was parsed by Python as a no-op string expression (not a docstring).
+    AgentOrchestrator.__doc__ returned the short one; the long one was
+    silently lost. Fix: merged the long docstring into the class docstring
+    (placed immediately below `class AgentOrchestrator:`).
+    """
 
     @staticmethod
     def _compare_restoration(baseline: Any, final: Any) -> list[str] | None:
@@ -131,27 +145,19 @@ class AgentOrchestrator:
             )
         if base_state and str(final_state).strip().lower() != str(base_state).strip().lower():
             mismatches.append(f"state not restored: was {base_state}, now {final_state}")
-            
+
         # Compare all visible fields
         base_fields = {f.name.lower(): f.value for f in getattr(baseline, "visible_fields", [])}
         final_fields = {f.name.lower(): f.value for f in getattr(final, "visible_fields", [])}
-        
+
         for name, base_val in base_fields.items():
             final_val = final_fields.get(name, "")
             if str(base_val).strip() != str(final_val).strip():
                 # Ignore empty to none translations and timestamp fields
                 if not (str(base_val).strip() == "" and str(final_val).strip() == "") and "time" not in name and "date" not in name:
                     mismatches.append(f"field '{name}' not restored: was '{base_val}', now '{final_val}'")
-                    
+
         return mismatches
-
-    """The autonomous cognitive agent runtime.
-
-    Orchestrates all engines through the cognitive loop:
-        Intent → Skill Resolution → Planning → World Modeling → Confidence
-        → Decision → Tool Invocation → Observation → Validation
-        → Reflection → Learning → Reasoning Trace
-    """
 
     def __init__(
         self,
@@ -232,7 +238,15 @@ class AgentOrchestrator:
         self._test_store = test_store
         self._customer_knowledge_model = customer_knowledge_model
 
-        # Setup planner with testing capabilities
+        # Audit issue I16 (P2): the following lines reach into private
+        # attributes of Planner and CognitiveOrchestrator. The proper fix
+        # is to add public setter methods (e.g., `planner.set_scenario_generator(...)`)
+        # and use those here. That refactor is larger than this PR's scope
+        # — see the audit's recommended fix in the validation report
+        # (Section 7.1 I16). For now, these violations are left in place
+        # with this comment to make the technical debt visible.
+        # TODO(I16): add setter methods to Planner and CognitiveOrchestrator
+        # and migrate these assignments to use them.
         self._planner._scenario_generator = self._scenario_generator
         self._planner._test_store = self._test_store
 
