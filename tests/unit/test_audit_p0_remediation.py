@@ -29,53 +29,74 @@ def _read_source(rel_path: str) -> str:
 def _strip_comments(source: str) -> str:
     """Strip Python comments + docstrings from a source string.
 
-    Used so tests can assert "X is in the active code" without false-positives
+    Used so tests can assert X is in the active code without false-positives
     from commented-out lines that show the old code for context.
+
+    Uses ast.parse to identify docstring line ranges precisely (the previous
+    naive line-based approach mis-detected triple-quote sequences inside
+    string literals). Then strips hash-comments from the remaining lines.
     """
-    lines = []
-    in_docstring = False
-    for line in source.split("\n"):
-        stripped = line.strip()
-        if stripped.startswith('"""') or stripped.startswith("'''"):
-            in_docstring = not in_docstring
+    import ast
+    # Parse the source to find all docstring ranges.
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        # If the source doesn't parse, fall back to just stripping # comments.
+        lines = source.split("\n")
+        result = []
+        for line in lines:
+            if "#" in line:
+                line = line.split("#")[0].rstrip()
+            result.append(line)
+        return "\n".join(result)
+
+    # Collect (start, end) line ranges (1-indexed) of all docstrings.
+    docstring_ranges: list[tuple[int, int]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Module)):
+            body = getattr(node, "body", None) or []
+            if body and isinstance(body[0], ast.Expr) and isinstance(getattr(body[0], "value", None), ast.Constant) and isinstance(body[0].value.value, str):
+                # The first statement is a string literal → it's a docstring.
+                ds_node = body[0]
+                docstring_ranges.append((ds_node.lineno, ds_node.end_lineno or ds_node.lineno))
+
+    # Now walk the source lines, skipping docstring lines and stripping # comments.
+    lines = source.split("\n")
+    result = []
+    in_docstring_range = False
+    current_ds_end = 0
+    for i, line in enumerate(lines, 1):
+        # Check if this line is inside any docstring range.
+        in_ds = any(start <= i <= end for start, end in docstring_ranges)
+        if in_ds:
             continue
-        if in_docstring:
-            continue
+        # Strip inline # comments (naive — doesn't handle # inside strings,
+        # but good enough for our test assertions).
         if "#" in line:
             line = line.split("#")[0].rstrip()
-        lines.append(line)
-    return "\n".join(lines)
+        result.append(line)
+    return "\n".join(result)
 
 
 def _extract_function_source(source: str, func_name: str) -> str:
-    """Extract the source of a function (def func_name through the next def/class at same indent).
+    """Extract the source of a function by name, using ast for precision.
 
-    Returns the function source as a string (including decorator + signature + body).
+    Returns the function source as a string (including signature + body).
+    Uses ast.parse to find the function node, then slices the source lines
+    by the node's lineno..end_lineno.
     """
-    lines = source.split("\n")
-    # Find the line that starts `async def <func_name>(` or `def <func_name>(`
-    start_idx = None
-    for i, line in enumerate(lines):
-        if re.match(rf"^\s*(async\s+)?def\s+{func_name}\s*\(", line):
-            start_idx = i
-            break
-    if start_idx is None:
+    import ast
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
         return ""
-    # Find the function's base indentation
-    indent = len(lines[start_idx]) - len(lines[start_idx].lstrip())
-    # Walk forward until we hit a line at the same or lower indent (excluding blank lines)
-    # OR end of file
-    end_idx = len(lines)
-    for i in range(start_idx + 1, len(lines)):
-        line = lines[i]
-        if not line.strip():
-            continue
-        line_indent = len(line) - len(line.lstrip())
-        # If we hit a line at the same or lower indent that's not part of the function body
-        if line_indent <= indent and (line.lstrip().startswith("def ") or line.lstrip().startswith("async def ") or line.lstrip().startswith("class ") or line.lstrip().startswith("@")):
-            end_idx = i
-            break
-    return "\n".join(lines[start_idx:end_idx])
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == func_name:
+            start = node.lineno
+            end = node.end_lineno or node.lineno
+            lines = source.split("\n")
+            return "\n".join(lines[start - 1 : end])
+    return ""
 
 
 # ---------------------------------------------------------------------------
@@ -375,3 +396,175 @@ class TestIntentManagerFormatFix:
         )
         # The active code must NOT contain .format( with the prompt template
         assert "INTENT_PARSER_PROMPT.format(" not in func_source
+
+
+# ---------------------------------------------------------------------------
+# Issue I16 (follow-up PR): proper encapsulation setters
+# ---------------------------------------------------------------------------
+
+class TestEncapsulationSetters:
+    """Validates that the I16 encapsulation fix is actually implemented
+    via public setter methods (not just documented with TODO comments)."""
+
+    def test_planner_has_set_scenario_generator(self):
+        source = _read_source("src/agent/planner/planner.py")
+        assert "def set_scenario_generator(" in source, (
+            "Planner must have a public set_scenario_generator() method — "
+            "without it, main.py would still reach into _planner._scenario_generator"
+        )
+
+    def test_planner_has_set_test_store(self):
+        source = _read_source("src/agent/planner/planner.py")
+        assert "def set_test_store(" in source
+
+    def test_planner_has_get_llm_client(self):
+        source = _read_source("src/agent/planner/planner.py")
+        assert "def get_llm_client(" in source, (
+            "Planner must have a public get_llm_client() accessor — "
+            "without it, main.py would still read _planner._llm directly"
+        )
+
+    def test_orchestrator_has_attach_llm(self):
+        source = _read_source("src/agent/cognition/orchestrator.py")
+        assert "def attach_llm(" in source
+
+    def test_orchestrator_has_attach_state_machine(self):
+        source = _read_source("src/agent/cognition/orchestrator.py")
+        assert "def attach_state_machine(" in source
+
+    def test_orchestrator_has_attach_journal(self):
+        source = _read_source("src/agent/cognition/orchestrator.py")
+        assert "def attach_journal(" in source
+
+    def test_orchestrator_has_attach_browser_manager(self):
+        source = _read_source("src/agent/cognition/orchestrator.py")
+        assert "def attach_browser_manager(" in source
+
+    def test_orchestrator_has_attach_execution_controller(self):
+        source = _read_source("src/agent/cognition/orchestrator.py")
+        assert "def attach_execution_controller(" in source
+
+    def test_orchestrator_has_attach_perception_engine(self):
+        source = _read_source("src/agent/cognition/orchestrator.py")
+        assert "def attach_perception_engine(" in source
+
+    def test_orchestrator_has_attach_lock_manager(self):
+        source = _read_source("src/agent/cognition/orchestrator.py")
+        assert "def attach_lock_manager(" in source
+
+    def test_orchestrator_has_get_observation_engine(self):
+        source = _read_source("src/agent/cognition/orchestrator.py")
+        assert "def get_observation_engine(" in source
+
+    def test_orchestrator_has_get_locked_records(self):
+        source = _read_source("src/agent/cognition/orchestrator.py")
+        assert "def get_locked_records(" in source
+
+    def test_orchestrator_has_execute_canonical_plan_public(self):
+        source = _read_source("src/agent/cognition/orchestrator.py")
+        # Public wrapper — must NOT have leading underscore
+        assert "async def execute_canonical_plan(" in source
+
+    def test_incident_api_oracle_has_get_client(self):
+        source = _read_source("src/agent/skills/incident/api_oracle.py")
+        assert "def get_client(" in source, (
+            "IncidentApiOracle must have a public get_client() accessor — "
+            "without it, main.py would still read oracle._client directly"
+        )
+
+    def test_main_py_does_not_access_private_planner_attrs(self):
+        """Static check: main.py should not contain `_planner._` or
+        `_cognitive_orchestrator._` private-attribute accesses."""
+        source = _read_source("src/agent/main.py")
+        active = _strip_comments(source)
+        # Allow `_cognitive_orchestrator.` followed by a public method (e.g.,
+        # `attach_`, `get_`, `execute_`, `set_`, `session_id`).
+        # Disallow direct underscore-prefixed attribute access.
+        import re
+        # Find any `_cognitive_orchestrator._something` (with the leading _ before something)
+        bad = re.findall(r"_cognitive_orchestrator\._\w+", active)
+        # Also check _planner._something
+        bad.extend(re.findall(r"_planner\._\w+", active))
+        # And oracle._client
+        bad.extend(re.findall(r"oracle\._\w+", active))
+        # Filter out things that are inside string literals (we already stripped
+        # comments but not strings — accept some false positives for now, the
+        # important thing is the count drops to near-zero).
+        assert not bad, (
+            f"main.py still contains private-attribute accesses: {bad}. "
+            "Use the public setter/accessor methods instead."
+        )
+
+
+# ---------------------------------------------------------------------------
+# Issue I2 (follow-up PR): proper lazy-read functions
+# ---------------------------------------------------------------------------
+
+class TestLazySettingsReads:
+    """Validates that the I2 fix is actually implemented via lazy-read
+    functions (not just documented)."""
+
+    def test_auth_has_get_secret_key_function(self):
+        source = _read_source("src/agent/api/v1/auth.py")
+        assert "def get_secret_key(" in source, (
+            "auth.py must have a public get_secret_key() function — "
+            "without it, callers would still read the module-level SECRET_KEY constant"
+        )
+
+    def test_auth_has_get_algorithm_function(self):
+        source = _read_source("src/agent/api/v1/auth.py")
+        assert "def get_algorithm(" in source
+
+    def test_auth_has_get_access_token_expire_minutes_function(self):
+        source = _read_source("src/agent/api/v1/auth.py")
+        assert "def get_access_token_expire_minutes(" in source
+
+    def test_auth_does_not_define_module_level_secret_key_constant(self):
+        """The old `SECRET_KEY = _settings.jwt_secret_key` line must be gone."""
+        source = _read_source("src/agent/api/v1/auth.py")
+        active = _strip_comments(source)
+        # The pattern `SECRET_KEY = ` (with a value assignment) should not appear
+        # in the active code. We allow it in docstrings/comments (already stripped).
+        import re
+        bad = re.findall(r"^SECRET_KEY\s*=", active, re.MULTILINE)
+        assert not bad, (
+            f"auth.py still defines module-level SECRET_KEY constant: {bad}. "
+            "Use get_secret_key() function instead."
+        )
+
+    def test_auth_does_not_define_module_level_algorithm_constant(self):
+        source = _read_source("src/agent/api/v1/auth.py")
+        active = _strip_comments(source)
+        import re
+        bad = re.findall(r"^ALGORITHM\s*=", active, re.MULTILINE)
+        assert not bad, (
+            f"auth.py still defines module-level ALGORITHM constant: {bad}."
+        )
+
+    def test_create_access_token_uses_lazy_get_secret_key(self):
+        source = _read_source("src/agent/api/v1/auth.py")
+        func_source = _strip_comments(_extract_function_source(source, "create_access_token"))
+        assert "get_secret_key()" in func_source, (
+            "create_access_token must call get_secret_key() lazily — "
+            "if it still uses the module-level SECRET_KEY constant, runtime settings "
+            "swaps would cause issuer/validator drift (audit issue I2)"
+        )
+        assert "get_algorithm()" in func_source
+
+    def test_validate_token_string_uses_lazy_get_secret_key(self):
+        source = _read_source("src/agent/api/v1/auth.py")
+        func_source = _strip_comments(_extract_function_source(source, "validate_token_string"))
+        assert "get_secret_key()" in func_source
+        assert "get_algorithm()" in func_source
+
+    def test_auth_router_uses_get_access_token_expire_minutes(self):
+        source = _read_source("src/agent/api/v1/auth_router.py")
+        active = _strip_comments(source)
+        assert "get_access_token_expire_minutes()" in active, (
+            "auth_router.py must call get_access_token_expire_minutes() lazily — "
+            "if it still imports the module-level ACCESS_TOKEN_EXPIRE_MINUTES constant, "
+            "runtime settings swaps would not be honored (audit issue I2)"
+        )
+        # The old import of the constant should be gone
+        assert "ACCESS_TOKEN_EXPIRE_MINUTES," not in active
+

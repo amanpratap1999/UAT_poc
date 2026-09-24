@@ -116,14 +116,19 @@ jobs:
       - name: Run integration tests (memory-backed only)
         env:
           SESSION_STORE_TYPE: memory
+        # Audit follow-up: the previous `|| true` here masked integration
+        # test failures so CI passed even when integration tests broke.
+        # Removed `|| true` so integration test failures actually fail CI
+        # (that's what an integration test gate is for). The explicit
+        # `--deselect` list skips the pre-existing collection-error tests
+        # that have nothing to do with the audit remediation work.
+        # If integration tests start failing, treat it as a real regression
+        # and fix the broken test — don't re-add `|| true`.
         run: |
-          # Skip Redis/Playwright-dependent integration tests; only run
-          # the ones that work with the in-memory session store.
           pytest tests/integration/ -v --tb=short --maxfail=10 \
             --deselect tests/integration/test_agent_loop.py \
             --deselect tests/integration/test_cognitive_loop.py \
             --deselect tests/integration/test_incident_e2e.py \
             --deselect tests/integration/test_local_worker_smoke.py \
             --deselect tests/integration/test_phase7_acceptance.py \
-            --deselect tests/integration/test_phase7_product_api.py \
-            || true  # don't fail the build on integration test failures yet
+            --deselect tests/integration/test_phase7_product_api.py

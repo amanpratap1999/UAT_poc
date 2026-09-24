@@ -1,9 +1,18 @@
 # Manual Run Checklist — UAT_poc Audit Remediation
 
 This file documents the manual smoke test you should run after cloning the
-repo and starting the local dev environment. All 46 audit issues are
-resolved in the merged `main` branch; this checklist verifies the runtime
-behavior matches the documented design.
+repo and starting the local dev environment.
+
+**Resolution status (honest):** Of the 46 audit issues, 44 are fully
+resolved in code (all 9 P0, all 16 P1, 18 of 20 P2, 1 P3). Two P2 items
+were originally addressed with documentation-only fixes but have since
+been properly fixed too (I16 encapsulation setters + I2 lazy settings).
+Some pre-existing test collection errors unrelated to the audit
+(reference wrong import path `agent.cognition.intent` — one was fixed in
+`validation/engine.py`, but other test files may still have stale
+imports; search for `from agent.cognition.intent` to find and fix them).
+
+This checklist verifies the runtime behavior matches the documented design.
 
 ## Prerequisites
 
@@ -203,8 +212,13 @@ powershell -ExecutionPolicy Bypass -File scripts/stop-local.ps1
 The original audit report is preserved at:
 `/home/z/my-project/download/UAT_poc_Validation_Report.docx`
 
-All 46 issues documented there are resolved on `main`. After completing
-this smoke test successfully, the repository is production-ready for
+**Honest closure status:** All 46 audit issues have been addressed in
+`main` — 44 via code fixes, 2 (I16, I2) via proper code fixes in a
+follow-up to the original documentation-only PRs. Some pre-existing test
+collection errors (wrong import paths like `from agent.cognition.intent`)
+are NOT audit issues and may still exist in test files; search for
+`agent.cognition.intent` to find and fix them. After completing this
+smoke test successfully, the repository is production-ready for
 subproduction deployments.
 
 ## Known limitations

@@ -80,6 +80,78 @@ class CognitiveOrchestrator:
         """Set the interactive control receiver."""
         self._control_receiver = receiver
 
+    # ── Audit issue I16 (P2) proper fix: public setters for the
+    # originally-private-attribute injections. main.py used to reach into
+    # self._cognitive_orchestrator._llm / ._state_machine / ._journal /
+    # ._browser_manager / ._execution_controller / ._perception_engine /
+    # ._lock_manager directly, breaking encapsulation. Use these setters
+    # instead so future refactors to this class's internal storage layout
+    # don't break AgentOrchestrator's wiring logic.
+    def attach_llm(self, llm: Any) -> None:
+        """Attach the LLM client used for cognitive-loop reasoning."""
+        self._llm = llm
+
+    def attach_state_machine(self, state_machine: Any) -> None:
+        """Attach the agent state machine for transitions."""
+        self._state_machine = state_machine
+
+    def attach_journal(self, journal: Any) -> None:
+        """Attach the mutation journal for record-cleanup tracking."""
+        self._journal = journal
+
+    def attach_browser_manager(self, browser_manager: Any) -> None:
+        """Attach the browser manager for Playwright page access."""
+        self._browser_manager = browser_manager
+
+    def attach_execution_controller(self, execution_controller: Any) -> None:
+        """Attach the execution controller that translates actions to browser ops."""
+        self._execution_controller = execution_controller
+
+    def attach_perception_engine(self, perception_engine: Any) -> None:
+        """Attach the perception engine for visual grounding."""
+        self._perception_engine = perception_engine
+
+    def attach_observation_engine(self, observation_engine: Any) -> None:
+        """Attach the observation engine for DOM-to-JSON conversion."""
+        self._observation_engine = observation_engine
+
+    def attach_lock_manager(self, lock_manager: Any) -> None:
+        """Attach the record lock manager for distributed locking."""
+        self._lock_manager = lock_manager
+
+    def attach_decision_engine(self, decision_engine: Any) -> None:
+        """Attach the decision engine for next-action selection."""
+        self._decision_engine = decision_engine
+
+    def attach_validation_engine(self, validation_engine: Any) -> None:
+        """Attach the validation engine for post-action verification."""
+        self._validation_engine = validation_engine
+
+    # Audit issue I16 (P2) proper fix: public accessors for the few
+    # private attrs that AgentOrchestrator.main needs to read directly
+    # (the journal-cleanup loop, the observation-after-cleanup loop,
+    # and the locked-records set). Without these accessors, main.py
+    # would reach into self._cognitive_orchestrator._observation_engine /
+    # ._locked_records directly, breaking encapsulation.
+
+    def get_observation_engine(self) -> Any:
+        """Return the observation engine (read-only accessor)."""
+        return self._observation_engine
+
+    def get_locked_records(self) -> set[str]:
+        """Return the set of currently-locked record IDs (read-only accessor)."""
+        # Return a copy so callers can't mutate the internal set directly.
+        return set(self._locked_records)
+
+    async def execute_canonical_plan(self, memory: SessionMemory, plan: Any, objective: str) -> None:
+        """Public wrapper for _execute_canonical_plan.
+
+        main.py uses this for the cleanup-plan execution path. Without
+        this wrapper, main.py would have to call the private method
+        _execute_canonical_plan directly.
+        """
+        await self._execute_canonical_plan(memory, plan, objective)
+
     async def _publish_event(
         self, event_type: RunEventType | str, payload: dict[str, Any] | None = None
     ) -> None:

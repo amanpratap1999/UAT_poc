@@ -15,9 +15,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agent.api.v1.auth import (
-    ACCESS_TOKEN_EXPIRE_MINUTES,
     Token,
     create_access_token,
+    get_access_token_expire_minutes,
     verify_password,
 )
 from agent.core.config import get_settings
@@ -214,7 +214,7 @@ async def login_for_access_token(
     await _clear_attempts(f"ip:{client_ip}")
     logger.info("auth_login_success", username=username, client_ip=client_ip)
 
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires = timedelta(minutes=get_access_token_expire_minutes())
     access_token = create_access_token(
         data=token_data,
         expires_delta=access_token_expires,

@@ -90,6 +90,13 @@ class IncidentApiOracle:
             timeout=20.0,
         )
 
+    # Audit issue I16 (P2) proper fix: public read-only accessor so
+    # callers don't reach into self._client directly. Used by main.py
+    # when invoking MutationJournal.execute_cleanup(client=...).
+    def get_client(self) -> httpx.AsyncClient:
+        """Return the underlying httpx client (read-only accessor for cross-component wiring)."""
+        return self._client
+
     async def aclose(self) -> None:
         """Close the HTTP client."""
         await self._client.aclose()

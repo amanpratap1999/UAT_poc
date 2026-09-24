@@ -65,6 +65,23 @@ class Planner:
         self._scenario_generator = scenario_generator
         self._test_store = test_store
 
+    # ── Audit issue I16 (P2) proper fix: public setters so main.py
+    # doesn't reach into self._planner._scenario_generator / ._test_store
+    # / ._llm directly. Use these setters to honor the encapsulation
+    # boundary so future refactors to Planner's internal storage layout
+    # don't break AgentOrchestrator's wiring logic.
+    def set_scenario_generator(self, generator: "ScenarioGenerator | None") -> None:
+        """Attach the scenario generator for test-scenario generation."""
+        self._scenario_generator = generator
+
+    def set_test_store(self, store: "TestIntelligenceStore | None") -> None:
+        """Attach the test intelligence store."""
+        self._test_store = store
+
+    def get_llm_client(self) -> BaseLLMClient:
+        """Return the LLM client (read-only accessor for cross-component wiring)."""
+        return self._llm
+
     async def generate_test_scenarios(
         self,
         requirement: str,

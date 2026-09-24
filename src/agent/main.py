@@ -238,23 +238,16 @@ class AgentOrchestrator:
         self._test_store = test_store
         self._customer_knowledge_model = customer_knowledge_model
 
-        # Audit issue I16 (P2): the following lines reach into private
-        # attributes of Planner and CognitiveOrchestrator. The proper fix
-        # is to add public setter methods (e.g., `planner.set_scenario_generator(...)`)
-        # and use those here. That refactor is larger than this PR's scope
-        # — see the audit's recommended fix in the validation report
-        # (Section 7.1 I16). For now, these violations are left in place
-        # with this comment to make the technical debt visible.
-        # TODO(I16): add setter methods to Planner and CognitiveOrchestrator
-        # and migrate these assignments to use them.
-        self._planner._scenario_generator = self._scenario_generator
-        self._planner._test_store = self._test_store
+        # Audit issue I16 (P2) — proper fix: use public setters on Planner
+        # and CognitiveOrchestrator instead of reaching into private attrs.
+        self._planner.set_scenario_generator(self._scenario_generator)
+        self._planner.set_test_store(self._test_store)
 
-        self._cognitive_orchestrator._llm = self._planner._llm
+        self._cognitive_orchestrator.attach_llm(self._planner.get_llm_client())
 
         # State Machine & Memory
         self._state_machine = AgentStateMachine(initial_state=AgentState.IDLE)
-        self._cognitive_orchestrator._state_machine = self._state_machine
+        self._cognitive_orchestrator.attach_state_machine(self._state_machine)
         self._memory = SessionMemory(
             observation_window=settings.agent.observation_window,
         )
@@ -262,7 +255,7 @@ class AgentOrchestrator:
         self._lock_manager = RecordLockManager()
         self._locked_records: set[str] = set()
         self._journal = MutationJournal()
-        self._cognitive_orchestrator._journal = self._journal
+        self._cognitive_orchestrator.attach_journal(self._journal)
         self._stop_requested = False
         self._report: TestReport | None = None
         self._report_file: str | None = None
@@ -472,7 +465,7 @@ class AgentOrchestrator:
             # 2. LAUNCH BROWSER
             await self._browser_manager.launch()
             self._observation_engine._browser_manager = self._browser_manager
-            self._cognitive_orchestrator._browser_manager = self._browser_manager
+            self._cognitive_orchestrator.attach_browser_manager(self._browser_manager)
             page = self._browser_manager.get_page()
             self._page_interactor = PageInteractor(page)
             self._execution_controller = ExecutionController(
@@ -494,9 +487,9 @@ class AgentOrchestrator:
                     observer=self._observation_engine,
                 )
 
-            self._cognitive_orchestrator._execution_controller = self._execution_controller
-            self._cognitive_orchestrator._perception_engine = self._perception_engine
-            self._cognitive_orchestrator._lock_manager = self._lock_manager
+            self._cognitive_orchestrator.attach_execution_controller(self._execution_controller)
+            self._cognitive_orchestrator.attach_perception_engine(self._perception_engine)
+            self._cognitive_orchestrator.attach_lock_manager(self._lock_manager)
             self._cognitive_orchestrator.session_id = self.session_id
 
             # Navigate to ServiceNow
@@ -596,7 +589,7 @@ class AgentOrchestrator:
                     if self._memory.completed_steps:
                         baseline_obs = self._memory.completed_steps[0].observation_before
 
-                    await self._cognitive_orchestrator._execute_canonical_plan(self._memory, cleanup_plan, "Cleanup")
+                    await self._cognitive_orchestrator.execute_canonical_plan(self._memory, cleanup_plan, "Cleanup")
 
                     # Restore failures
                     self._memory.precondition_failed = orig_precondition_failed
@@ -615,7 +608,7 @@ class AgentOrchestrator:
                             restored_mismatches: list[str] | None = None
                             if self._browser_manager:
                                 page = self._browser_manager.get_page()
-                                final_obs = await self._cognitive_orchestrator._observation_engine.observe(page)  # type: ignore[union-attr]
+                                final_obs = await self._cognitive_orchestrator.get_observation_engine().observe(page)  # type: ignore[union-attr]
                                 restored_mismatches = self._compare_restoration(baseline_obs, final_obs)
                             if restored_mismatches is None:
                                 self._memory.cleanup_status = "unverified"
@@ -652,7 +645,7 @@ class AgentOrchestrator:
                         if sn_cfg and getattr(sn_cfg, "instance_url", None) and getattr(sn_cfg, "username", None):
                             oracle = IncidentApiOracle(sn_cfg)
                             j_success, j_errors, j_orphaned = await self._journal.execute_cleanup(
-                                client=oracle._client,
+                                client=oracle.get_client(),
                                 base_url=str(sn_cfg.instance_url),
                             )
                             await oracle.aclose()
@@ -701,7 +694,7 @@ class AgentOrchestrator:
                 logger.error("report_generation_failed", error=str(e))
                 
             if hasattr(self, "_lock_manager") and hasattr(self._cognitive_orchestrator, "_locked_records"):
-                for rec in self._cognitive_orchestrator._locked_records:
+                for rec in self._cognitive_orchestrator.get_locked_records():
                     try:
                         await self._lock_manager.release_lease(rec, self.session_id)
                     except Exception as le:
