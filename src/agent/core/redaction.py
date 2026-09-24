@@ -45,24 +45,87 @@ def redact_string(value: str) -> str:
     return value
 
 def redact_html(html: str) -> str:
-    """Mask password and credential input elements in HTML content."""
+    """Mask password and credential input elements in HTML content.
+
+    Audit issue I35 (P1): the previous regex only matched password inputs
+    whose ``value="..."`` attribute appeared AFTER ``type="password"`` in
+    tag order. ServiceNow forms frequently render
+    ``<input value="<secret>" name="user_password" type="password">``
+    (value BEFORE type, or no type at all). Those slipped through and
+    unmasked passwords ended up in DOM snapshots fed to the LLM.
+
+    Fix: use a tolerant HTML-aware approach. We do TWO passes:
+    1. Iterate all ``<input ...>`` tags via regex (handles both self-closing
+       and non-self-closing forms, single+double quotes).
+    2. For each input, parse its attributes and check whether (a) any
+       attribute value is ``password``/``secret``/``token``/``api_key`` etc.
+       (covers ``type=password``, ``name=user_password``, ``id=secret``),
+       AND (b) the input has a ``value="..."`` attribute. If yes, replace
+       the value with ``[REDACTED]``.
+    3. Loop until no more matches (handles inputs where the value attribute
+       is followed by another sensitive attribute, which the previous
+       single-pass regex missed).
+    """
     if not html:
         return html
-    # Mask input value attributes on password elements
-    html = re.sub(
-        r'(<input[^>]*type=["\']password["\'][^>]*value=["\'])([^"\']+)(["\'])',
-        r'\1[REDACTED]\3',
-        html,
-        flags=re.IGNORECASE,
+
+    # Tolerant input-tag regex: matches <input ... > with any combination
+    # of single/double quotes and self-closing slash.
+    input_tag_re = re.compile(
+        r'(<input\b[^>]*?/?>)',
+        re.IGNORECASE | re.DOTALL,
     )
-    # Mask values on fields named password/secret/token
-    html = re.sub(
-        r'(<input[^>]*name=["\'][^"\']*(?:password|secret|token)[^"\']*["\'][^>]*value=["\'])([^"\']+)(["\'])',
-        r'\1[REDACTED]\3',
-        html,
-        flags=re.IGNORECASE,
+    # Attribute parser: name="value" or name='value' (case-insensitive name).
+    attr_re = re.compile(
+        r'(\w+)\s*=\s*(?:"([^"]*)"|\'([^\']*)\')',
     )
-    return redact_string(html)
+    # Sensitive attribute-value patterns (lowercase comparison).
+    sensitive_value_keywords = (
+        "password", "secret", "token", "api_key", "apikey",
+        "credential", "private_key", "client_secret", "access_token",
+    )
+
+    def _redact_input_tag(match: re.Match[str]) -> str:
+        tag = match.group(1)
+        # Parse all attributes in this tag.
+        attrs: list[tuple[str, str]] = []
+        for am in attr_re.finditer(tag):
+            name = am.group(1).lower()
+            value = am.group(2) if am.group(2) is not None else am.group(3)
+            attrs.append((name, value))
+
+        # Is this input sensitive? Check whether ANY attribute's value
+        # contains a sensitive keyword (covers type=password, name=user_password,
+        # id=secret_field, data-test=token_input, etc.).
+        is_sensitive = any(
+            any(kw in value.lower() for kw in sensitive_value_keywords)
+            for _, value in attrs
+        )
+        if not is_sensitive:
+            return tag
+
+        # Find the value attribute (if any) and replace its content.
+        # We rebuild the tag attribute-by-attribute so the original quote
+        # style (single or double) is preserved.
+        new_attrs: list[str] = []
+        consumed = 0  # bytes consumed by attr_re matches
+        for am in attr_re.finditer(tag):
+            name = am.group(0).split("=", 1)[0].strip()
+            value = am.group(2) if am.group(2) is not None else am.group(3)
+            quote = '"' if am.group(2) is not None else "'"
+            # Insert any text between previous match and this one.
+            new_attrs.append(tag[consumed:am.start()])
+            if name.lower() == "value":
+                new_attrs.append(f'{name}={quote}[REDACTED]{quote}')
+            else:
+                new_attrs.append(am.group(0))
+            consumed = am.end()
+        new_attrs.append(tag[consumed:])  # trailing text after last attr
+        return "".join(new_attrs)
+
+    # Single pass is sufficient — _redact_input_tag handles the full tag.
+    redacted = input_tag_re.sub(_redact_input_tag, html)
+    return redact_string(redacted)
 
 def redact_dict(data: Mapping[str, Any]) -> dict[str, Any]:
     """Recursively redact sensitive fields and values in a dictionary."""
