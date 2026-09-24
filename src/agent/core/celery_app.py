@@ -138,10 +138,35 @@ from celery.signals import worker_ready
 
 @worker_ready.connect
 def publish_worker_ready(sender: Any, **kwargs: Any) -> None:
-    "\""Emit a readiness event when the Celery worker has fully booted."\""
+    """Emit a readiness event when the Celery worker has fully booted.
+
+    Publishes a 'ready' message to the 'worker_status' Redis Pub/Sub channel
+    so the API (and any other subscribers) can detect that the worker is
+    accepting tasks. Uses the same TLS configuration as the broker.
+    """
     try:
         import redis
-        client = redis.Redis.from_url(broker_url)
+        # Reuse the broker's TLS configuration when rediss:// is configured.
+        # The earlier ssl_opts block (lines 116-134) computes ssl_opts from
+        # settings + REDIS_TLS_* env vars; here we mirror that logic so the
+        # readiness publish respects mTLS and CA validation.
+        if broker_url and broker_url.startswith("rediss://"):
+            import ssl as _ssl
+            ca_cert = _settings.session.redis_tls_ca_cert or os.getenv("REDIS_TLS_CA_CERT", "")
+            client_cert = _settings.session.redis_tls_cert or os.getenv("REDIS_TLS_CERT", "")
+            client_key = _settings.session.redis_tls_key or os.getenv("REDIS_TLS_KEY", "")
+            ssl_kwargs: dict[str, Any] = {
+                "ssl_cert_reqs": _ssl.CERT_REQUIRED if (ca_cert and os.path.exists(ca_cert)) else _ssl.CERT_NONE,
+            }
+            if ca_cert and os.path.exists(ca_cert):
+                ssl_kwargs["ssl_ca_certs"] = ca_cert
+            if client_cert and os.path.exists(client_cert):
+                ssl_kwargs["ssl_certfile"] = client_cert
+            if client_key and os.path.exists(client_key):
+                ssl_kwargs["ssl_keyfile"] = client_key
+            client = redis.Redis.from_url(broker_url, **ssl_kwargs)
+        else:
+            client = redis.Redis.from_url(broker_url)
         client.publish('worker_status', 'ready')
         client.close()
     except Exception as e:
