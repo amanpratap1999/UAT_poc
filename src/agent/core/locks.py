@@ -88,7 +88,18 @@ class RecordLockManager:
                     raise RuntimeError("Missing REDIS_TLS_CA_CERT in production for rediss:// URL")
                 else:
                     ssl_kwargs["ssl_cert_reqs"] = "none"
-            self._redis = redis.from_url(redis_url, **ssl_kwargs)  # type: ignore[no-untyped-call]
+            # Audit issue I44 (P1): pass decode_responses=True so all
+            # GET/SET/INCR/etc. results return `str` instead of `bytes`.
+            # This is consistent with RedisSessionStore (session_store.py)
+            # and matches the code at lines 142 and 240 which call
+            # current.decode("utf-8") on the result — that .decode() call
+            # would raise AttributeError: 'str' object has no attribute
+            # 'decode' if any code path set decode_responses=True elsewhere
+            # (some Redis client versions default to True). Setting it
+            # explicitly here makes the contract self-consistent.
+            self._redis = redis.from_url(
+                redis_url, decode_responses=True, **ssl_kwargs
+            )  # type: ignore[no-untyped-call]
         return self._redis
 
     def _build_lock_key(
@@ -139,7 +150,9 @@ class RecordLockManager:
         acquired = await r.set(lock_key, session_id, nx=True, ex=timeout_seconds)
         if not acquired:
             current = await r.get(lock_key)
-            if current and current.decode("utf-8") == session_id:
+            # Audit issue I44 (P1): with decode_responses=True set in
+            # get_redis(), `current` is already a str — no .decode() needed.
+            if current and current == session_id:
                 # Extend our own lease
                 await r.expire(lock_key, timeout_seconds)
                 return True
@@ -237,7 +250,9 @@ class RecordLockManager:
                     if self.use_redis and self._redis:
                         r = await self.get_redis()
                         curr = await r.get(lock_key)
-                        if curr and curr.decode("utf-8") == session_id:
+                        # Audit issue I44 (P1): with decode_responses=True,
+                        # `curr` is already a str — no .decode() needed.
+                        if curr and curr == session_id:
                             await r.expire(lock_key, ttl_seconds)
                         else:
                             break
