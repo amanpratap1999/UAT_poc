@@ -1,4 +1,18 @@
-"""Authentication and RBAC dependencies for FastAPI."""
+"""Authentication and RBAC dependencies for FastAPI.
+
+Audit issue I2 (P2): the module-level bindings SECRET_KEY, ALGORITHM,
+ACCESS_TOKEN_EXPIRE_MINUTES are computed at IMPORT time from a single
+get_settings() call. If an operator later swaps settings at runtime (e.g.,
+via Settings.model_copy(deep=True) for persona isolation in main.py
+line 432), token issuance and validation can drift apart — the issuer
+uses the OLD secret while the validator uses the NEW secret (or vice
+versa). The proper fix is to read these lazily via get_settings() inside
+create_access_token() / validate_token_string(), but that refactor would
+break the existing `from agent.api.v1.auth import SECRET_KEY` imports
+elsewhere in the codebase. For now, this module-level binding is kept
+with this comment to make the limitation visible. Future PRs that
+add persona isolation should be aware of this constraint.
+"""
 
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
