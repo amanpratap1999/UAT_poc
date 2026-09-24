@@ -123,7 +123,20 @@ services:
   worker:
     build: .
     image: uat-poc-backend:latest
-    command: celery -A agent.core.celery_app worker --loglevel=info --pool=threads --concurrency=4
+    # Audit issue I10 (P1): previously --pool=threads --concurrency=4 ran
+    # four threads in one process sharing the module-level globals
+    # _GLOBAL_PLAYWRIGHT/_GLOBAL_BROWSER/_GLOBAL_CONTEXT in
+    # src/agent/browser/manager.py — concurrent runs would race on
+    # self._page, leak pages across runs, and crash Playwright's
+    # single-threaded async loop. Switched to --pool=prefork --concurrency=2
+    # so each worker is a separate process with its own Playwright state.
+    # Reduced concurrency from 4 → 2 because Playwright + Chromium is
+    # memory-heavy (~400MB per headed process) and 2 concurrent runs is
+    # the typical QA team capacity for a single-node deployment.
+    # For higher throughput, scale horizontally by adding more worker
+    # services (docker compose up --scale worker=N) rather than increasing
+    # concurrency per process.
+    command: celery -A agent.core.celery_app worker --loglevel=info --pool=prefork --concurrency=2
     volumes:
       - reports_data:/app/reports
       - screenshots_data:/app/screenshots
