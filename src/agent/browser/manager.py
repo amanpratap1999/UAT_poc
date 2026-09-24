@@ -381,6 +381,50 @@ class BrowserManager:
             raise BrowserError("Browser not launched. Call launch() first.")
         return self._page
 
+    async def new_persona_context(self, persona_name: str) -> Page:
+        """Create a fresh, isolated browser context for a specific persona.
+
+        INC-UAT-06 (Major, D9): ensures persona/session isolation across
+        consecutive runs. Each persona gets its own BrowserContext with
+        independent cookies, local storage, and session state — preventing
+        contamination between persona A (e.g., requester) and persona B
+        (e.g., fulfiller) runs.
+
+        The old context is closed before creating the new one. The new
+        context uses the same viewport/headless config but a separate
+        storage state.
+
+        Args:
+            persona_name: The persona identifier (used for logging + isolation).
+
+        Returns:
+            A new Page in the isolated context.
+        """
+        assert self._browser is not None, "Browser not launched"
+        # Close the old context if it's not the global one (to avoid
+        # closing the warm global browser).
+        if self._context and self._context is not _GLOBAL_CONTEXT:
+            try:
+                await self._context.close()
+            except Exception as e:
+                logger.warning("persona_context_close_failed", persona=persona_name, error=str(e))
+
+        # Create a fresh, isolated context
+        self._context = await self._browser.new_context(
+            viewport={
+                "width": self._browser_config.viewport_width,
+                "height": self._browser_config.viewport_height,
+            },
+            ignore_https_errors=_should_ignore_https_errors(),
+        )
+        self._page = await self._context.new_page()
+        logger.info(
+            "persona_context_created",
+            persona=persona_name,
+            context_id=id(self._context),
+        )
+        return self._page
+
     async def navigate(self, url: str) -> None:
         """Navigate to a URL and wait for load.
 

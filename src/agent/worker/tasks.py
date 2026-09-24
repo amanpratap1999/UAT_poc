@@ -236,6 +236,14 @@ async def _run_agent_async(run_id: str, goal: str, tenant_id: str, test_case_id:
     """Async wrapper to run the orchestrator and update the DB."""
 
     settings = get_settings()
+
+    # INC-UAT-01 (Blocker): verify benchmark is running under a declared
+    # persona, NOT administrator credentials. If require_persona_for_benchmark
+    # is True and no valid persona is set, the run is rejected before
+    # touching the ServiceNow instance.
+    if persona:
+        settings.servicenow.active_persona = persona
+    settings.servicenow.verify_persona_for_benchmark()
     engine = create_async_engine(
         settings.domain.postgres_url,
         poolclass=NullPool,

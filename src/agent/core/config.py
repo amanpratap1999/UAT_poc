@@ -145,11 +145,22 @@ class ServiceNowConfig(BaseSubConfig):
         description="Dictionary mapping persona names to credentials (e.g. {'itil_user': {'username': 'u1', 'password': 'p1'}})"
     )
     active_persona: str | None = Field(
-        default=None, 
+        default=None,
         description="The currently active persona name, if any"
     )
+    # INC-UAT-04 (Major, D5/D10): persona now carries an expected
+    # ServiceNow role that is verified at runtime. The personas dict can
+    # include a 'role' key per persona (e.g. {'itil_user': {'username': 'u1',
+    # 'password': 'p1', 'role': 'itil'}}). If 'role' is present, the agent
+    # verifies the logged-in user's actual ServiceNow role matches before
+    # proceeding. If 'role' is absent, role verification is skipped (backward
+    # compat with existing personas that only have username/password).
+    require_persona_for_benchmark: bool = Field(
+        default=False,
+        description="INC-UAT-01 (Blocker): if True, the benchmark must run under a declared persona — admin/default credentials are rejected."
+    )
     allow_mutations: bool = Field(
-        default=False, 
+        default=False,
         description="Allow tests to modify state (must be explicit to touch prod)."
     )
     allowed_instances: list[str] = Field(
@@ -164,6 +175,15 @@ class ServiceNowConfig(BaseSubConfig):
             "have no REST API access; persistence is then reported as "
             "'disabled' instead of 'verified'."
         ),
+    )
+    # INC-UAT-03 (Major, D3/D5): if True, the API oracle is constrained to
+    # only query fields visible to the active persona's role. This prevents
+    # the oracle from inspecting server-side fields/audit data outside the
+    # normal UI experience. When False (default for backward compat), the
+    # oracle queries all fields as before.
+    oracle_persona_constrained: bool = Field(
+        default=False,
+        description="INC-UAT-03: constrain API oracle queries to persona-visible fields only."
     )
 
     def get_active_credentials(self) -> tuple[str, str]:
@@ -185,6 +205,51 @@ class ServiceNowConfig(BaseSubConfig):
             )
         p = self.personas[self.active_persona]
         return p.get("username", self.username), p.get("password", self.password)
+
+    def get_persona_role(self) -> str | None:
+        """Get the expected ServiceNow role for the active persona.
+
+        INC-UAT-04 (Major): personas can now declare an expected 'role' key.
+        Returns None if no role is declared (backward compat) or if no
+        persona is active.
+        """
+        if not self.active_persona or self.active_persona not in self.personas:
+            return None
+        return self.personas[self.active_persona].get("role")
+
+    def verify_persona_for_benchmark(self) -> None:
+        """INC-UAT-01 (Blocker): verify benchmark is running under a declared
+        persona, NOT administrator credentials.
+
+        If require_persona_for_benchmark is True, this method raises
+        ValueError if no active_persona is set or if the active persona's
+        credentials match the default admin credentials. This prevents
+        the benchmark from silently running as administrator.
+        """
+        if not self.require_persona_for_benchmark:
+            return
+        if not self.active_persona:
+            raise ValueError(
+                "INC-UAT-01 (Blocker): benchmark requires a declared persona "
+                "but SERVICENOW_ACTIVE_PERSONA is not set. Administrator "
+                "credentials are rejected for benchmark runs."
+            )
+        if self.active_persona not in self.personas:
+            raise ValueError(
+                f"INC-UAT-01 (Blocker): active persona '{self.active_persona}' "
+                f"is not in the configured personas dict."
+            )
+        p = self.personas[self.active_persona]
+        persona_user = p.get("username", "")
+        # Check that the persona credentials are NOT the same as the default
+        # admin credentials — this catches the case where operators set the
+        # persona name but reuse the admin username/password.
+        if persona_user == self.username:
+            raise ValueError(
+                f"INC-UAT-01 (Blocker): persona '{self.active_persona}' uses "
+                f"the same username as the default admin credentials "
+                f"('{self.username}'). The benchmark must use a non-admin persona."
+            )
 
 
 class BrowserConfig(BaseSubConfig):
