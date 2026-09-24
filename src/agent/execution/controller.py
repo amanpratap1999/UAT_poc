@@ -102,11 +102,20 @@ class ExecutionController:
             )
 
         # P0 QA-007: Prod Mutation Gate
-        is_mutating = action.action_type in ("fill", "select", "check", "uncheck") or (
+        # Audit issue I30 (P2): previously listed ("fill", "select", "check",
+        # "uncheck") but ActionType enum (core/types.py lines 12-27) has no
+        # CHECK or UNCHECK members — the "check"/"uncheck" entries were dead
+        # code. Any future "check" action would silently bypass the
+        # prod-mutation gate because the gate only catches fill/select and
+        # click-with-sysverb. Removed the dead entries; if CHECK/UNCHECK
+        # are added to ActionType in the future, add them here explicitly
+        # (and to the dispatch table at lines 62-76).
+        is_mutating = action.action_type in ("fill", "select") or (
             action.action_type == "click" and action.target and (
-                "sysverb_update" in str(action.target).lower() or 
-                "sysverb_insert" in str(action.target).lower() or
-                "sysverb_delete" in str(action.target).lower()
+                "sysverb_update" in str(action.target).lower()
+                or "sysverb_insert" in str(action.target).lower()
+                or "sysverb_delete" in str(action.target).lower()
+                or "submit" in str(action.target).lower()
             )
         )
         if is_mutating:
