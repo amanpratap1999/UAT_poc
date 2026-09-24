@@ -30,6 +30,36 @@ _API_FIELDS = (
     "resolved_by,resolved_at,closed_at,sys_created_on"
 )
 
+# INC-UAT-03 (Major, D3/D5): persona-constrained field sets.
+# When oracle_persona_constrained=True, only fields visible to the active
+# persona's role are queried — preventing the oracle from inspecting
+# server-side audit data or admin-only fields that a normal UAT tester
+# cannot see through the UI.
+_PERSONA_VISIBLE_FIELDS = {
+    "itil": (  # ITIL user (fulfiller) — can see most Incident fields
+        "sys_id,number,state,priority,impact,urgency,"
+        "short_description,caller_id,assignment_group,"
+        "assigned_to,category,subcategory,description,"
+        "close_code,close_notes,resolved_by,resolved_at,"
+        "closed_at,sys_created_on,sys_updated_on"
+    ),
+    "requester": (  # Requester — sees only their own tickets + limited fields
+        "sys_id,number,state,priority,short_description,"
+        "caller_id,category,sys_created_on,sys_updated_on"
+    ),
+    "default": _API_FIELDS,  # backward compat — no constraint
+}
+
+
+def _get_persona_fields(persona_role: str | None) -> str:
+    """Return the comma-separated field list for the given persona role.
+
+    Falls back to the full _API_FIELDS set if no role-specific set is defined.
+    """
+    if not persona_role:
+        return _API_FIELDS
+    return _PERSONA_VISIBLE_FIELDS.get(persona_role.lower(), _API_FIELDS)
+
 
 @dataclass
 class IncidentApiSnapshot:
@@ -83,9 +113,11 @@ class IncidentApiOracle:
         self, config: ServiceNowConfig, client: httpx.AsyncClient | None = None
     ) -> None:
         self._config = config
+        # INC-UAT-03: use persona credentials if active, not default admin creds.
+        username, password = config.get_active_credentials()
         self._client = client or httpx.AsyncClient(
             base_url=config.instance_url,
-            auth=(config.username, config.password),
+            auth=(username, password),
             headers={"Accept": "application/json"},
             timeout=20.0,
         )
@@ -104,12 +136,25 @@ class IncidentApiOracle:
     async def fetch_incident(self, number: str) -> IncidentApiSnapshot | None:
         """Fetch the server-side incident record by number."""
         logger.info("api_oracle_fetch_incident", number=number)
+        # INC-UAT-03: if oracle_persona_constrained is True, use the
+        # persona-visible field set instead of the full _API_FIELDS.
+        # This prevents the oracle from inspecting server-side fields
+        # outside the normal UI experience.
+        fields = _API_FIELDS
+        if getattr(self._config, "oracle_persona_constrained", False):
+            persona_role = self._config.get_persona_role()
+            fields = _get_persona_fields(persona_role)
+            logger.info(
+                "api_oracle_persona_constrained",
+                persona_role=persona_role,
+                fields_count=len(fields.split(",")),
+            )
         try:
             response = await self._client.get(
                 "/api/now/table/incident",
                 params={
                     "sysparm_query": f"number={number}",
-                    "sysparm_fields": _API_FIELDS,
+                    "sysparm_fields": fields,
                     "sysparm_limit": "1",
                     "sysparm_display_value": "all",
                 },
