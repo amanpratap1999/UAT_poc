@@ -128,6 +128,17 @@ def generate_certs(output_dir: Path, valid_days: int = 365) -> None:
     ca_crt_path = output_dir / "ca.crt"
     redis_key_path = output_dir / "redis.key"
     redis_crt_path = output_dir / "redis.crt"
+    # Audit issue I41 (P2): the docstring at the top of this file promised
+    # to generate client.crt & client.key for mTLS, but the implementation
+    # only emitted ca.key, ca.crt, redis.key, redis.crt. The missing client
+    # certificate forces `--tls-auth-clients no` in docker-compose.yml
+    # (line 44), weakening TLS to "encrypt but no client auth" — any
+    # process that can reach the Redis port can connect (TLS verifies the
+    # server but Redis does not verify the client). Fix: generate a
+    # client cert with ExtendedKeyUsage=[CLIENT_AUTH] signed by the same
+    # CA, so operators can switch to `--tls-auth-clients yes` for true mTLS.
+    client_key_path = output_dir / "client.key"
+    client_crt_path = output_dir / "client.crt"
 
     ca_key_path.write_bytes(
         ca_key.private_bytes(
@@ -147,18 +158,84 @@ def generate_certs(output_dir: Path, valid_days: int = 365) -> None:
     )
     redis_crt_path.write_bytes(server_cert.public_bytes(serialization.Encoding.PEM))
 
+    # Audit issue I41 (P2): generate client cert for mTLS.
+    # The client cert is signed by the same CA as the server cert so a
+    # single `--tls-ca-cert-file ca.crt` on the Redis server can verify
+    # both. ExtendedKeyUsage is CLIENT_AUTH-only (the client is NOT a
+    # server), distinguishing it from the redis.crt which has both
+    # SERVER_AUTH and CLIENT_AUTH (Redis server can also act as a client
+    # in cluster mode).
+    client_key = rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=2048,
+        backend=backend,
+    )
+    client_name = x509.Name([
+        x509.NameAttribute(NameOID.COMMON_NAME, "uat-api-client"),
+        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "ServiceNow UAT Engine"),
+    ])
+    client_cert = (
+        x509.CertificateBuilder()
+        .subject_name(client_name)
+        .issuer_name(ca_name)
+        .public_key(client_key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now)
+        .not_valid_after(expiry)
+        .add_extension(
+            x509.BasicConstraints(ca=False, path_length=None),
+            critical=True,
+        )
+        .add_extension(
+            x509.KeyUsage(
+                digital_signature=True,
+                content_commitment=False,
+                key_encipherment=True,
+                data_encipherment=False,
+                key_agreement=False,
+                key_cert_sign=False,
+                crl_sign=False,
+                encipher_only=False,
+                decipher_only=False,
+            ),
+            critical=True,
+        )
+        .add_extension(
+            x509.ExtendedKeyUsage([
+                ExtendedKeyUsageOID.CLIENT_AUTH,
+            ]),
+            critical=False,
+        )
+        .sign(ca_key, hashes.SHA256(), backend)
+    )
+
+    client_key_path.write_bytes(
+        client_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+    )
+    client_crt_path.write_bytes(client_cert.public_bytes(serialization.Encoding.PEM))
+
     # Set restricted permissions on POSIX
-    for path in (ca_key_path, redis_key_path):
+    for path in (ca_key_path, redis_key_path, client_key_path):
         try:
             os.chmod(path, 0o600)
         except OSError:
             pass
 
     print("[+] Successfully generated:")
-    print(f"    - CA Cert:     {ca_crt_path}")
-    print(f"    - CA Key:      {ca_key_path}")
-    print(f"    - Redis Cert:  {redis_crt_path}")
-    print(f"    - Redis Key:   {redis_key_path}")
+    print(f"    - CA Cert:      {ca_crt_path}")
+    print(f"    - CA Key:       {ca_key_path}")
+    print(f"    - Redis Cert:   {redis_crt_path}")
+    print(f"    - Redis Key:    {redis_key_path}")
+    print(f"    - Client Cert:  {client_crt_path}")
+    print(f"    - Client Key:   {client_key_path}")
+    print()
+    print("[i] To enable true mTLS in docker-compose.yml, change:")
+    print("    --tls-auth-clients no  →  --tls-auth-clients yes")
+    print("    and mount client.crt + client.key into the api/worker containers.")
 
 
 if __name__ == "__main__":
