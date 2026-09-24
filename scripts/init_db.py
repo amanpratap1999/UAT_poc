@@ -43,8 +43,18 @@ async def init_db():
         else:
             print(f"Tenant {default_tenant_id} already exists.")
 
-        # Seed/update users (both configured QA_ADMIN_USERNAME and 'admin')
-        users_to_sync = {username, "admin"}
+        # Seed ONLY the configured QA_ADMIN_USERNAME (audit issue I7).
+        # The previous implementation also seeded a hard-coded "admin" username
+        # with role="Admin" using the same QA_ADMIN_PASSWORD — a backdoor
+        # account that granted full Admin access to anyone who knew the
+        # configured admin password, regardless of QA_ADMIN_USERNAME.
+        # If an operator genuinely wants a user literally named "admin",
+        # they should set QA_ADMIN_USERNAME=admin explicitly.
+        users_to_sync = [username]
+        # The configured admin user gets role="Admin" so they can actually
+        # access Admin-only endpoints (the prior role="QA Manager" was
+        # pre-existing behavior left for the hard-coded "admin" to override).
+        admin_role = os.environ.get("QA_ADMIN_ROLE", "Admin")
         hashed_password = get_password_hash(password)
 
         for u in users_to_sync:
@@ -56,15 +66,31 @@ async def init_db():
                     tenant_id=default_tenant_id,
                     username=u,
                     hashed_password=hashed_password,
-                    role="QA Manager" if u == username else "Admin"
+                    role=admin_role,
                 )
                 session.add(new_user)
                 await session.commit()
-                print(f"Created user: {u}")
+                print(f"Created user: {u} (role: {admin_role})")
             else:
                 existing_user.hashed_password = hashed_password
                 await session.commit()
                 print(f"Updated password for: {u}")
+
+        # Defensive: warn loudly if a legacy "admin" backdoor account still
+        # exists in the database so operators know to delete it manually.
+        legacy_admin_result = await session.execute(
+            select(User).where(User.username == "admin")
+        )
+        legacy_admin = legacy_admin_result.scalar_one_or_none()
+        if legacy_admin is not None:
+            print(
+                "WARNING: A legacy user named 'admin' still exists in the "
+                "database. This account was created by a prior version of "
+                "init_db.py as a hard-coded backdoor. Delete it manually "
+                "if it is not a legitimately intended account: "
+                "DELETE FROM users WHERE username = 'admin';",
+                file=sys.stderr,
+            )
 
 if __name__ == "__main__":
     asyncio.run(init_db())
