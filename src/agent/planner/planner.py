@@ -219,13 +219,27 @@ class Planner:
         """
         logger.info("assessing_validation", action=action.action_type)
 
-        prompt = VALIDATION_ASSESSMENT_PROMPT.format(
-            action_description=f"{action.action_type}: {action.target} → {action.value}",
-            before_observation=before.to_compact_summary(),
-            after_observation=after.to_compact_summary(),
-            action_success=result.success if hasattr(result, "success") else True,
-            action_error=result.error if hasattr(result, "error") else "None",
+        # Audit issue I19 (P0): route page-derived text (before/after observations
+        # and the action error which may contain page snippets) through the
+        # LLMInputBoundary as untrusted data, NOT via str.format — otherwise
+        # an attacker controlling ServiceNow record content can redirect the
+        # validation assessment via prompt injection.
+        from agent.core.prompt_boundary import LLMInputBoundary
+        action_success_val = str(result.success if hasattr(result, "success") else True)
+        action_error_val = result.error if hasattr(result, "error") else "None"
+        boundary = LLMInputBoundary(
+            system_instructions=SYSTEM_PROMPT,
+            verified_intent=VALIDATION_ASSESSMENT_PROMPT
+                .replace("{before_observation}", "")
+                .replace("{after_observation}", "")
+                .replace("{action_error}", "")
+                .replace("{action_description}", f"{action.action_type}: {action.target} → {action.value}")
+                .replace("{action_success}", action_success_val),
         )
+        boundary.add_untrusted_data("before_observation_dom", before.to_compact_summary())
+        boundary.add_untrusted_data("after_observation_dom", after.to_compact_summary())
+        boundary.add_untrusted_data("action_error", str(action_error_val))
+        prompt = boundary.build_prompt()
 
         response = await self._llm.complete_json(
             messages=[
@@ -290,13 +304,24 @@ class Planner:
 
         history_str = "\n".join(recovery_history) if recovery_history else "None"
 
-        prompt = RECOVERY_PROMPT.format(
-            failed_action=f"{action.action_type}: {action.target} → {action.value}",
-            error_type=type(error).__name__,
-            error_message=str(error),
-            current_observation=observation.to_compact_summary(),
-            recovery_history=history_str,
+        # Audit issue I19 (P0): route page-derived text (current_observation,
+        # error_message which may contain Playwright tracebacks with page
+        # snippets, and recovery_history which may quote earlier page text)
+        # through LLMInputBoundary as untrusted data, NOT via str.format.
+        from agent.core.prompt_boundary import LLMInputBoundary
+        boundary = LLMInputBoundary(
+            system_instructions=SYSTEM_PROMPT,
+            verified_intent=RECOVERY_PROMPT
+                .replace("{current_observation}", "")
+                .replace("{error_message}", "")
+                .replace("{recovery_history}", "")
+                .replace("{failed_action}", f"{action.action_type}: {action.target} → {action.value}")
+                .replace("{error_type}", type(error).__name__),
         )
+        boundary.add_untrusted_data("current_observation_dom", observation.to_compact_summary())
+        boundary.add_untrusted_data("error_message", str(error))
+        boundary.add_untrusted_data("recovery_history", history_str)
+        prompt = boundary.build_prompt()
 
         response = await self._llm.complete_json(
             messages=[
@@ -338,11 +363,22 @@ class Planner:
             for s in memory.completed_steps[-20:]  # Last 20 steps
         )
 
-        prompt = COMPLETION_CHECK_PROMPT.format(
-            goal=memory.goal,
-            session_context=memory.get_context_for_llm(),
-            completed_steps=completed_steps_str,
+        # Audit issue I19 (P0): route session_context (page-derived memory)
+        # and completed_steps (which may include page-derived error context)
+        # through LLMInputBoundary as untrusted data. The goal itself is
+        # treated as verified_intent (the authenticated user's explicit API
+        # instruction, not page-derived content).
+        from agent.core.prompt_boundary import LLMInputBoundary
+        boundary = LLMInputBoundary(
+            system_instructions=SYSTEM_PROMPT,
+            verified_intent=COMPLETION_CHECK_PROMPT
+                .replace("{session_context}", "")
+                .replace("{completed_steps}", "")
+                .replace("{goal}", memory.goal),
         )
+        boundary.add_untrusted_data("session_context_dom", memory.get_context_for_llm())
+        boundary.add_untrusted_data("completed_steps", completed_steps_str)
+        prompt = boundary.build_prompt()
 
         response = await self._llm.complete_json(
             messages=[
@@ -381,14 +417,24 @@ class Planner:
         passed = sum(1 for v in memory.completed_validations if v.overall_passed)
         failed = sum(1 for v in memory.completed_validations if not v.overall_passed)
 
-        prompt = REPORT_SUMMARY_PROMPT.format(
-            goal=memory.goal,
-            session_context=memory.get_context_for_llm(),
-            total_validations=memory.total_validations_run,
-            passed_validations=passed,
-            failed_validations=failed,
-            defects_summary=defects_str,
+        # Audit issue I19 (P0): route session_context (page-derived memory)
+        # and defects_summary (page-derived error messages) through
+        # LLMInputBoundary as untrusted data. The goal and integer counts
+        # are verified_intent / structured data.
+        from agent.core.prompt_boundary import LLMInputBoundary
+        boundary = LLMInputBoundary(
+            system_instructions=SYSTEM_PROMPT,
+            verified_intent=REPORT_SUMMARY_PROMPT
+                .replace("{session_context}", "")
+                .replace("{defects_summary}", "")
+                .replace("{goal}", memory.goal)
+                .replace("{total_validations}", str(memory.total_validations_run))
+                .replace("{passed_validations}", str(passed))
+                .replace("{failed_validations}", str(failed)),
         )
+        boundary.add_untrusted_data("session_context_dom", memory.get_context_for_llm())
+        boundary.add_untrusted_data("defects_summary", defects_str)
+        prompt = boundary.build_prompt()
 
         response = await self._llm.complete_json(
             messages=[
