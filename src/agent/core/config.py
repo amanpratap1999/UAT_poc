@@ -488,6 +488,13 @@ class Settings(BaseSubConfig):
         default="super-secret-local-development-key", validation_alias="JWT_SECRET_KEY"
     )
     jwt_algorithm: str = Field(default="HS256", validation_alias="JWT_ALGORITHM")
+    # Audit issue I1 (P1): previously auth.py read this via `_settings.__dict__.get(...)`
+    # which always returned 60 because Pydantic does not populate __dict__ for
+    # BaseSettings. Declaring it as a real field makes the env var work.
+    access_token_expire_minutes: int = Field(
+        default=60, validation_alias="ACCESS_TOKEN_EXPIRE_MINUTES",
+        description="Lifetime (minutes) of issued JWT access tokens.",
+    )
 
     # Output directories
     report_output_dir: Path = Field(

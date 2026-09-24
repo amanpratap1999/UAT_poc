@@ -15,7 +15,12 @@ _settings = get_settings()
 
 SECRET_KEY = _settings.jwt_secret_key
 ALGORITHM = _settings.jwt_algorithm
-ACCESS_TOKEN_EXPIRE_MINUTES = int(_settings.__dict__.get("access_token_expire_minutes", 60))
+# Audit issue I1 (P1): previously read via `_settings.__dict__.get(...)`,
+# but Settings (a Pydantic BaseSettings subclass) does not store fields in
+# `__dict__` — the lookup always returned the default 60, so operator-set
+# ACCESS_TOKEN_EXPIRE_MINUTES env var was silently ignored. Now reads the
+# real typed field added to Settings in config.py.
+ACCESS_TOKEN_EXPIRE_MINUTES = _settings.access_token_expire_minutes
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/token")
