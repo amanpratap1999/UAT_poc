@@ -86,6 +86,21 @@ def reset_browser_globals() -> None:
     _GLOBAL_CONTEXT = None
 
 
+def _should_ignore_https_errors() -> bool:
+    """INC-UAT-14 (Minor): only ignore HTTPS errors in local development mode.
+
+    In production/docker mode, HTTPS errors must NOT be ignored — that
+    weakens transport verification and could allow MITM attacks on the
+    ServiceNow subproduction instance.
+    """
+    try:
+        from agent.core.config import get_settings
+        s = get_settings()
+        return s.runtime_mode == "local" and s.environment in ("development", "dev", "local")
+    except Exception:
+        return False  # fail-closed: don't ignore HTTPS errors
+
+
 async def _health_check_globals() -> bool:
     """Health-check the global browser state.
 
@@ -220,7 +235,9 @@ class BrowserManager:
                             "width": self._browser_config.viewport_width,
                             "height": self._browser_config.viewport_height,
                         },
-                        "ignore_https_errors": True,
+                        # INC-UAT-14 (Minor): ignore_https_errors disabled except local dev.
+                        # Was True unconditionally — weakened transport verification.
+                        "ignore_https_errors": _should_ignore_https_errors(),
                     }
                     if launch_args:
                         persistent_kwargs["args"] = launch_args
@@ -247,7 +264,8 @@ class BrowserManager:
                         "width": self._browser_config.viewport_width,
                         "height": self._browser_config.viewport_height,
                     },
-                    ignore_https_errors=True,
+                    # INC-UAT-14 (Minor): ignore_https_errors disabled except local dev.
+                    ignore_https_errors=_should_ignore_https_errors(),
                 )
                 self._page = await self._context.new_page()
 

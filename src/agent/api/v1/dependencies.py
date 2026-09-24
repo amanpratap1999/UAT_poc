@@ -149,8 +149,13 @@ def get_skill_registry(settings: Settings | None = None) -> CapabilityRegistry:
     # Instantiate specific skills with required config
     incident_skill = IncidentSkill(config=s.servicenow)
     registry.register(incident_skill, incident_skill.get_capability_definition())
-    change_skill = ChangeSkill(base_url=s.servicenow.instance_url)
-    registry.register(change_skill, change_skill.get_capability_definition())
+    # INC-UAT-13 (Minor): ChangeSkill is NOT registered for the Incident-only
+    # POC scope. The product scope is restricted to ServiceNow Incident
+    # Management; registering ChangeSkill would leak scope and make the
+    # product contract less clear. To re-enable ChangeSkill for a future
+    # multi-module release, uncomment the lines below:
+    # change_skill = ChangeSkill(base_url=s.servicenow.instance_url)
+    # registry.register(change_skill, change_skill.get_capability_definition())
     return registry
 
 

@@ -167,11 +167,24 @@ class ServiceNowConfig(BaseSubConfig):
     )
 
     def get_active_credentials(self) -> tuple[str, str]:
-        """Get credentials for the active persona, falling back to defaults."""
-        if self.active_persona and self.personas and self.active_persona in self.personas:
-            p = self.personas[self.active_persona]
-            return p.get("username", self.username), p.get("password", self.password)
-        return self.username, self.password
+        """Get credentials for the active persona.
+
+        INC-UAT-05 (Blocker): Previously fell back to default username/password
+        when an unknown persona was requested — a typo could silently execute
+        as the wrong user (administrator). Now: if active_persona is set but
+        not found in the personas dict, raise ValueError. No silent fallback.
+        """
+        if not self.active_persona:
+            return self.username, self.password
+        if self.active_persona not in self.personas:
+            raise ValueError(
+                f"Unknown persona '{self.active_persona}' — no credentials "
+                f"configured. Set SERVICENOW_PERSONAS to include this persona, "
+                f"or clear SERVICENOW_ACTIVE_PERSONA to use default credentials. "
+                f"INC-UAT-05: no silent fallback to prevent wrong-user execution."
+            )
+        p = self.personas[self.active_persona]
+        return p.get("username", self.username), p.get("password", self.password)
 
 
 class BrowserConfig(BaseSubConfig):
