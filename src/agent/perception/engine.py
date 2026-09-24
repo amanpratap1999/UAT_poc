@@ -80,6 +80,14 @@ class PerceptionDecisionEngine:
         except Exception as e:
             logger.warning("before_screenshot_failed", error=str(e))
 
+        # Audit issue I42 (P2): initialize after_screenshot_path at the top
+        # of execute_with_perception so the `if "after_screenshot_path" in locals()`
+        # check at line ~470 can be replaced with a clean
+        # `if after_screenshot_path is not None`. The `in locals()` check was
+        # brittle (depended on Python's locals-dict semantics, which differ
+        # between module-level and function-level code).
+        after_screenshot_path: str | None = None
+
         try:
             page = self._browser.get_page()
             before_obs = await self._observer.observe(page)
@@ -93,7 +101,11 @@ class PerceptionDecisionEngine:
             PageStateFingerprint.from_observation(before_obs) if before_obs else None
         )
 
-        fingerprint = before_obs.url.split("?")[0] if before_obs else "unknown"
+        # Audit issue I42 (P2): the variable name `fingerprint` shadowed the
+        # unrelated `before_fingerprint` (a PageStateFingerprint object) —
+        # confusing. Renamed to `url_fingerprint` (a string URL path) to
+        # distinguish the two distinct concepts.
+        url_fingerprint = before_obs.url.split("?")[0] if before_obs else "unknown"
         final_action = action.model_copy(deep=True)
         used_vision = False
         selected_candidate = None
@@ -129,7 +141,7 @@ class PerceptionDecisionEngine:
 
         # Check learned recovery before visual fallback
         if not dom_candidates and not selected_candidate and self._learning:
-            recovery = await self._learning.get_valid_recovery(target, fingerprint)
+            recovery = await self._learning.get_valid_recovery(target, url_fingerprint)
             if recovery and recovery.successful_locator:
                 try:
                     cands = await self._interactor.resolve_candidates(recovery.successful_locator)
@@ -269,8 +281,7 @@ class PerceptionDecisionEngine:
 
         # 2. Recovery Fallback: Check Learning Service only if DOM + Vision failed
         if not selected_candidate and self._learning:
-            fingerprint = before_obs.url.split("?")[0] if before_obs else "unknown"
-            recovery = await self._learning.get_valid_recovery(target, fingerprint)
+            recovery = await self._learning.get_valid_recovery(target, url_fingerprint)
             if recovery:
                 logger.info("using_learned_recovery_fallback", target=target, recovery_id=recovery.id)
                 recovered_candidate = PerceptionCandidate(
@@ -381,7 +392,12 @@ class PerceptionDecisionEngine:
 
         # 5. Level 3: Behavioral Verification
         if self._verifier and perception_route != "NONE":
-            after_screenshot_path = None
+            # Audit issue I42 (P2): the redundant `after_screenshot_path = None`
+            # here was a hack to make the `if "after_screenshot_path" in locals()`
+            # check at the bottom work even when this block was skipped. Now
+            # that we initialize it at the top of the function, this line
+            # is unnecessary (and indeed was always shadowed by the top-level
+            # initialization when the block ran).
             try:
                 after_screenshot_path = await self._browser.take_screenshot("after_perception")
             except Exception as e:
@@ -431,7 +447,7 @@ class PerceptionDecisionEngine:
                 )
                 await self._learning.record_recovery_outcome(
                     target=target,
-                    fingerprint=fingerprint,
+                    fingerprint=url_fingerprint,
                     original_locator=None,
                     successful_locator=selected_candidate.locator_str
                     if selected_candidate
@@ -448,7 +464,7 @@ class PerceptionDecisionEngine:
                 )
                 await self._learning.record_recovery_outcome(
                     target=target,
-                    fingerprint=fingerprint,
+                    fingerprint=url_fingerprint,
                     original_locator=None,
                     successful_locator=selected_candidate.locator_str
                     if selected_candidate
@@ -468,7 +484,10 @@ class PerceptionDecisionEngine:
                 "bounding_box": selected_candidate.bounding_box.model_dump() if selected_candidate.bounding_box else None,
                 "locator": selected_candidate.locator_str,
                 "before_screenshot": before_screenshot_path,
-                "after_screenshot": after_screenshot_path if "after_screenshot_path" in locals() else None,
+                # Audit issue I42 (P2): replaced `if "after_screenshot_path" in locals()`
+                # with a clean `is not None` check — the variable is now always
+                # initialized at the top of the function.
+                "after_screenshot": after_screenshot_path,
             }
 
         return exec_result
