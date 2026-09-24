@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 from collections import defaultdict
 from datetime import timedelta
@@ -31,22 +32,75 @@ _local_attempts: dict[str, list[float]] = defaultdict(list)
 MAX_ATTEMPTS = 5
 LOCKOUT_WINDOW = 300  # 5 minutes
 
+# Audit issue I3 (P1): previously, every call to _check_rate_limit,
+# _record_failed_attempt, and _clear_attempts opened a fresh
+# redis.from_url(...) connection and awaited r.aclose() — an attacker
+# spamming failed logins could trigger a Redis connection storm and
+# exhaust the broker/backend connection pool. Now we share a single
+# module-level ConnectionPool that the redis-py client uses to multiplex
+# all requests on a small set of long-lived connections.
+_redis_pool = None  # type: ignore[no-untyped-def]
+
+
+async def _get_redis_client():
+    """Return a Redis client backed by a shared connection pool.
+
+    The pool is created once on first use and reused across all rate-limit
+    calls. TLS is configured when rediss:// URL is set, mirroring the broker
+    TLS configuration in celery_app.py.
+    """
+    global _redis_pool
+    import redis.asyncio as redis
+    if _redis_pool is None:
+        settings = get_settings()
+        pool_kwargs: dict[str, Any] = {"decode_responses": True}
+        redis_url = settings.session.redis_url
+        if redis_url.startswith("rediss://"):
+            ca_cert = settings.session.redis_tls_ca_cert or os.getenv("REDIS_TLS_CA_CERT", "")
+            client_cert = settings.session.redis_tls_cert or os.getenv("REDIS_TLS_CERT", "")
+            client_key = settings.session.redis_tls_key or os.getenv("REDIS_TLS_KEY", "")
+            if ca_cert and os.path.exists(ca_cert):
+                pool_kwargs["ssl_ca_certs"] = ca_cert
+                pool_kwargs["ssl_cert_reqs"] = "required"
+            else:
+                pool_kwargs["ssl_cert_reqs"] = "none"
+            if client_cert and os.path.exists(client_cert):
+                pool_kwargs["ssl_certfile"] = client_cert
+            if client_key and os.path.exists(client_key):
+                pool_kwargs["ssl_keyfile"] = client_key
+        _redis_pool = redis.ConnectionPool.from_url(redis_url, **pool_kwargs)  # type: ignore[no-untyped-call]
+    return redis.Redis(connection_pool=_redis_pool)  # type: ignore[no-untyped-call]
+
+
+def _is_fail_closed() -> bool:
+    """Return True if Redis errors should fail-closed (raise 503) rather than fall back.
+
+    Audit issue I4 (P1): previously the check was
+    `is_prod = runtime_mode == "docker" or environment not in ("development", "dev", "local")`.
+    This treated `runtime_mode="local" AND environment="staging"` as not-prod (because
+    the docker check failed), so a staging environment silently fell back to the
+    in-process _local_attempts dict, disabling brute-force protection during a real
+    Redis outage. Fix: the fallback is now explicit-only for `environment in
+    ("development", "dev", "local")` — every other environment (staging, qa, uat,
+    production, anything unnamed) fails closed.
+    """
+    settings = get_settings()
+    return settings.environment not in ("development", "dev", "local")
+
 
 async def _check_rate_limit(key: str) -> bool:
     """Check if key has exceeded MAX_ATTEMPTS. Returns True if locked out."""
     settings = get_settings()
     if settings.session.store_type == "redis":
         try:
-            import redis.asyncio as redis
-            r = redis.from_url(settings.session.redis_url)  # type: ignore[no-untyped-call]
+            r = await _get_redis_client()
             count = await r.get(f"uat:auth:lock:{key}")
-            await r.aclose()
+            # Note: pool-managed client — do NOT call r.aclose() (audit issue I3).
             if count and int(count) >= MAX_ATTEMPTS:
                 return True
             return False
         except Exception as e:
-            is_prod = settings.runtime_mode == "docker" or settings.environment not in ("development", "dev", "local")
-            if is_prod:
+            if _is_fail_closed():
                 logger.error("redis_auth_lock_failed", error=str(e))
                 raise HTTPException(status_code=503, detail="Authentication service temporarily unavailable")
             logger.warning("redis_auth_lock_fallback", error=str(e))
@@ -62,18 +116,16 @@ async def _record_failed_attempt(key: str) -> None:
     settings = get_settings()
     if settings.session.store_type == "redis":
         try:
-            import redis.asyncio as redis
-            r = redis.from_url(settings.session.redis_url)  # type: ignore[no-untyped-call]
+            r = await _get_redis_client()
             pipe = r.pipeline()
             redis_key = f"uat:auth:lock:{key}"
             pipe.incr(redis_key)
             pipe.expire(redis_key, LOCKOUT_WINDOW)
             await pipe.execute()
-            await r.aclose()
+            # Note: pool-managed client — do NOT call r.aclose() (audit issue I3).
             return
         except Exception as e:
-            is_prod = settings.runtime_mode == "docker" or settings.environment not in ("development", "dev", "local")
-            if is_prod:
+            if _is_fail_closed():
                 logger.error("redis_auth_record_failed", error=str(e))
                 raise HTTPException(status_code=503, detail="Authentication service temporarily unavailable")
             logger.warning("redis_auth_record_fallback", error=str(e))
@@ -86,14 +138,12 @@ async def _clear_attempts(key: str) -> None:
     settings = get_settings()
     if settings.session.store_type == "redis":
         try:
-            import redis.asyncio as redis
-            r = redis.from_url(settings.session.redis_url)  # type: ignore[no-untyped-call]
+            r = await _get_redis_client()
             await r.delete(f"uat:auth:lock:{key}")
-            await r.aclose()
+            # Note: pool-managed client — do NOT call r.aclose() (audit issue I3).
             return
         except Exception as e:
-            is_prod = settings.runtime_mode == "docker" or settings.environment not in ("development", "dev", "local")
-            if is_prod:
+            if _is_fail_closed():
                 logger.error("redis_auth_clear_failed", error=str(e))
                 raise HTTPException(status_code=503, detail="Authentication service temporarily unavailable")
             logger.warning("redis_auth_clear_fallback", error=str(e))
