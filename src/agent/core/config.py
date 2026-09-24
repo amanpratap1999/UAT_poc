@@ -537,13 +537,42 @@ class Settings(BaseSubConfig):
         """Fail fast on insecure JWT secrets outside local development.
 
         Security invariant (P0): a production/container runtime must never start
-        with the well-known development fallback secret, an empty secret, or a
-        trivially short secret — any of those would let an attacker forge
-        auth tokens. Local development on a developer machine may retain the
-        explicit development fallback so `scripts/start-local.ps1` keeps working.
+        with the well-known development fallback secret, an empty secret, a
+        trivially short secret, or a placeholder/example secret copied verbatim
+        from the project's own .env.docker.example. Any of those would let an
+        attacker forge auth tokens. Local development on a developer machine
+        may retain the explicit development fallback so
+        `scripts/start-local.ps1` keeps working.
         """
+        import math
+        import warnings
+
         secret = (self.jwt_secret_key or "").strip()
         fallback = "super-secret-local-development-key"
+
+        # Blocklist of placeholder/example secrets that ship in this repo's
+        # .env.docker.example and similar documentation. Operators who copy
+        # these verbatim into .env.docker would pass the legacy length check
+        # while running with a publicly-known secret (audit issue I5).
+        _PLACEHOLDER_BLOCKLIST = frozenset({
+            "CHANGE_THIS_TO_A_SECURE_SECRET_AT_LEAST_32_CHARS",
+            "REPLACE_ME_WITH_A_SECURE_SECRET_AT_LEAST_32_CHARS",
+            "REPLACE_ME_RUN_python_secrets_token_urlsafe_48",
+            "GENERATE_A_LONG_RANDOM_SECRET",
+            "GENERATE_A_SECURE_SECRET_HERE",
+            "PLEASE_REPLACE_THIS_WITH_A_REAL_SECRET",
+            fallback,
+        })
+
+        def _shannon_entropy(s: str) -> float:
+            """Bits-per-char Shannon entropy. Used to reject low-entropy secrets."""
+            if not s:
+                return 0.0
+            counts: dict[str, int] = {}
+            for ch in s:
+                counts[ch] = counts.get(ch, 0) + 1
+            n = len(s)
+            return -sum((c / n) * math.log2(c / n) for c in counts.values())
 
         is_local = self.runtime_mode == "local" and self.environment in (
             "development", "dev", "local",
@@ -552,8 +581,6 @@ class Settings(BaseSubConfig):
         if is_local:
             # Local development: permitted, but loudly warn on the fallback.
             if secret == fallback:
-                import warnings
-
                 warnings.warn(
                     "JWT_SECRET_KEY not set — using the development fallback secret. "
                     "This is only acceptable for local development; set JWT_SECRET_KEY "
@@ -562,12 +589,29 @@ class Settings(BaseSubConfig):
                 )
             return self
 
+        # Production / non-local: reject empty, short, blocklisted, or low-entropy.
         if not secret or secret == fallback or len(secret) < 32:
             raise ValueError(
                 "Refusing to start: JWT_SECRET_KEY must be set to a strong secret "
                 "(>= 32 chars) when UAT_RUNTIME_MODE != 'local' or ENVIRONMENT is "
                 "not development. Generate one with: "
                 "python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+            )
+        if secret in _PLACEHOLDER_BLOCKLIST:
+            raise ValueError(
+                "Refusing to start: JWT_SECRET_KEY matches a known placeholder/"
+                "example secret shipped in this repo's .env.docker.example. "
+                "Generate a fresh secret with: "
+                "python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+            )
+        # Reject low-entropy secrets (e.g. repetitive strings, digits-only)
+        # that pass the length/blocklist checks but are still trivially guessable.
+        entropy = _shannon_entropy(secret)
+        if entropy < 2.5:
+            raise ValueError(
+                f"Refusing to start: JWT_SECRET_KEY has low Shannon entropy "
+                f"({entropy:.2f} bits/char, minimum 2.5). Use a uniformly random "
+                f"secret, not a structured or repetitive string."
             )
         return self
 
