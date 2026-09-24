@@ -112,8 +112,24 @@ class OpenAILLMClient(BaseLLMClient):
         )
 
     async def _execute_with_backoff(self, **kwargs: Any) -> Any:
-        """Execute request with custom rate limiting and backoff."""
-        max_retries = 1
+        """Execute request with custom rate limiting and backoff.
+
+        Audit issue I21 (P1): previously max_retries was hardcoded to 1 and
+        only retried on RateLimitError (429) or strings containing '503'.
+        Transient 500/502/504/network errors raised immediately, defeating
+        the documented 'supports retries' comment. Fix:
+          - max_retries now reads from config.max_retries (default 2).
+          - Retry on APIStatusError for status codes {429, 500, 502, 503, 504}.
+          - Retry on httpx.TransportError for network-level failures.
+        """
+        # Audit issue I21 (P1): respect config.max_retries instead of hardcoding 1.
+        max_retries = self._config.max_retries
+        # Status codes that warrant a retry (server-side/transient).
+        retryable_status_codes = {429, 500, 502, 503, 504}
+        # Backoff schedule: 2s, 4s, 8s (capped at self._config... actually
+        # use a fixed 2^attempt schedule — LLM providers' rate limits are
+        # typically 60s, so longer backoff is rarely worth it for QA runs).
+        backoff_seconds = [2.0, 4.0, 8.0, 16.0]
         for attempt in range(max_retries + 1):
             async with _RATE_LIMIT_LOCKS[self._rl_key]:
                 now = time.time()
@@ -127,15 +143,52 @@ class OpenAILLMClient(BaseLLMClient):
             try:
                 return await self._client.chat.completions.create(**kwargs)
             except RateLimitError:
+                # 429 from the OpenAI SDK's typed RateLimitError — always retryable.
                 if attempt == max_retries:
                     raise
-                logger.warning("llm_rate_limit_hit", wait_seconds=6.0)
-                await asyncio.sleep(6.0)
+                wait = backoff_seconds[min(attempt, len(backoff_seconds) - 1)]
+                logger.warning("llm_rate_limit_hit", attempt=attempt + 1, wait_seconds=wait)
+                await asyncio.sleep(wait)
             except Exception as e:
-                if attempt == max_retries or "503" not in str(e):
+                # Audit issue I21 (P1): the previous check was
+                # `if "503" not in str(e)` — narrow and missed 500/502/504.
+                # Now we retry on:
+                #   - APIStatusError with status_code in retryable_status_codes
+                #   - httpx.TransportError (network-level failures)
+                #   - any exception whose str() contains a retryable status code
+                #     (covers non-OpenAI providers that don't raise typed errors)
+                should_retry = False
+                reason = ""
+                # APIStatusError: openai.APIStatusError has .status_code attribute
+                status_code = getattr(e, "status_code", None)
+                if status_code in retryable_status_codes:
+                    should_retry = True
+                    reason = f"APIStatusError {status_code}"
+                # httpx transport errors (connection refused, DNS, etc.)
+                elif type(e).__name__ in (
+                    "TransportError", "ConnectError", "ReadTimeout",
+                    "WriteTimeout", "ConnectTimeout", "PoolTimeout",
+                ):
+                    should_retry = True
+                    reason = type(e).__name__
+                # String-match fallback for non-OpenAI providers
+                else:
+                    err_str = str(e)
+                    for code in retryable_status_codes:
+                        if str(code) in err_str:
+                            should_retry = True
+                            reason = f"string-match {code}"
+                            break
+
+                if not should_retry or attempt == max_retries:
                     raise
-                logger.warning("llm_server_overload_retrying", wait_seconds=3.0, error=str(e))
-                await asyncio.sleep(3.0)
+                wait = backoff_seconds[min(attempt, len(backoff_seconds) - 1)]
+                logger.warning(
+                    "llm_server_overload_retrying",
+                    attempt=attempt + 1, wait_seconds=wait,
+                    error=str(e)[:200], reason=reason,
+                )
+                await asyncio.sleep(wait)
 
     async def complete(
         self,
@@ -152,11 +205,16 @@ class OpenAILLMClient(BaseLLMClient):
         try:
             import copy
             messages_copy = copy.deepcopy(messages)
-            # P2 Req 15: Add cache control for system prompts
-            for msg in messages_copy:
-                if msg.get('role') == 'system':
-                    if isinstance(msg.get('content'), str):
-                        msg['content'] = [{'type': 'text', 'text': msg['content'], 'cache_control': {'type': 'ephemeral'}}]
+            # Audit issue I21 (P1 sub-issue): cache_control is Anthropic-specific.
+            # Unconditionally applying it for provider='openai' was silently dropped
+            # by the OpenAI client (harmless) but rejected by stricter proxies that
+            # validate the request schema strictly. Only attach cache_control when
+            # the provider is Anthropic.
+            if self._config.provider == "anthropic":
+                for msg in messages_copy:
+                    if msg.get('role') == 'system':
+                        if isinstance(msg.get('content'), str):
+                            msg['content'] = [{'type': 'text', 'text': msg['content'], 'cache_control': {'type': 'ephemeral'}}]
 
             kwargs: dict[str, Any] = {
                 "model": self._config.model,
