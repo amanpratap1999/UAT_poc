@@ -46,6 +46,18 @@ class ActionPolicy:
         self._budgets: SafetyBudgetConfig = safety_budgets or getattr(settings, "safety_budgets", None) or SafetyBudgetConfig()
         self.run_id = run_id
 
+        # Audit issue I29 (P2): normalize blocked_actions to lowercase on
+        # init so the later `if action_type_str in self._config.blocked_actions:`
+        # comparison (where action_type_str is also lowercased) matches
+        # correctly regardless of how operators wrote the config values.
+        # Previously, the comparison worked only because ActionType is a
+        # StrEnum — but a custom blocked action like "navigate" (lowercase)
+        # in the config would not match ActionType.NAVIGATE comparison-by-identity.
+        # Make a private normalized copy so the original config is untouched.
+        self._blocked_actions_normalized = frozenset(
+            str(a).lower().strip() for a in self._config.blocked_actions if str(a).strip()
+        )
+
         # Budget tracking state
         self._actions_executed = 0
         self._mutations_executed = 0
@@ -105,6 +117,12 @@ class ActionPolicy:
 
     def get_budget_state(self) -> dict[str, Any]:
         """Expose current budget utilization state."""
+        # Audit issue I28 (P2): previously called self.check_kill_switch()
+        # TWICE — once for is_killed (line 121) and once for kill_reason
+        # (line 122). Each call makes a fresh synchronous Redis round-trip
+        # plus a Path.exists() check; in the SSE hot path this doubled the
+        # latency per status poll. Compute once, use twice.
+        kill_reason = self.check_kill_switch()
         return {
             "actions_executed": self._actions_executed,
             "max_actions": self._budgets.max_actions_per_run,
@@ -118,8 +136,8 @@ class ActionPolicy:
             "max_tables": self._budgets.max_tables_per_run,
             "time_elapsed": time.monotonic() - self._start_time,
             "max_time": self._budgets.max_run_time_seconds,
-            "is_killed": bool(self.check_kill_switch()),
-            "kill_reason": self.check_kill_switch(),
+            "is_killed": bool(kill_reason),
+            "kill_reason": kill_reason,
         }
 
     def validate(self, action: AgentAction, current_url: str = "") -> PolicyValidationResult:
@@ -237,10 +255,20 @@ class ActionPolicy:
                     target=action.target,
                 )
 
-        action_type_str = action.action_type
+        # Audit issue I29 (P2): previously line 240 reassigned
+        # `action_type_str = action.action_type` (the raw StrEnum), so the
+        # subsequent `if action_type_str in self._config.blocked_actions:`
+        # compared the raw enum against a list[str] — worked only because
+        # ActionType is StrEnum, but the lowercasing contract from line 162
+        # was silently broken. A custom blocked action like "navigate"
+        # (lowercase) in the config would NOT match ActionType.NAVIGATE
+        # comparison-by-identity.
+        # Fix: keep action_type_str lowercased throughout (drop the
+        # reassignment) and compare against the pre-normalized
+        # _blocked_actions_normalized frozenset built in __init__.
 
-        # Check 1: Action type blocklist
-        if action_type_str in self._config.blocked_actions:
+        # Check 1: Action type blocklist (uses normalized lowercase set)
+        if action_type_str in self._blocked_actions_normalized:
             logger.warning(
                 "policy_blocked_action_type",
                 action_type=action_type_str,
