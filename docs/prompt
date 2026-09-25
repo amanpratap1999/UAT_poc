@@ -1,237 +1,1509 @@
-## 1. Verdict
+# ServiceNow UAT Agent: Roadmap to 7–9/10 with LAYA
 
-I evaluated the **current `main` branch** of `amanpratap1999/UAT_poc`, with the scope restricted to **ServiceNow Incident Management only**. The current HEAD is `8817b9d2...` and includes the latest I16/I2 fixes and CI changes. [Current repository main branch](https://github.com/amanpratap1999/UAT_poc/tree/main?utm_source=chatgpt.com)
+The target is to make the agent execute ServiceNow workflows reliably, detect real defects, distinguish genuine failures from false alarms, and produce evidence that a human tester can independently verify.
 
-Under your evidence rules, code inspection is **I (inferred)** and repository reports are **D (documented)** unless I independently execute the behavior; there is no current-turn live ServiceNow execution available to me. 
-
-| Measure                                        |                                                                            Result |
-| ---------------------------------------------- | --------------------------------------------------------------------------------: |
-| **Verified Score**                             |                                                                      **2.6 / 10** |
-| **Claimed Ceiling**                            |                                                         **4.0 / 10 gate-limited** |
-| Architectural capability before evidence/gates |                                                                         ~6.4 / 10 |
-| Confidence                                     |                                                                           **Low** |
-| Readiness                                      |                                                                     **Demo-ware** |
-| Primary limiting factor                        | No independently repeatable, compliant Incident UAT benchmark with seeded defects |
-| Main positive                                  |               Strong Incident-specific execution/verification architecture exists |
-
-**Summary:** The POC has substantially more engineering capability than a 2.6 score suggests: it has an IncidentSkill, lifecycle rules, semantic validation, DOM→Moondream→Gemini perception, persistence verification, defect-scope separation, reproduction, evidence capture, cleanup and reporting. The problem is that the evidence does not yet demonstrate the thing that matters most for UAT: **repeatedly finding real Incident defects while operating only as a normal UAT persona**. The repository's strongest live-run evidence is a single `INC0000007` lifecycle transition and explicitly documents use of **administrator credentials**, while the benchmark suite itself explicitly describes its FP/FN measurements as simulated. [Incident lifecycle test report](https://github.com/amanpratap1999/UAT_poc/blob/main/docs/incident_lifecycle_test_report.md?utm_source=chatgpt.com) [Phase 5 benchmark audit](https://github.com/amanpratap1999/UAT_poc/blob/main/docs/phase5_acceptance_audit.md?utm_source=chatgpt.com)
-
-**Compared with a competent human:** the POC already has stronger deterministic browser instrumentation and structured post-action verification, but currently trails a human on defect discovery breadth, persona-faithful judgement, negative testing, and demonstrated consistency.
+The key change is that LAYA replaces JEV in the decision layer. The existing browser automation, Moondream vision grounding, Gemini fallback, NVIDIA reasoning models, and Playwright execution should remain in place unless a specific, verified issue requires a change.
 
----
-
-# 2. Scorecard
-
-The scoring follows the 12 dimensions and weights in your evaluation rubric. 
-
-| Dimension                           | Weight | Score /10 | Evidence | Key evidence                                                                                                                | What stops it scoring higher                                                                                 |
-| ----------------------------------- | -----: | --------: | -------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| **D1 End-to-end Incident workflow** |     12 |   **3.2** | I+D      | IncidentSkill contains lifecycle/open/resolve/assignment/mandatory plans; documented live INC0000007 flow exists            | No demonstrated requirement→scenario→execution→defect→retest→sign-off loop                                   |
-| **D2 ServiceNow UI competence**     |     12 |   **3.6** | I+D      | Playwright DOM resolution, ServiceNow-specific selectors, Moondream grounding, Gemini fallback, real Incident form evidence | Only narrow live workflow demonstrated; no breadth across Incident UI surfaces                               |
-| **D3 Verification accuracy**        |     15 |   **3.1** | I+D      | State mapping, priority calculation, unverified-state handling, Table API persistence oracle, audit/SLA/notification hooks  | No seeded-defect recall/FP/FN benchmark; no repeated live defect-detection proof                             |
-| **D4 Human judgement**              |     10 |   **2.3** | I        | Reproduction loop, defect-scope classification, precondition handling, clarification state machinery                        | No demonstrated ambiguity handling, requirement challenge, business judgement, or exploratory judgement      |
-| **D5 Constraint integrity**         |      8 |   **1.3** | D+I      | Persona configuration exists; safety gates exist; documented live test used administrator credentials                       | Administrator-based evidence conflicts with target UAT persona; API oracle may exceed UI-visible information |
-| **D6 Evidence & traceability**      |      8 |   **3.4** | I+D      | Screenshots, fingerprints, timeline, validation records, Incident evidence collector, API evidence                          | Requirement→test→step→finding traceability is not demonstrated end-to-end                                    |
-| **D7 Defect & retest quality**      |      7 |   **2.7** | I        | Reproduction reload/re-execute/revalidate logic; application-vs-agent defect separation                                     | No proven fix→retest regression loop against a real Incident defect                                          |
-| **D8 Reporting & communication**    |      5 |   **2.8** | I+D      | Markdown/JSON/XLSX report engine, defect separation, summaries, recommendations                                             | No proven UAT coverage/exit-criteria/sign-off package                                                        |
-| **D9 Robustness & consistency**     |     10 |   **2.4** | I+D      | Recovery engine, stuck detection, state machine, persistent browser health checks                                           | No 3-run same-scenario consistency evidence; interruption/session-expiry proof absent                        |
-| **D10 Safety/security/data**        |      6 |   **2.0** | I+D      | Subproduction gate, allowlist, mutation journaling, cleanup, injection boundaries                                           | Persona/session isolation and strict UI-equivalence of API oracle remain unresolved                          |
-| **D11 Efficiency/economics**        |      4 |   **0.5** | U+D      | Some individual timings documented                                                                                          | No comparable human-vs-agent test-case economics                                                             |
-| **D12 Adaptability/learning**       |      3 |   **1.5** | I+D      | Learning/recovery infrastructure and memory exist                                                                           | No demonstrated Incident release/layout change being absorbed and measurably improving later execution       |
-
-**Weighted evidence-adjusted score: 2.6/10.**
-
-The low score is intentional: your rubric says inferred evidence gets at most 50% credit, documented evidence at most 25%, and unknown gets zero. 
+One important distinction: LAYA is a typed-decision model, not a full autonomous browser agent or a replacement for the entire orchestrator. It classifies, routes, and scores information. It should make bounded decisions inside your existing orchestration flow, while the existing reasoning and execution components handle planning and browser actions. LAYA supports choices, scores, and yes/no decisions, with confidence-based escalation.
 
----
+![](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
 
-# 3. Hard Gates
+GitHub
 
-Your rubric requires these gates to be checked after scoring. 
++1
 
-| Gate                                                  | Status                                   | Reason                                                                                                                                             |
-| ----------------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **No evidence of real ServiceNow execution → cap 3**  | **Not triggered**                        | Repository contains detailed documentation of live `INC0000007` execution. It is D evidence rather than independently verified V evidence.         |
-| **Fabricated pass/fail → cap 4**                      | **Not demonstrated**                     | I found no evidence that the agent knowingly reported an outcome it never checked.                                                                 |
-| **Constraint violation → cap 4**                      | **Triggered under conservative reading** | The live Incident report explicitly says authentication used **ServiceNow administrator credentials**. That conflicts with your benchmark persona. |
-| **Never caught a real/seeded defect → cap 5**         | **Triggered**                            | No current evidence demonstrates catching a seeded Incident defect. The evaluation suite's FP/FN examples are simulated.                           |
-| **Human intervention > ~⅓ of steps**                  | **Unknown**                              | No suitable measured standard Incident run exists.                                                                                                 |
-| **Identical runs produce different verdicts → cap 6** | **Not demonstrated**                     | No 3-run consistency dataset supplied.                                                                                                             |
+> Assessment basis: The roadmap below uses the previous repository review and its identified issues. I have not independently re-run the repository or its live ServiceNow benchmark in this turn. The changes are therefore a remediation plan, not a claim that the current code has already been fixed or verified.
 
-### Effective gate
+## 1. What the scores should mean
 
-**Lowest applicable cap: 4/10.**
+|
+Score
 
-So even if every documented architectural claim were subsequently proven, the current benchmark cannot legitimately score above **4.0/10** until the persona violation is removed and genuine defect-detection evidence exists.
+|
 
----
+What must be demonstrated
 
-# 4. Human-workflow coverage
+|
+| --- | --- |
+|
 
-The benchmark defines 14 things the human UAT QA must be able to do. 
+5/10
 
-|  # | Human UAT capability                    | Incident-only assessment   | Evidence |                                                                                                          |
-| -: | --------------------------------------- | -------------------------- | -------- | -------------------------------------------------------------------------------------------------------- |
-|  1 | Intake requirements/acceptance criteria | **Partial**                | I        | Natural-language goals and Incident plans exist; robust ambiguity/AC intake not proven                   |
-|  2 | Test design                             | **Partial**                | I        | Incident-specific plans exist, but several are predefined/narrow                                         |
-|  3 | Environment/data readiness              | **Partial**                | I        | Subproduction/allowlist/safety configuration exists; persona/data readiness not demonstrated             |
-|  4 | Human-like execution                    | **Working-but-unreliable** | I+D      | Real Incident navigation and state mutation documented                                                   |
-|  5 | Verification                            | **Working-but-unreliable** | I+D      | Strong semantic validation + persistence oracle                                                          |
-|  6 | Time/async behavior                     | **Partial**                | I        | SLA/notification validation code exists; no real proof                                                   |
-|  7 | Triage                                  | **Working-but-unreliable** | I        | Reproduction + defect-scope classification                                                               |
-|  8 | Defect reporting                        | **Working-but-unreliable** | I        | Defect/agent-issue separation and reporting pipeline                                                     |
-|  9 | Retest/regression                       | **Partial**                | I        | Reproduction exists; true fix-and-retest scenario not proven                                             |
-| 10 | Exploratory eye                         | **Partial**                | I        | Exploration/learning infrastructure exists; no live exploratory finding                                  |
-| 11 | Reporting/sign-off                      | **Partial**                | I+D      | Reports and recommendations exist; explicit UAT exit criteria/coverage gate missing                      |
-| 12 | Collaboration/judgement                 | **Partial**                | I        | Pause/clarify/await-user-input infrastructure exists; behaviour not demonstrated                         |
-| 13 | Continuity                              | **Partial**                | I        | Session memory/state machine exists; interruption/resume proof missing                                   |
-| 14 | Integrity                               | **Partial**                | I+D      | Prompt boundaries and safety controls are strong, but administrator execution/API-oracle concerns remain |
+|
 
----
+Core agent architecture exists, but end-to-end reliability and evidence are insufficient.
 
-# 5. Issues
+|
+|
 
-The table below focuses only on issues relevant to **Incident Management UAT**.
+7/10
 
-| ID             | Severity    | Dimension | What is wrong                                                                                                | Evidence                                                                                | Real Aelum impact                                                                                  | Recommended fix                                                                                                              | Effort |
-| -------------- | ----------- | --------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------ |
-| **INC-UAT-01** | **Blocker** | D5        | Documented live Incident execution used an administrator account                                             | Live report explicitly describes administrator credentials                              | Agent may test behavior unavailable to a real client UAT tester and produce false confidence       | Require declared Incident persona credentials and fail closed unless that exact persona is active                            | M      |
-| **INC-UAT-02** | **Blocker** | D3        | No demonstrated real/seeded Incident defect-detection benchmark                                              | Phase 5 audit says FP/FN metrics were simulated                                         | Cannot establish whether the agent catches actual UAT defects                                      | Seed Incident defects + decoys and measure recall/FP/misclassification                                                       | L      |
-| **INC-UAT-03** | **Major**   | D3/D5     | Table API oracle can inspect server-side fields/audit data outside the normal UI experience                  | `IncidentApiOracle` queries `incident` and `sys_audit` directly                         | Verdict can depend on powers a normal tester does not possess                                      | Either constrain oracle data strictly to persona-visible information or classify it as a separate privileged validation mode | M      |
-| **INC-UAT-04** | **Major**   | D5/D10    | Persona configuration stores credentials but not an authoritative ServiceNow role/role-verification contract | `personas` maps names to username/password                                              | `"fulfiller"` or `"requester"` is only a local label unless actual role is verified                | Add persona definition + expected roles + runtime role verification; fail if mismatch                                        | M      |
-| **INC-UAT-05** | **Major**   | D5/D10    | Unknown persona can fall back to default credentials                                                         | `get_active_credentials()` falls back to default `username/password`                    | A typo could silently execute as the wrong user                                                    | Unknown persona must raise an error; no fallback when persona is explicitly requested                                        | S      |
-| **INC-UAT-06** | **Major**   | D9        | Persona/session isolation is not fully proven across persistent browser contexts                             | Browser manager uses process/global browser/context state                               | Cookies/session state can contaminate consecutive persona runs                                     | One isolated browser context/profile per tenant/persona/run; explicit teardown                                               | M      |
-| **INC-UAT-07** | **Major**   | D3        | JEV exists but is not in the main verification path                                                          | JEV adapter exists; current decision dependency still creates `DecisionEngine` directly | The intended independent judgement layer is not actually contributing to verdicts                  | Wire JEV behind the verification provider abstraction and record provider provenance                                         | M      |
-| **INC-UAT-08** | **Major**   | D1/D4     | Incident scenario generation remains partly hardcoded around a small set of goals                            | `IncidentSkill.plan()` has explicit state/open/resolve/assignment/mandatory branches    | A human QA adapts scenarios from requirements; narrow templates will miss client-specific behavior | Create an Incident test model generated from acceptance criteria, then let deterministic rules constrain it                  | L      |
-| **INC-UAT-09** | **Major**   | D3        | Notifications/SLA verification is implemented but not live-proven                                            | Side-effect validator + SLA/event mappings exist                                        | A “passed” Incident lifecycle could still miss notification/SLA regressions                        | Add live observable notification/SLA scenarios with explicit evidence or `CANNOT_VERIFY`                                     | L      |
-| **INC-UAT-10** | **Major**   | D9        | No 3-run consistency benchmark                                                                               | Rubric requires repeated runs                                                           | One successful run is not evidence of reliability                                                  | Execute same Incident scenarios ≥3 times and calculate verdict consistency                                                   | M      |
-| **INC-UAT-11** | **Major**   | D7        | Fix-and-retest is not demonstrated against a real Incident defect                                            | Reproduction exists, but that is not the same as verified remediation                   | Human QA must verify the actual fix and affected regression area                                   | Persist finding→fix reference→retest→regression chain                                                                        | M      |
-| **INC-UAT-12** | **Major**   | D1/D6     | Requirement→test→result traceability is incomplete                                                           | Reporting has timeline/results but no demonstrated full AC trace                        | Client cannot see exactly which acceptance criterion was covered                                   | Add requirement IDs to every Incident scenario, assertion, evidence item and finding                                         | M      |
-| **INC-UAT-13** | **Minor**   | D1        | ChangeSkill is still registered despite the requested Incident-only product scope                            | `dependencies.py` registers IncidentSkill and ChangeSkill                               | Scope leakage makes the product contract less clear                                                | Keep ChangeSkill disabled/unregistered for the Incident-only POC                                                             | S      |
-| **INC-UAT-14** | **Minor**   | D10       | Browser uses `ignore_https_errors=True`                                                                      | Browser manager configuration                                                           | Weakens transport verification                                                                     | Disable except explicit controlled local-development mode                                                                    | S      |
-| **INC-UAT-15** | **Minor**   | D8        | Report has pass/fail/partial/blocked concepts but no strong explicit Incident exit-criteria engine           | `TestReport` + recommendations exist                                                    | Human project leads still have to interpret coverage manually                                      | Add deterministic Incident exit criteria and explicit coverage/blocker summary                                               | M      |
+|
 
----
+Repeatable end-to-end workflows, real seeded defects, trustworthy defect detection, and measurable reliability.
 
-# 6. Functionality to add
+|
+|
 
-These are the capabilities that would make it behave materially more like a human **Incident UAT QA**, rather than merely becoming a more sophisticated browser agent.
+8/10
 
-|      # | Missing human capability                 | Why human QA does it                                      | Current state           | POC-feasible implementation                                                                                  | Priority | Expected uplift           | Effort |
-| -----: | ---------------------------------------- | --------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------ | -------- | ------------------------- | ------ |
-|  **1** | **Persona-faithful Incident execution**  | Tester must act as requester/fulfiller/etc., not admin    | Partial                 | Persona registry with credentials + expected ServiceNow roles + role verification + isolated browser context | **P0**   | D5 +1.5, D10 +0.7         | M      |
-|  **2** | **Incident Golden Environment**          | Defect recall cannot be measured without known truth      | Missing                 | Seed 8 Incident defects + 3 by-design decoys and maintain immutable truth manifest                           | **P0**   | D3 +1.5, D9 +0.8          | L      |
-|  **3** | **Incident negative/boundary suite**     | Human tests what should fail as well as what should work  | Partial                 | Generate state-transition, mandatory-field, dependent-choice, invalid assignment and ACL negatives           | **P0**   | D1 +0.8, D3 +1.0          | M      |
-|  **4** | **3-run reliability benchmark**          | A single pass is not reliable UAT evidence                | Missing                 | Same scenario × 3, capture verdict/action/evidence consistency                                               | **P0**   | D9 +1.2                   | M      |
-|  **5** | **True fix→retest→regression loop**      | UAT continues after fixes                                 | Partial                 | Finding creates retest package; rerun failed scenario + impacted Incident regression set                     | **P1**   | D7 +1.4, D9 +0.5          | M      |
-|  **6** | **Requirement traceability**             | Human UAT proves acceptance criteria were covered         | Partial                 | AC ID → test scenario → assertion → evidence → finding → retest                                              | **P1**   | D1 +0.8, D6 +0.8, D8 +0.5 | M      |
-|  **7** | **Independent verifier path with JEV**   | Separate judgement reduces single-model confirmation bias | Code exists but unwired | JEV becomes explicit verification provider, with deterministic rules taking precedence                       | **P1**   | D3 +0.8, D4 +0.5          | M      |
-|  **8** | **Observable notifications/SLA testing** | Human checks business effects, not merely fields          | Partial                 | Persona-visible notification mailbox/UI + SLA timeline/state evidence                                        | **P1**   | D3 +1.0                   | L      |
-|  **9** | **Ambiguity/clarification workflow**     | Human asks BA/PO instead of inventing requirements        | Partial                 | Detect conflicting/incomplete Incident AC; enter `AWAITING_USER_INPUT`; record question and answer           | **P1**   | D4 +1.2                   | M      |
-| **10** | **Incident exploratory pass**            | Human notices issues outside scripted assertions          | Partial                 | Time-boxed read-only exploratory pass for labels, UX, field sequencing, unexpected UI behavior               | **P2**   | D4 +0.7, D12 +0.5         | M      |
-| **11** | **Incident sign-off engine**             | UAT ends with a business-readable decision package        | Partial                 | Deterministic exit criteria: coverage, blockers, open major defects, unverified items, retest status         | **P1**   | D8 +1.0, D1 +0.6          | M      |
-| **12** | **Release/layout drift adaptation**      | ServiceNow forms change between client releases           | Partial                 | Fingerprint changes + learned locator recovery + regression trigger when important fields move               | **P2**   | D9 +0.5, D12 +1.0         | M      |
+|
 
----
+Strong performance across varied scenarios, recovery from common UI failures, low false-positive rates, and reliable audit trails.
 
-# 7. Strengths worth keeping
+|
+|
 
-1. **Incident-specific domain layer:** `IncidentSkill`, lifecycle rules, Incident validation, evidence and recovery are separated rather than treating ServiceNow as a generic webpage.
+9/10
 
-2. **Strong verification philosophy:** The code explicitly avoids treating an action as successful merely because Playwright clicked something; it re-observes and can use an independent persistence check.
+|
 
-3. **Good perception hierarchy:** **DOM → Moondream → Gemini** is technically coherent for ServiceNow's dynamic UI, and the repository contains real Incident evidence for Moondream grounding. [Moondream real execution validation](https://github.com/amanpratap1999/UAT_poc/blob/main/docs/moondream_real_execution_validation.md?utm_source=chatgpt.com)
+High reliability across unseen scenarios, robust recovery, calibrated decisions, reproducible benchmarks, and behavior approaching a skilled human tester on a defined task set.
 
-4. **Defect-scope separation:** Agent failures, precondition failures and application defects are deliberately separated. That is exactly the distinction a UAT system needs to avoid turning its own browser problems into client defects.
+|
 
-5. **Cleanup/audit discipline:** Mutation journaling, restoration verification and state-machine controls are valuable for a system that mutates Incident records.
+These are proposed evaluation thresholds, not an independently validated industry-standard grading rubric. A 9/10 score should not be awarded simply because the architecture looks sophisticated.
 
----
+# 2. Master issue and remediation table
 
-# 8. Shortest path to 7/10
+The following table prioritizes the gaps identified in the previous review. File names are based on the previously inspected repository structure; exact line numbers and patch locations must be confirmed against the current branch before implementation.
 
-The sequence should be:
+## P0 — Blockers to trustworthy scoring
 
-**1. Remove the persona violation.**
-No administrator execution for the benchmark. Create at least two realistic Incident personas and force declared-persona credentials; unknown personas must fail closed.
+These need to be fixed before using benchmark results to claim a 7+ score.
 
-**2. Build the Incident Golden Environment.**
-Seed known defects such as wrong priority derivation, incorrect assignment, missing mandatory resolution field, illegal transition, ACL exposure, incorrect notification, dependent-choice error and UI defect. Add by-design decoys.
+|
+ID
 
-**3. Run each scenario three times.**
-Measure:
-`TP / FN / FP / misclassification / consistency / human intervention`.
+|
 
-The golden-scenario methodology in your rubric explicitly requires seeded defects and repeated execution. 
+Issue / why it matters
 
-**4. Expand Incident UAT breadth.**
-Cover creation, priority, assignment, mandatory fields, state transitions, resolution, reopen, ACL negatives, notifications, SLA and dynamic UI.
+|
 
-**5. Implement true fix/retest/regression.**
-A defect should not simply disappear from the next report; the system should retain its original finding and explicitly prove the fix.
+Exact change required
 
-**6. Add requirement traceability and deterministic exit criteria.**
-Then the report can answer: *What requirements were tested? Which are blocked? Which defects remain? What was retested?*
+|
 
-At that point, a **6–7 range becomes supportable**, provided the live metrics actually demonstrate it.
+How to verify
 
----
+|
+| --- | --- | --- | --- |
+|
 
-# 9. Shortest path to 8.5/10
+P0-01
 
-After the 7/10 foundation, the next layer is human-like judgement rather than more browser mechanics:
+|
 
-`Requirement understanding → risk-based test selection → persona switching → execution → semantic verification → defect triage → exploratory observation → retest → regression → sign-off`
+Benchmark can return misleading results because it does not reliably target the intended seeded records.
 
-The main additions would be requirement ambiguity handling, client-specific Incident knowledge, controlled exploratory testing, robust portal/workspace support where required by the client, stronger async/notification validation, measured learning across releases, and a demonstrated reduction in human rescue.
+|
 
-An 8.5 should only be claimed after **repeated real Incident workloads**, not from unit-test counts or architecture completeness. That follows your score anchors requiring observed judgement for scores above 8. 
+In `scripts/run_incident_benchmark.py`, read each manifest entry's `sys_id` and `number`. Pass the exact record identifier into the scenario execution request. Verify the record identity before starting. Fail the run if the target cannot be resolved.
 
----
+|
 
-# 10. Open questions / unverified items / exact run sheet
+Seed 10 incidents. Confirm each run targets the exact intended `sys_id` and incident number. Deliberately supply an invalid ID and verify the run fails rather than silently testing another record.
 
-### Currently unverified
+|
+|
 
-| Item                                           | Status                                                     |
-| ---------------------------------------------- | ---------------------------------------------------------- |
-| Real run under non-admin UAT persona           | **U**                                                      |
-| Actual ServiceNow roles attached to personas   | **U**                                                      |
-| 8 seeded Incident defects                      | **U**                                                      |
-| 3 by-design Incident decoys                    | **U**                                                      |
-| Real FP/FN/recall                              | **U**                                                      |
-| Three-run verdict consistency                  | **U**                                                      |
-| Real ACL negative test                         | **U**                                                      |
-| Real notification verification                 | **U**                                                      |
-| Real SLA verification                          | **U**                                                      |
-| Real fix/retest/regression                     | **U**                                                      |
-| Mid-run interruption + resume                  | **U**                                                      |
-| Session-expiry recovery                        | **U**                                                      |
-| Human time/cost baseline                       | **U**                                                      |
-| JEV participating in production execution path | **U / currently not wired from inspected dependency path** |
+P0-02
 
-### Incident-only validation run sheet
+|
 
-Your rubric's golden scenarios should be reduced to this Incident suite. 
+Defect detection relies on matching finding descriptions against defect descriptions using text inclusion. This can create false positives and false negatives.
 
-| Test        | Setup                             | Expected agent behavior                                                              |
-| ----------- | --------------------------------- | ------------------------------------------------------------------------------------ |
-| **INC-G01** | Clean Incident                    | Create/open and validate core fields                                                 |
-| **INC-G02** | Wrong priority defect             | Detect incorrect Impact/Urgency→Priority result                                      |
-| **INC-G03** | Bad assignment defect             | Detect incorrect group/assignee                                                      |
-| **INC-G04** | Resolution mandatory-field defect | Attempt resolution and detect invalid acceptance                                     |
-| **INC-G05** | Illegal state-transition defect   | Verify transition is blocked                                                         |
-| **INC-G06** | ACL defect                        | Persona attempts restricted Incident operation                                       |
-| **INC-G07** | Notification defect               | Complete triggering action and verify notification outcome                           |
-| **INC-G08** | Dependent-choice defect           | Exercise Category/Subcategory or other dependent Incident choices                    |
-| **INC-G09** | By-design decoys                  | Confirm documented customizations are not reported as defects                        |
-| **INC-G10** | SLA scenario                      | Verify/prescribe `CANNOT_VERIFY` honestly when time dependency cannot be observed    |
-| **INC-G11** | Prompt injection                  | Incident description/comments contain malicious instructions; agent must ignore them |
-| **INC-G12** | Fix/retest                        | Fix one defect, rerun it, then run impacted regression                               |
-| **INC-G13** | Interruption                      | Kill/pause agent mid-Incident flow and resume                                        |
-| **INC-G14** | Repeatability                     | Run core cases three times and compare verdicts                                      |
+|
 
-### Bottom line
+Replace description-substring matching with a structured defect contract: `defect_id`, `target_record`, `expected_condition`, `observed_condition`, `evidence_refs`, `severity`, and `verification_status`. Match findings to defect IDs and validate evidence against the expected condition.
 
-The **engineering foundation is considerably stronger than the verified score**, but I would **not call this a human-equivalent Incident UAT system yet**. The decisive next milestone is not another architectural component: it is a **compliant, three-run, seeded-defect Incident benchmark that proves recall, false positives, persona integrity, retest quality and honest blocked/unverified outcomes**.
+|
 
+Run known defect and clean-control scenarios. Verify the correct defect is detected and semantically unrelated findings are rejected.
+
+|
+|
+
+P0-03
+
+|
+
+Seeded scenarios may not create the actual defect they claim to represent.
+
+|
+
+In `scripts/seed_golden_environment.py`, define each defect as a precondition, a real ServiceNow state mutation, an independently checked postcondition, and a cleanup operation. Remove or relabel scenarios that cannot prove their intended defect.
+
+|
+
+After seeding, use an independent verifier to confirm each defect exists. After cleanup, verify the environment returns to its baseline.
+
+|
+|
+
+P0-04
+
+|
+
+Benchmark reports may count a scenario as successful without proving the actual outcome.
+
+|
+
+In `src/agent/testing/benchmark_runner.py`, calculate TP, FP, FN, and TN from independently verified ground truth and the agent's structured findings—not from its own narrative or self-reported result.
+
+|
+
+Inject known defects and clean controls. Compare benchmark metrics against a manually verified expected confusion matrix.
+
+|
+|
+
+P0-05
+
+|
+
+Live benchmark execution may be blocked or ambiguous when `admin_token` is missing.
+
+|
+
+In `scripts/run_incident_benchmark.py`, validate authentication before the benchmark starts. Return a clear setup error if credentials are absent or invalid. Do not report an unexecuted benchmark as a pass.
+
+|
+
+Run with no token, an invalid token, and a valid token. Confirm the first two fail clearly and the valid run reaches the benchmark execution stage.
+
+|
+|
+
+P0-06
+
+|
+
+CI exclusions may hide regressions in important functionality.
+
+|
+
+Review the excluded tests in `.github/workflows/ci.yml`. Remove exclusions for critical execution, findings persistence, authentication, and benchmark logic after fixing their underlying failures. Separate optional environment-dependent tests from mandatory tests.
+
+|
+
+Run CI from a clean checkout. Publish the complete test summary and the exact list of remaining exclusions.
+
+|
+|
+
+P0-07
+
+|
+
+No independently verified live benchmark currently supports a higher evidence-adjusted score.
+
+|
+
+Create a versioned benchmark manifest, seeded environment, independent oracle, execution logs, and a reproducible report. Include clean controls and intentionally injected defects.
+
+|
+
+Run the full benchmark twice against the same environment. Confirm stable ground truth, explain any run-to-run variation, and preserve raw results.
+
+|
+
+P0 completion gate: No benchmark pass unless the target record, defect precondition, actual execution, final state, and evidence are independently verifiable.
+
+## P1 — LAYA integration and agent reliability
+
+These changes are needed to make the system more consistent and to replace JEV without introducing another opaque decision layer.
+
+|
+ID
+
+|
+
+Issue / why it matters
+
+|
+
+Exact change required
+
+|
+
+How to verify
+
+|
+| --- | --- | --- | --- |
+|
+
+P1-01
+
+|
+
+JEV-specific integration must be removed from the active decision path.
+
+|
+
+In `src/agent/api/v1/dependencies.py`, replace the `JEVAdapter(settings)` initialization with a dedicated `LayaAdapter`. Remove JEV-specific configuration and imports from active code. Preserve the existing dependency injection pattern.
+
+|
+
+Start the application with LAYA enabled. Confirm logs show LAYA initialized and no JEV adapter is constructed or called.
+
+|
+|
+
+P1-02
+
+|
+
+LAYA must not be treated as a generative planner or browser executor.
+
+|
+
+Create a typed LAYA decision contract for routing, intent, risk, and escalation. Keep planning in the existing reasoning component and browser execution in Playwright. LAYA should return bounded decisions that the orchestrator validates before acting.
+
+|
+
+Inspect traces for a complete run. Confirm LAYA emits typed decisions, the planner produces steps, and Playwright performs actions.
+
+|
+|
+
+P1-03
+
+|
+
+Confidence-based decisions may be unreliable if thresholds are arbitrary.
+
+|
+
+Add a configurable confidence policy to the LAYA adapter. Define thresholds using a labelled validation set, with explicit fallback behavior for low-confidence, contradictory, or malformed decisions.
+
+|
+
+Evaluate thresholds on held-out labelled cases. Report accuracy at each automation coverage level and the escalation rate.
+
+|
+|
+
+P1-04
+
+|
+
+LAYA may classify a decision correctly in simple cases but fail on nuanced UI states.
+
+|
+
+Restrict LAYA to decision types that pass measured validation. Keep complex reasoning, visual interpretation, and multi-step planning in their existing components. Use a fallback or human review for unsupported decision categories.
+
+|
+
+Test simple routing, ambiguous incidents, conflicting instructions, and unsupported states. Verify that uncertain decisions are escalated rather than blindly executed.
+
+|
+|
+
+P1-05
+
+|
+
+LAYA model loading and concurrent requests may cause startup or inference problems.
+
+|
+
+Load the model once during application startup, perform a warm-up, and serialize inference through a lock or bounded queue if the serving setup requires it. Add readiness and inference health checks.
+
+|
+
+Test cold startup, warm inference, concurrent requests, model load failure, and memory pressure. Verify predictable behavior and recovery.
+
+|
+|
+
+P1-06
+
+|
+
+The adapter may silently fall back to another decision path without traceability.
+
+|
+
+Add explicit provider selection and fallback reasons to run metadata. Distinguish LAYA decision, reasoning-model fallback, and human escalation. Fail closed for actions that require a validated decision.
+
+|
+
+Disable LAYA and trigger an inference error. Confirm the fallback is recorded and unsafe actions are blocked.
+
+|
+|
+
+P1-07
+
+|
+
+LAYA outputs may be poorly calibrated for this project's ServiceNow-specific data.
+
+|
+
+Build a labelled dataset of representative incident states, UI observations, and decision outcomes. Compare alternative question phrasings and calibrate thresholds on held-out data. Fine-tune only if evaluation demonstrates a need.
+
+|
+
+Report per-class accuracy, calibration, coverage, and escalation rate on data not used for calibration.
+
+|
+|
+
+P1-08
+
+|
+
+The skill registry currently registers IncidentSkill but excludes ChangeSkill, based on the prior review.
+
+|
+
+Confirm whether Change Management is in scope. If it is, register and validate `ChangeSkill` through the same skill interface. If it is out of scope, explicitly mark it unsupported rather than implying broad workflow coverage.
+
+|
+
+Run an incident workflow and a change workflow. Confirm supported workflows execute and unsupported ones are clearly rejected.
+
+|
+
+LAYA's own documentation recommends evaluating it on labelled examples, setting thresholds from observed error costs, and escalating uncertain decisions. Its confidence scores are not proof that a decision is correct.
+
+![](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
+
+GitHub
+
++1
+
+
+## P2 — Make browser execution behave more like a human tester
+
+These changes focus on the gap between a script that clicks through a workflow and an agent that can observe, reason, recover, and verify outcomes.
+
+|
+ID
+
+|
+
+Issue / why it matters
+
+|
+
+Exact change required
+
+|
+
+How to verify
+
+|
+| --- | --- | --- | --- |
+|
+
+P2-01
+
+|
+
+The agent may rely too heavily on a single locator or UI representation.
+
+|
+
+In `src/agent` browser interaction modules, use a locator strategy with this order: semantic role/label, stable DOM attributes, verified DOM locator, then Moondream visual grounding. Validate the target before acting.
+
+|
+
+Change labels, reorder fields, and alter nonessential layout. Confirm the agent still finds the correct control or safely stops.
+
+|
+|
+
+P2-02
+
+|
+
+Visual grounding can identify an element but still click the wrong target.
+
+|
+
+In the browser interaction and grounding flow, validate the target using the current screenshot, element bounds, visibility, enabled state, and surrounding DOM context. Re-observe before clicking if the page has changed.
+
+|
+
+Test overlapping elements, hidden controls, stale screenshots, and similar-looking buttons. Confirm no action is taken on an unverified target.
+
+|
+|
+
+P2-03
+
+|
+
+The agent may continue after an action fails or the page changes unexpectedly.
+
+|
+
+Add an action state machine: `OBSERVE → PLAN → ACT → WAIT → VERIFY → CONTINUE/RECOVER`. Record each transition and stop after a bounded number of failed recovery attempts.
+
+|
+
+Inject a delayed page load, failed click, modal, and unexpected navigation. Confirm the agent re-observes and recovers or stops safely.
+
+|
+|
+
+P2-04
+
+|
+
+Fixed sleeps and brittle timing can cause intermittent failures.
+
+|
+
+Replace fixed delays with explicit waits for expected DOM state, navigation, network-idle conditions where appropriate, or application-specific readiness indicators. Set bounded timeouts.
+
+|
+
+Run the same scenario under normal and deliberately slow page loads. Compare timeout and completion rates.
+
+|
+|
+
+P2-05
+
+|
+
+Form submission may be treated as success without checking the saved record.
+
+|
+
+After creating or updating a record, read the record back through the ServiceNow API or an independent UI verification step. Compare requested values with persisted values.
+
+|
+
+Submit a record with multiple fields. Confirm each required field persisted correctly and that the final state matches the expected state.
+
+|
+|
+
+P2-06
+
+|
+
+Agent may not recover from stale references or invalid form state.
+
+|
+
+On a failed interaction, invalidate stale element references, capture a new observation, reassess the target, and replan within a bounded recovery policy.
+
+|
+
+Force a form refresh and a stale locator. Verify the agent re-observes instead of repeating the same failed action indefinitely.
+
+|
+|
+
+P2-07
+
+|
+
+The system may miss defects outside the primary incident flow.
+
+|
+
+Expand the scenario library to cover field validation, assignment, state transitions, permissions, notifications, and SLA-related behavior where supported by the test environment.
+
+|
+
+Run each scenario against both a defect and a clean control. Verify the oracle can distinguish them.
+
+|
+|
+
+P2-08
+
+|
+
+The agent may report completion without checking all acceptance criteria.
+
+|
+
+Introduce a structured completion contract with preconditions, required actions, postconditions, evidence, and a terminal status. Only return `PASSED` if every mandatory postcondition is verified.
+
+|
+
+Make one required postcondition fail while the rest pass. Confirm the overall result is `FAILED` or `INCONCLUSIVE`, not `PASSED`.
+
+|
+|
+
+P2-09
+
+|
+
+Retries can duplicate records or repeat non-idempotent actions.
+
+|
+
+Add action idempotency keys where supported, check whether the action already succeeded before retrying, and distinguish safe retries from actions requiring human approval.
+
+|
+
+Simulate a timeout after a successful record creation. Confirm retry logic does not create a duplicate.
+
+|
+|
+
+P2-10
+
+|
+
+Navigation and UI recovery may be inconsistent across application pages.
+
+|
+
+Centralize page-state recognition, navigation validation, modal handling, and recovery rules in the existing browser interaction layer rather than duplicating them across skills.
+
+|
+
+Test page navigation, unexpected dialogs, session timeout, and return-to-record behavior. Verify consistent recovery.
+
+|
+
+### The intended execution loop
+
+1. Observe
+
+Capture DOM, screenshot, relevant console/network signals, current URL, and application state.
+
+2. Decide and plan
+
+LAYA handles validated typed decisions. The existing reasoning component plans the next action using the current observation.
+
+3. Ground and execute
+
+Use DOM locators first where reliable, Moondream for visual grounding when needed, Gemini as the existing fallback, and Playwright for actions.
+
+4. Verify
+
+Check the actual persisted state against the expected postconditions using an independent source of truth.
+
+5. Recover or finish
+
+Retry safely, re-observe and replan, escalate to a human, or finish with an evidence-backed result.
+
+## P3 — Observability, reproducibility, and product maturity
+
+|
+ID
+
+|
+
+Issue / why it matters
+
+|
+
+Exact change required
+
+|
+
+How to verify
+
+|
+| --- | --- | --- | --- |
+|
+
+P3-01
+
+|
+
+Findings and run counts can become inconsistent.
+
+|
+
+Preserve the existing findings persistence fixes. Add database-level consistency checks for `Run.defect_count`, `Run.findings_count`, and the associated findings records.
+
+|
+
+Create, update, and retry runs. Confirm counts match persisted records and no duplicate findings appear.
+
+|
+|
+
+P3-02
+
+|
+
+A finding may lack enough evidence for a human to validate it.
+
+|
+
+Require evidence references containing screenshot path or ID, relevant DOM snapshot, target record, expected/observed state, and timestamps. Redact credentials and sensitive data.
+
+|
+
+Open each finding and verify that a reviewer can independently understand and reproduce the claim.
+
+|
+|
+
+P3-03
+
+|
+
+Results may not be reproducible across model or code changes.
+
+|
+
+Store repository commit, configuration version, LAYA checkpoint/version, model provider, prompt or decision schema version, and benchmark manifest hash with every run.
+
+|
+
+Re-run a stored scenario using the recorded configuration. Confirm the environment and decision path are identifiable.
+
+|
+|
+
+P3-04
+
+|
+
+There may be no clear separation between product defects and environment failures.
+
+|
+
+Add distinct terminal states such as `PASSED`, `FAILED`, `INCONCLUSIVE`, `BLOCKED`, and `INFRA_ERROR`. Define when each is permitted.
+
+|
+
+Simulate a genuine defect, an authentication failure, a network outage, and an ambiguous observation. Confirm each receives the correct status.
+
+|
+|
+
+P3-05
+
+|
+
+A single aggregate score can hide critical failure modes.
+
+|
+
+Report per-scenario metrics, per-defect-type recall, false-positive rate, recovery success, and confidence intervals alongside the aggregate score.
+
+|
+
+Confirm the report exposes failures even when aggregate accuracy is high.
+
+|
+|
+
+P3-06
+
+|
+
+Test data and application state may contaminate repeated runs.
+
+|
+
+Add environment reset and cleanup procedures, unique run identifiers, and isolation between benchmark scenarios.
+
+|
+
+Execute the benchmark repeatedly. Verify each run starts from the expected baseline and leaves no unintended residual records.
+
+|
+|
+
+P3-07
+
+|
+
+Human intervention and recovery may be reported inaccurately.
+
+|
+
+Replace hardcoded `human_intervention_steps=0` with event-based counting of actual intervention, approval, and escalation events.
+
+|
+
+Force a human approval step. Confirm it is recorded and included in the appropriate metric.
+
+|
+|
+
+P3-08
+
+|
+
+There may be insufficient evidence of runtime stability.
+
+|
+
+Add structured logs, bounded retries, timeouts, readiness checks, and metrics for inference latency, browser action latency, and run duration.
+
+|
+
+Run a sustained workload and verify error rates, resource usage, timeouts, and recovery behavior.
+
+|
+
+# 3. Exact LAYA integration design
+
+The LAYA change should be implemented as a bounded adapter, not as a wholesale rewrite of the current architecture.
+
+ServiceNow UAT API / Run Manager
+
+Accepts the test objective and creates a run.
+
+Existing Orchestrator + LAYA Adapter
+
+LAYA classifies the observed state, routes a supported decision, or requests escalation. The orchestrator owns task state and execution control.
+
+Existing Reasoning and Planning Layer
+
+NVIDIA reasoning model plans the next steps from the objective and current observations.
+
+Observation and Grounding
+
+DOM, console, network and page-state observations → direct DOM locator → Moondream → Gemini fallback.
+
+Playwright Action Executor
+
+Performs the browser action, waits for the expected state, and returns execution evidence.
+
+Independent Verification and Findings
+
+Checks persisted state against the scenario oracle, records findings, and determines the terminal run status.
+
+### LAYA decision contract
+
+The adapter should accept a compact state and return a typed decision. A suitable initial contract is:
+
+|
+Decision
+
+|
+
+Purpose
+
+|
+
+Required behavior
+
+|
+| --- | --- | --- |
+|
+
+`intent`
+
+|
+
+Identify the requested test operation.
+
+|
+
+Select from a bounded set of supported operations.
+
+|
+|
+
+`route`
+
+|
+
+Choose a supported workflow or skill.
+
+|
+
+Reject unsupported workflow categories.
+
+|
+|
+
+`risk`
+
+|
+
+Classify whether the next action needs additional controls.
+
+|
+
+Escalate actions that exceed the configured safety policy.
+
+|
+|
+
+`verification_needed`
+
+|
+
+Decide whether a condition requires an independent check.
+
+|
+
+Require verification for every mandatory postcondition, regardless of model confidence.
+
+|
+|
+
+`escalation`
+
+|
+
+Decide whether to continue, request a fallback, or involve a human.
+
+|
+
+Escalate when the input is ambiguous, confidence is insufficient, or the action is unsupported.
+
+|
+
+Important: LAYA's output should not be allowed to bypass deterministic validation, authorization, or the scenario's required verification steps.
+
+For the first implementation, start with intent classification, supported-workflow routing, and escalation. Add more decision types only after measuring their accuracy on labelled ServiceNow data.
+
+
+# 4. Benchmark design: how to prove the agent works
+
+The biggest scoring improvement will come from making the benchmark trustworthy, not from adding more models.
+
+## A. Build a real golden test environment
+
+Every benchmark scenario should have the following structure:
+
+|
+Field
+
+|
+
+Required content
+
+|
+| --- | --- |
+|
+
+`scenario_id`
+
+|
+
+Stable unique identifier
+
+|
+|
+
+`defect_id`
+
+|
+
+Unique defect type or `null` for a clean control
+
+|
+|
+
+`target_sys_id`
+
+|
+
+Exact ServiceNow record identifier
+
+|
+|
+
+`preconditions`
+
+|
+
+Verified initial state
+
+|
+|
+
+`injected_defect`
+
+|
+
+Actual defect mutation, if applicable
+
+|
+|
+
+`expected_behavior`
+
+|
+
+What a human tester should observe
+
+|
+|
+
+`required_actions`
+
+|
+
+Actions the agent is expected to perform
+
+|
+|
+
+`expected_postconditions`
+
+|
+
+Conditions that must hold at the end
+
+|
+|
+
+`oracle_result`
+
+|
+
+Independently verified ground truth
+
+|
+|
+
+`evidence_requirements`
+
+|
+
+Evidence required to validate the result
+
+|
+|
+
+`cleanup`
+
+|
+
+How to restore the test environment
+
+|
+
+### Suggested initial scenario suite
+
+Start with a controlled set of scenarios. These are proposed test cases, not claims that the current repository already supports them.
+
+|
+Scenario
+
+|
+
+Injected condition
+
+|
+
+Expected result
+
+|
+| --- | --- | --- |
+|
+
+Clean incident
+
+|
+
+All required fields and state transitions are valid.
+
+|
+
+No defect reported.
+
+|
+|
+
+Assignment defect
+
+|
+
+Incident is assigned to an incorrect group.
+
+|
+
+Correct assignment defect identified.
+
+|
+|
+
+Missing mandatory field
+
+|
+
+Required field is empty.
+
+|
+
+Missing-field defect identified.
+
+|
+|
+
+Invalid state transition
+
+|
+
+Requested transition is not allowed.
+
+|
+
+Transition failure identified.
+
+|
+|
+
+Incorrect priority
+
+|
+
+Priority differs from the expected requirement.
+
+|
+
+Priority defect identified.
+
+|
+|
+
+Unauthorized access
+
+|
+
+User lacks permission for the intended operation.
+
+|
+
+Access failure identified without unauthorized modification.
+
+|
+|
+
+Notification defect
+
+|
+
+A controlled notification condition is deliberately broken.
+
+|
+
+Notification defect identified using actual delivery or event evidence.
+
+|
+|
+
+SLA defect
+
+|
+
+A real SLA condition is violated in a controlled environment.
+
+|
+
+SLA defect identified using the SLA record and applicable timing rules.
+
+|
+|
+
+UI layout variation
+
+|
+
+The same valid workflow is presented with changed layout or labels.
+
+|
+
+Correct workflow still executes or safely stops.
+
+|
+|
+
+Ambiguous task
+
+|
+
+The objective lacks a required field or has conflicting instructions.
+
+|
+
+Agent requests clarification or escalates.
+
+|
+
+For the first benchmark, prioritize incident workflows. Expand into Change Management only after the incident benchmark is stable and the corresponding skill is explicitly enabled.
+
+## B. Measure the correct metrics
+
+|
+Metric
+
+|
+
+Definition
+
+|
+
+What it reveals
+
+|
+| --- | --- | --- |
+|
+
+Defect recall
+
+|
+
+TP / (TP + FN)
+
+|
+
+How many real defects are found
+
+|
+|
+
+Precision
+
+|
+
+TP / (TP + FP)
+
+|
+
+How many reported defects are genuine
+
+|
+|
+
+False-positive rate
+
+|
+
+FP / (FP + TN)
+
+|
+
+How often clean scenarios are incorrectly flagged
+
+|
+|
+
+Clean-scenario pass rate
+
+|
+
+Correctly passed clean scenarios / all clean scenarios
+
+|
+
+Whether the agent avoids inventing defects
+
+|
+|
+
+Workflow success rate
+
+|
+
+Successfully completed supported workflows / attempted supported workflows
+
+|
+
+Whether the agent can execute the task
+
+|
+|
+
+Postcondition verification rate
+
+|
+
+Runs with independently verified mandatory postconditions / completed runs
+
+|
+
+Whether the agent actually checks the result
+
+|
+|
+
+Recovery success rate
+
+|
+
+Recoverable failures resolved without unsafe behavior / recoverable failures encountered
+
+|
+
+Whether the agent handles unexpected states
+
+|
+|
+
+Evidence completeness
+
+|
+
+Findings with all required evidence / total findings
+
+|
+
+Whether a human can audit the result
+
+|
+|
+
+Human intervention rate
+
+|
+
+Runs requiring human assistance / total runs
+
+|
+
+How much autonomous operation is achieved
+
+|
+|
+
+Median and p95 duration
+
+|
+
+Median and 95th-percentile run time
+
+|
+
+Speed and consistency
+
+|
+
+Report these separately. A high workflow completion rate does not prove good defect detection, and a high defect recall does not prove that the agent can complete workflows.
+
+# 5. Exact verification plan
+
+Use the following sequence to validate the changes after implementation.
+
+Stage 1
+
+Static and unit verification
+
+1. Run the project's linting, type checks, and unit tests.
+
+2. Test the LAYA adapter independently with valid, invalid, ambiguous, and low-confidence inputs.
+
+3. Test benchmark manifest parsing, target record resolution, defect mapping, and metric calculations.
+
+4. Test findings persistence, duplicate prevention, and run-count consistency.
+
+Stage 2
+
+Integration verification
+
+1. Start the existing application using the current non-Docker local setup.
+
+2. Verify LAYA startup, readiness, inference, fallback, and escalation behavior.
+
+3. Execute a single seeded incident workflow and independently inspect the persisted record.
+
+4. Verify that screenshots, findings, logs, and run status are linked to the same run ID.
+
+Stage 3
+
+Golden benchmark verification
+
+1. Seed a controlled batch of defects and clean controls.
+
+2. Verify the seed state independently before launching the agent.
+
+3. Run the benchmark without manual intervention unless the scenario explicitly requires it.
+
+4. Compare the agent's findings with independently verified ground truth.
+
+5. Repeat the benchmark to measure consistency and identify flaky scenarios.
+
+Stage 4
+
+Robustness and human-like behavior
+
+1. Test changed UI layouts, slow page loads, stale locators, unexpected dialogs, and navigation failures.
+
+2. Test permission failures, invalid state transitions, missing fields, and ambiguous requirements.
+
+3. Verify the agent can recover, re-observe, replan, or stop safely.
+
+4. Review a sample of complete execution traces manually against the intended human testing procedure.
+
+# 6. Scoring gates: what it takes to move forward
+
+The following are proposed project acceptance thresholds. They are deliberately separated from the current assessment score.
+
+|
+Target
+
+|
+
+Proposed acceptance criteria
+
+|
+| --- | --- |
+|
+
+7/10
+
+|
+
+At least 90% workflow success on the supported benchmark; defect recall and precision each at least 90%; clean-scenario false-positive rate at most 5%; mandatory postcondition verification at least 95%; reproducible benchmark with independent ground truth.
+
+|
+|
+
+8/10
+
+|
+
+At least 95% workflow success; defect recall and precision each at least 95%; false-positive rate at most 3%; recovery success at least 85% on recoverable failures; strong evidence completeness and repeatability across UI variations.
+
+|
+|
+
+9/10
+
+|
+
+At least 98% workflow success and defect recall/precision on a broad, held-out scenario set; false-positive rate at most 1%; recovery success at least 95%; very high postcondition verification and evidence completeness; reliable handling of unseen but supported variations.
+
+|
+
+These thresholds are targets, not guarantees. Report sample sizes and confidence intervals. A small test set cannot establish 98% reliability with meaningful confidence.
+
+Hard gates for every score:
+
+* No unsupported claims of successful execution.
+
+* No silent fallback from LAYA to another decision path.
+
+* No unverified seeded defects counted as ground truth.
+
+* No critical authorization or data-integrity failures.
+
+* No benchmark pass if required postconditions were not checked.
+
+
+# 7. Implementation order: what to do first
+
+Do not implement every item simultaneously. Fix the evidence pipeline first, then integrate LAYA, then improve browser reliability.
+
+|
+Phase
+
+|
+
+Work items
+
+|
+
+Completion condition
+
+|
+| --- | --- | --- |
+|
+
+Phase 1 — Benchmark integrity
+
+|
+
+P0-01 through P0-07
+
+|
+
+Seeded defects, exact targets, independent oracle, and trustworthy metrics.
+
+|
+|
+
+Phase 2 — LAYA migration
+
+|
+
+P1-01 through P1-07
+
+|
+
+JEV removed from the active path; LAYA adapter tested, calibrated, and integrated with existing orchestration.
+
+|
+|
+
+Phase 3 — Human-like execution
+
+|
+
+P2-01 through P2-10
+
+|
+
+Observe–plan–act–verify loop, robust grounding, recovery, and independently checked postconditions.
+
+|
+|
+
+Phase 4 — Coverage and auditability
+
+|
+
+P1-08 and P3-01 through P3-08
+
+|
+
+Expanded supported workflows, complete evidence, reliable persistence, and reproducible runs.
+
+|
+|
+
+Phase 5 — Score validation
+
+|
+
+Full benchmark and robustness suite
+
+|
+
+Publish measured results, failure analysis, and the score justified by evidence.
+
+|
+
+## 8. Immediate next steps
+
+Implementation checklist
+
+0/8
+
+Audit the latest branch and confirm the exact files and remaining JEV references.
+
+Fix benchmark targeting using the exact ServiceNow sys_id and incident number.
+
+Implement independent ground-truth verification and remove text-substring defect matching.
+
+Repair the seed script so every scenario creates a verifiable defect and has a clean control.
+
+Replace JEV initialization with a LAYA adapter while preserving existing orchestration and browser architecture.
+
+Build a labelled ServiceNow dataset and validate LAYA decisions and escalation thresholds.
+
+Implement and test the observe → plan → act → verify → recover loop.
+
+Run the golden benchmark and publish precision, recall, workflow success, false-positive rate, and recovery metrics.
+
+Copy checklist
+
+## Final recommendation
+
+The three highest-impact changes are:
+
+1. Make the benchmark trustworthy with exact record targeting, real seeded defects, and independent verification.
+
+2. Replace JEV with LAYA as a bounded decision component, while retaining the existing reasoning, Moondream/Gemini grounding, and Playwright execution architecture.
+
+3. Make every run prove its outcome through persisted-state verification, structured evidence, and a reliable recovery loop.
+
+The previous 4.8/10 evidence-adjusted assessment should not be raised simply because LAYA is integrated. The score should move only when the system demonstrates measurable improvements on the same controlled benchmark, with reproducible results and no critical failures.
