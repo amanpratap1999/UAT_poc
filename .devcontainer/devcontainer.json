@@ -7,6 +7,7 @@
     "ghcr.io/robbert22/devcontainer-features/postgresql:1": { "version": "15" },
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
-  "postCreateCommand": "bash scripts/codespace_full_run.sh",
+  "postCreateCommand": "bash scripts/codespace_setup.sh",
+  "postStartCommand": "bash scripts/codespace_runtime.sh",
   "forwardPorts": [2222, 5432, 6379, 8000]
 }
