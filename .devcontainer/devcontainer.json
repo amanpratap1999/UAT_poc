@@ -1,0 +1,12 @@
+{
+  "name": "UAT_poc",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": { "version": "3.11" },
+    "ghcr.io/devcontainers/features/sshd:1": { "version": "latest" },
+    "ghcr.io/robbert22/devcontainer-features/postgresql:1": { "version": "15" },
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "postCreateCommand": "sudo apt-get update -qq && sudo apt-get install -y -qq redis-server build-essential libpq-dev && sudo service redis-server start && pip install -e . && playwright install chromium && playwright install-deps chromium",
+  "forwardPorts": [2222, 5432, 6379, 8000]
+}
