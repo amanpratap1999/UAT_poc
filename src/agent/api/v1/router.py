@@ -377,7 +377,12 @@ async def create_run(
 
     # Enqueue Celery task with error handling
     try:
-        execute_run.delay(run_id=run_id, goal=request.goal, tenant_id=token.tenant_id or "unknown")
+        execute_run.delay(
+            run_id=run_id,
+            goal=request.goal,
+            tenant_id=token.tenant_id or "unknown",
+            persona=getattr(request, "persona", None),  # INC-UAT-01
+        )
     except Exception as exc:
         new_run.status = "failed"  # type: ignore[assignment]
         await db.commit()

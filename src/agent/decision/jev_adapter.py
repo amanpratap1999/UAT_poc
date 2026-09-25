@@ -41,6 +41,14 @@ class JEVAdapter(DecisionProvider):
         self._client: AsyncOpenAI | None = None
         self._init_config()
 
+    def is_configured(self) -> bool:
+        """Return True if JEV is enabled and has valid configuration.
+
+        INC-UAT-07: used by the dependency factory to decide whether
+        to attach JEV as the default DecisionProvider.
+        """
+        return self._enabled and bool(self._model) and bool(self._endpoint) and bool(self._api_key)
+
     def _init_config(self) -> None:
         """Load JEV configuration from settings."""
         jev_cfg = getattr(self._settings, "jev", None)
