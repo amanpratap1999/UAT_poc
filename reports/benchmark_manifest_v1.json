@@ -1,0 +1,33 @@
+{
+  "manifest_version": "1.0.0",
+  "repo_commit": "to-be-filled-at-seed-time",
+  "created_at": "to-be-filled-at-seed-time",
+  "description": "Versioned benchmark manifest for the Incident UAT golden environment. P0-07: stores repo commit, config version, and manifest hash with every run for reproducibility.",
+  "scenarios": [
+    {"scenario_id": "INC-G01", "defect_id": null, "defect_type": "clean_control", "is_decoy": true},
+    {"scenario_id": "INC-G02", "defect_id": "INC-DEF-001", "defect_type": "wrong_priority", "is_decoy": false},
+    {"scenario_id": "INC-G03", "defect_id": "INC-DEF-002", "defect_type": "bad_assignment", "is_decoy": false},
+    {"scenario_id": "INC-G04", "defect_id": "INC-DEF-003", "defect_type": "missing_mandatory_field", "is_decoy": false},
+    {"scenario_id": "INC-G05", "defect_id": "INC-DEF-004", "defect_type": "illegal_transition", "is_decoy": false},
+    {"scenario_id": "INC-G06", "defect_id": "INC-DEF-005", "defect_type": "acl_violation", "is_decoy": false},
+    {"scenario_id": "INC-G07", "defect_id": "INC-DEF-006", "defect_type": "notification_failure", "is_decoy": false},
+    {"scenario_id": "INC-G08", "defect_id": "INC-DEF-007", "defect_type": "dependent_choice_error", "is_decoy": false},
+    {"scenario_id": "INC-G09", "defect_id": "INC-DECOY-001", "defect_type": "by_design_customization", "is_decoy": true},
+    {"scenario_id": "INC-G10", "defect_id": "INC-DEF-008", "defect_type": "sla_breach", "is_decoy": false},
+    {"scenario_id": "INC-G11", "defect_id": "INC-DEF-009", "defect_type": "prompt_injection", "is_decoy": false},
+    {"scenario_id": "INC-G12", "defect_id": "INC-DEF-010", "defect_type": "fix_retest", "is_decoy": false},
+    {"scenario_id": "INC-G13", "defect_id": "INC-DEF-011", "defect_type": "interruption_recovery", "is_decoy": true},
+    {"scenario_id": "INC-G14", "defect_id": "INC-DEF-012", "defect_type": "repeatability", "is_decoy": true}
+  ],
+  "metrics_to_report": [
+    "defect_recall", "precision", "false_positive_rate",
+    "clean_scenario_pass_rate", "workflow_success_rate",
+    "postcondition_verification_rate", "recovery_success_rate",
+    "evidence_completeness", "human_intervention_rate",
+    "median_duration", "p95_duration", "verdict_consistency"
+  ],
+  "scoring_gates": {
+    "7/10": {"workflow_success": ">=90%", "defect_recall": ">=90%", "precision": ">=90%", "false_positive_rate": "<=5%", "postcondition_verification": ">=95%"},
+    "8/10": {"workflow_success": ">=95%", "defect_recall": ">=95%", "precision": ">=95%", "false_positive_rate": "<=3%", "recovery_success": ">=85%"}
+  }
+}
