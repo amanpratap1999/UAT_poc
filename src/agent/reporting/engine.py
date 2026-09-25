@@ -257,14 +257,28 @@ class ReportingEngine:
             ))
 
         # INC-UAT-15 (Minor): evaluate exit criteria and embed in the report
+        # INC-UAT-12 fix (reviewer feedback): use an AUTHORITATIVE total
+        # requirement count from the test case data — NOT from
+        # requirement_ids_covered (which would always make coverage 100%).
         try:
             from agent.reporting.exit_criteria import IncidentExitCriteriaEngine
             exit_engine = IncidentExitCriteriaEngine()
             major_defects = sum(1 for d in defects if getattr(d, "severity", "").lower() in ("critical", "high", "major"))
             minor_defects = sum(1 for d in defects if getattr(d, "severity", "").lower() in ("minor", "low"))
             unverified = sum(1 for v in memory.completed_validations if not v.overall_passed and not v.failed_checks)
+            # Authoritative total: from test_case_data's acceptance_criteria
+            # list, OR from memory's test_case_data, OR fall back to 0
+            # (which means "unknown total" → coverage will be 0% in the
+            # exit criteria, honestly reflecting that we don't know the
+            # authoritative denominator).
+            tc_data = memory.test_case_data or {}
+            authoritative_total = len(tc_data.get("acceptance_criteria", []))
+            if authoritative_total == 0:
+                # Fall back to the plan's expected steps (not ideal but
+                # better than using the covered set as the total)
+                authoritative_total = len(memory.plan.steps) if memory.plan else 0
             exit_result = exit_engine.evaluate(
-                requirements_total=len(report.requirement_ids_covered),
+                requirements_total=authoritative_total,
                 requirements_covered=len(report.requirement_ids_covered),
                 open_major_defects=major_defects,
                 open_minor_defects=minor_defects,

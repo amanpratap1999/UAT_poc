@@ -294,13 +294,37 @@ def get_knowledge_memory() -> KnowledgeMemory:
 
 
 def get_decision_engine(settings: Settings | None = None) -> DecisionEngine:
-    """Create a DecisionEngine instance."""
+    """Create a DecisionEngine instance.
+
+    INC-UAT-07 (Major): now wires a JEVAdapter as the default
+    DecisionProvider when JEV configuration is available. This gives
+    the independent judgement layer a real role in the verdict path
+    by default, not just when manually injected.
+    """
     llm = get_llm_client(settings, purpose='decision')
+
+    # INC-UAT-07: attempt to attach JEV as the default DecisionProvider.
+    # If JEV is not configured or fails to initialize, fall back to
+    # the internal LLM-based verification (backward compat).
+    decision_provider = None
+    try:
+        from agent.decision.jev_adapter import JEVAdapter
+        jev = JEVAdapter(settings)
+        # Only attach if the adapter loaded its config successfully
+        if jev.is_configured():
+            decision_provider = jev
+            logger.info("jev_decision_provider_attached")
+        else:
+            logger.info("jev_not_configured_using_llm_fallback")
+    except Exception as e:
+        logger.warning("jev_adapter_init_failed", error=str(e))
+
     return DecisionEngine(
         llm_client=llm,
         confidence_engine=get_confidence_engine(),
         reflection_engine=get_reflection_engine(settings),
         tool_registry=get_tool_registry(),
+        decision_provider=decision_provider,
     )
 
 

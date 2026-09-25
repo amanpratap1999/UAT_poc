@@ -22,6 +22,13 @@ class RunRequest(BaseModel):
     goal: str = Field(
         description="Business-level testing goal (e.g., 'Test the complete Incident lifecycle')"
     )
+    # INC-UAT-01 (Blocker): the API now accepts an optional persona
+    # parameter. If SERVICENOW_REQUIRE_PERSONA_FOR_BENCHMARK=true, the
+    # worker will reject runs without a declared non-admin persona.
+    persona: str | None = Field(
+        default=None,
+        description="Persona to use for this run (e.g., 'itil_user', 'requester'). Required when benchmark mode is enabled.",
+    )
 
 
 class StopRequest(BaseModel):
