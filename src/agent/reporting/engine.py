@@ -293,6 +293,25 @@ class ReportingEngine:
         except Exception as e:
             logger.warning("exit_criteria_evaluation_failed", error=str(e))
 
+        # P3-03: store reproducibility metadata with every run
+        try:
+            import subprocess
+            repo_commit = subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"],
+                stderr=subprocess.DEVNULL, timeout=5,
+            ).decode().strip()
+        except Exception:
+            repo_commit = "unknown"
+        report.reproducibility = {
+            "repo_commit": repo_commit,
+            "config_version": "1.0",
+            "llm_provider": getattr(getattr(memory, "_settings", None) or type("s", (), {"llm": type("l", (), {"provider": "unknown", "model": "unknown"})()}), "llm", None),
+            "persona": getattr(memory, "persona", "") or "",
+            "tenant_id": getattr(memory, "tenant_id", "") or "",
+            "session_id": memory.session_id,
+            "generated_at": datetime.now(UTC).isoformat(),
+        }
+
         logger.info(
             "report_generated",
             report_id=report_id,

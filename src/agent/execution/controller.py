@@ -57,6 +57,10 @@ class ExecutionController:
         self._recovery = recovery_engine
         self._servicenow_config = servicenow_config or get_settings().servicenow
         self._policy = action_policy or ActionPolicy(config=get_settings().security)
+        # P2-09: idempotency cache — prevents duplicate actions on retry.
+        # Keyed by action.metadata["idempotency_key"]. Only successful
+        # actions are cached; failed actions are retried.
+        self._idempotency_cache: dict[str, "ActionResult"] = {}
 
         # Action dispatch table
         self._handlers = {
@@ -216,6 +220,21 @@ class ExecutionController:
             value=log_val,
         )
 
+        # P2-09: Action idempotency — check whether this action already
+        # succeeded before executing. If the action has an idempotency_key
+        # in metadata and we've seen it succeed, skip the action and return
+        # the cached result. This prevents duplicate record creation on retry.
+        idempotency_key = (action.metadata or {}).get("idempotency_key", "")
+        if idempotency_key and hasattr(self, "_idempotency_cache"):
+            cached = self._idempotency_cache.get(idempotency_key)
+            if cached and cached.success:
+                logger.info(
+                    "action_idempotent_skip",
+                    idempotency_key=idempotency_key,
+                    action_type=action.action_type,
+                )
+                return cached
+
         start_time = time.perf_counter()
 
         try:
@@ -237,6 +256,11 @@ class ExecutionController:
                 duration_ms=duration_ms,
                 screenshot_path=screenshot_path,
             )
+            # P2-09: cache successful actions for idempotency.
+            # If this action is retried (e.g., after a timeout recovery),
+            # the cached result is returned without re-executing.
+            if idempotency_key:
+                self._idempotency_cache[idempotency_key] = result
             logger.info(
                 "action_succeeded",
                 action_type=action.action_type,

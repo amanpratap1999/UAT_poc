@@ -156,7 +156,13 @@ async def run_benchmark(
                     detection_description=defect.description,
                     actions_taken=report.get("total_actions", 0),
                     evidence_count=len(report.get("step_evidence", [])),
-                    human_intervention_steps=0,
+                    # P3-07: event-based human intervention counting.
+                    # Count actual approval/clarification/escalation events
+                    # from the run timeline, not a hardcoded 0.
+                    human_intervention_steps=sum(
+                        1 for entry in report.get("timeline", [])
+                        if entry.get("event_type") in ("approval_requested", "clarification_needed", "escalated", "paused_by_user")
+                    ),
                 )
         except Exception as e:
             print(f"    ERROR: {e}")
