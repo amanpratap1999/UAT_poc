@@ -1,1509 +1,485 @@
-# ServiceNow UAT Agent: Roadmap to 7–9/10 with LAYA
+# Latest repository re-check — September 25, 2026
 
-The target is to make the agent execute ServiceNow workflows reliably, detect real defects, distinguish genuine failures from false alarms, and produce evidence that a human tester can independently verify.
+I checked the latest repository commits and inspected the benchmark scripts, seed logic, LAYA adapter, dependency wiring, benchmark metrics, and CI configuration.
 
-The key change is that LAYA replaces JEV in the decision layer. The existing browser automation, Moondream vision grounding, Gemini fallback, NVIDIA reasoning models, and Playwright execution should remain in place unless a specific, verified issue requires a change.
+Latest commit found
 
-One important distinction: LAYA is a typed-decision model, not a full autonomous browser agent or a replacement for the entire orchestrator. It classifies, routes, and scores information. It should make bounded decisions inside your existing orchestration flow, while the existing reasoning and execution components handle planning and browser actions. LAYA supports choices, scores, and yes/no decisions, with confidence-based escalation.
+Benchmark unverified
 
-![](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
+# 4.8/10
 
-GitHub
+Evidence-adjusted assessment: unchanged
 
-+1
+Latest commit: `a31cf818e62ae670c9a490029744c8f9aeb79418` — merge of PR #51, September 25, 2026.
 
-> Assessment basis: The roadmap below uses the previous repository review and its identified issues. I have not independently re-run the repository or its live ServiceNow benchmark in this turn. The changes are therefore a remediation plan, not a claim that the current code has already been fixed or verified.
+[View latest commit](https://github.com/amanpratap1999/UAT_poc/commit/a31cf818e62ae670c9a490029744c8f9aeb79418) 
 
-## 1. What the scores should mean
+What changed: The repository now contains additional benchmark integrity structures, a LAYA adapter, authentication checks, terminal statuses, and a versioned benchmark manifest.
+
+What remains: The execution path still does not reliably bind each benchmark scenario to its exact seeded record or establish that the detected defect is genuine.
+
+Important: This is a source-code review, not a live execution of the application against ServiceNow. I found no verified benchmark results or successful CI status checks that justify raising the evidence-adjusted score.
+
+# 1. What changed since the previous review?
+
+The latest commits include two major merges:
+
+* [PR #50 — Benchmark integrity + LAYA adapter](https://github.com/amanpratap1999/UAT_poc/commit/d7eebcf245c322653549c1b637f33ace11c2b485) 
+
+* [PR #51 — Authentication, terminal states, CI review, and versioned manifest](https://github.com/amanpratap1999/UAT_poc/commit/a31cf818e62ae670c9a490029744c8f9aeb79418) 
+
+## Updated issue status
 
 |
-Score
+Issue
 
 |
 
-What must be demonstrated
+Current status
+
+|
+
+What I found
+
+|
+| --- | --- | --- |
+|
+
+Exact target record binding
+
+|
+
+Still open
+
+|
+
+The manifest has target fields, but the benchmark runner does not use them to target the exact incident.
+
+|
+|
+
+Structured defect contract
+
+|
+
+Partial
+
+|
+
+New structured fields exist, but the runner still uses description matching to identify findings.
+
+|
+|
+
+Seeded defect verification
+
+|
+
+Partial
+
+|
+
+Preconditions and postconditions are declared, but several seed mutations do not prove the intended defect.
+
+|
+|
+
+Benchmark authentication
+
+|
+
+Improved
+
+|
+
+Missing tokens now produce `INFRA_ERROR`; invalid credentials are checked.
+
+|
+|
+
+Benchmark ground truth
+
+|
+
+Partial
+
+|
+
+The truth manifest and metrics exist, but independent verification is not fully wired into scoring.
+
+|
+|
+
+LAYA migration
+
+|
+
+Partial
+
+|
+
+`LayaAdapter` is present and wired into `get_decision_engine()`, but the decision methods inspected are primarily keyword and rule-based.
+
+|
+|
+
+CI exclusions
+
+|
+
+Partial
+
+|
+
+Exclusions are documented, but several integration tests remain deselected.
+
+|
+|
+
+Terminal statuses
+
+|
+
+Improved
+
+|
+
+The exit criteria now include distinct states such as `INCONCLUSIVE` and `INFRA_ERROR`.
+
+|
+|
+
+Versioned benchmark manifest
+
+|
+
+Added
+
+|
+
+A manifest and proposed scoring gates are present, but reproducibility and runtime binding still need verification.
+
+|
+|
+
+Human intervention tracking
+
+|
+
+Still open
+
+|
+
+The benchmark script still hardcodes `human_intervention_steps=0`.
+
+|
+|
+
+Live benchmark evidence
+
+|
+
+Not verified
+
+|
+
+No independently verified live benchmark result was available in the reviewed evidence.
+
+|
+
+
+# 2. Critical findings in the current code
+
+These are the issues that matter most. They are based on the code I inspected, not merely on the commit descriptions.
+
+## P0 — Benchmark execution still has a fundamental gap
+
+### A. Exact target record is not passed to the agent
+
+In `scripts/run_incident_benchmark.py`, the code checks `defect.target_sys_id`, but the request to `/api/v1/runs` contains only:
+
+* `goal`
+
+* `persona`
+
+The preliminary GET request checks `/api/v1/runs`, not the intended incident record.
+
+Impact: A scenario can execute without proving that the agent tested the exact seeded incident.
+
+### B. Text-based matching remains
+
+The runner still compares a finding's description with the defect description using string matching.
+
+Impact: A finding that mentions similar text can be counted as a detection without verifying the defect's actual identity or condition.
+
+### C. Seeded defects are not consistently proven
+
+In `scripts/seed_golden_environment.py`, examples include:
+
+* Setting an assignment group to `"Software"` does not independently prove the routing rule is violated.
+
+* Setting the incident state to `"2"` does not prove an SLA breach.
+
+* Setting the assignment group to `"Network"` does not prove a notification failed.
+
+* An ACL scenario that creates a record does not prove that the intended persona cannot access it.
+
+Impact: The benchmark can measure whether the agent recognizes a description rather than whether it detects a real, verified defect.
+
+## P1 — LAYA is wired in, but its actual decision behavior needs work
+
+The new files include:
+
+* `src/agent/decision/laya_adapter.py`
+
+* `src/agent/decision/laya_contract.py`
+
+The adapter is connected through `get_decision_engine()` in `src/agent/api/v1/dependencies.py`.
+
+However, the inspected decision methods use keyword matching and hardcoded confidence values. For example:
+
+* Intent classification matches strings against a supported-intent set.
+
+* Risk classification uses keywords such as `delete`, `close`, and `assign`.
+
+* Verification decisions depend on a fixed list of keywords.
+
+* Escalation uses a hardcoded confidence threshold of `0.5`.
+
+Impact: The code has a LAYA-shaped interface, but I could not verify that the intended LAYA model is actually performing inference for these decisions. The adapter should not be treated as a fully integrated, model-backed decision layer yet.
+
+## P2 — CI and benchmark reporting remain incomplete
+
+* CI still deselects six integration test modules.
+
+* The latest commit's combined status query returned no status checks.
+
+* The benchmark script still hardcodes human intervention to zero.
+
+* The benchmark runner calculates metrics from the returned `ScenarioResult`, but the runner's input is not yet backed by a complete independent verification pipeline.
+
+These gaps mean that the latest merge improves implementation structure, but it does not establish that the complete UAT workflow is functioning reliably.
+
+# 3. What this means for the score
+
+|
+Assessment dimension
+
+|
+
+Current position
 
 |
 | --- | --- |
 |
 
-5/10
+Core architecture
 
 |
 
-Core agent architecture exists, but end-to-end reliability and evidence are insufficient.
-
-|
-|
-
-7/10
-
-|
-
-Repeatable end-to-end workflows, real seeded defects, trustworthy defect detection, and measurable reliability.
+Broad component architecture is present.
 
 |
 |
 
-8/10
+LAYA integration
 
 |
 
-Strong performance across varied scenarios, recovery from common UI failures, low false-positive rates, and reliable audit trails.
+Adapter and typed contract exist; model-backed decision behavior is unverified.
 
 |
 |
 
-9/10
+Benchmark implementation
 
 |
 
-High reliability across unseen scenarios, robust recovery, calibrated decisions, reproducible benchmarks, and behavior approaching a skilled human tester on a defined task set.
+Improved, but target binding and independent ground truth remain incomplete.
+
+|
+|
+
+Browser execution
 
 |
 
-These are proposed evaluation thresholds, not an independently validated industry-standard grading rubric. A 9/10 score should not be awarded simply because the architecture looks sophisticated.
-
-# 2. Master issue and remediation table
-
-The following table prioritizes the gaps identified in the previous review. File names are based on the previously inspected repository structure; exact line numbers and patch locations must be confirmed against the current branch before implementation.
-
-## P0 — Blockers to trustworthy scoring
-
-These need to be fixed before using benchmark results to claim a 7+ score.
+Existing execution stack remains, but full human-like recovery is not independently verified.
 
 |
-ID
+|
+
+Evidence quality
 
 |
 
-Issue / why it matters
+No verified live benchmark results.
+
+|
+|
+
+Evidence-adjusted score
+
+|
+
+4.8/10 — unchanged
+
+|
+
+I would not raise the score to 5.5 or 6 simply because PRs #50 and #51 merged. The critical benchmark gaps are still visible in the code.
+
+
+# 4. Exact next changes — in priority order
+
+|
+Priority
+
+|
+
+File / component
 
 |
 
 Exact change required
 
 |
-
-How to verify
-
-|
-| --- | --- | --- | --- |
-|
-
-P0-01
-
-|
-
-Benchmark can return misleading results because it does not reliably target the intended seeded records.
-
-|
-
-In `scripts/run_incident_benchmark.py`, read each manifest entry's `sys_id` and `number`. Pass the exact record identifier into the scenario execution request. Verify the record identity before starting. Fail the run if the target cannot be resolved.
-
-|
-
-Seed 10 incidents. Confirm each run targets the exact intended `sys_id` and incident number. Deliberately supply an invalid ID and verify the run fails rather than silently testing another record.
-
-|
-|
-
-P0-02
-
-|
-
-Defect detection relies on matching finding descriptions against defect descriptions using text inclusion. This can create false positives and false negatives.
-
-|
-
-Replace description-substring matching with a structured defect contract: `defect_id`, `target_record`, `expected_condition`, `observed_condition`, `evidence_refs`, `severity`, and `verification_status`. Match findings to defect IDs and validate evidence against the expected condition.
-
-|
-
-Run known defect and clean-control scenarios. Verify the correct defect is detected and semantically unrelated findings are rejected.
-
-|
-|
-
-P0-03
-
-|
-
-Seeded scenarios may not create the actual defect they claim to represent.
-
-|
-
-In `scripts/seed_golden_environment.py`, define each defect as a precondition, a real ServiceNow state mutation, an independently checked postcondition, and a cleanup operation. Remove or relabel scenarios that cannot prove their intended defect.
-
-|
-
-After seeding, use an independent verifier to confirm each defect exists. After cleanup, verify the environment returns to its baseline.
-
-|
-|
-
-P0-04
-
-|
-
-Benchmark reports may count a scenario as successful without proving the actual outcome.
-
-|
-
-In `src/agent/testing/benchmark_runner.py`, calculate TP, FP, FN, and TN from independently verified ground truth and the agent's structured findings—not from its own narrative or self-reported result.
-
-|
-
-Inject known defects and clean controls. Compare benchmark metrics against a manually verified expected confusion matrix.
-
-|
-|
-
-P0-05
-
-|
-
-Live benchmark execution may be blocked or ambiguous when `admin_token` is missing.
-
-|
-
-In `scripts/run_incident_benchmark.py`, validate authentication before the benchmark starts. Return a clear setup error if credentials are absent or invalid. Do not report an unexecuted benchmark as a pass.
-
-|
-
-Run with no token, an invalid token, and a valid token. Confirm the first two fail clearly and the valid run reaches the benchmark execution stage.
-
-|
-|
-
-P0-06
-
-|
-
-CI exclusions may hide regressions in important functionality.
-
-|
-
-Review the excluded tests in `.github/workflows/ci.yml`. Remove exclusions for critical execution, findings persistence, authentication, and benchmark logic after fixing their underlying failures. Separate optional environment-dependent tests from mandatory tests.
-
-|
-
-Run CI from a clean checkout. Publish the complete test summary and the exact list of remaining exclusions.
-
-|
-|
-
-P0-07
-
-|
-
-No independently verified live benchmark currently supports a higher evidence-adjusted score.
-
-|
-
-Create a versioned benchmark manifest, seeded environment, independent oracle, execution logs, and a reproducible report. Include clean controls and intentionally injected defects.
-
-|
-
-Run the full benchmark twice against the same environment. Confirm stable ground truth, explain any run-to-run variation, and preserve raw results.
-
-|
-
-P0 completion gate: No benchmark pass unless the target record, defect precondition, actual execution, final state, and evidence are independently verifiable.
-
-## P1 — LAYA integration and agent reliability
-
-These changes are needed to make the system more consistent and to replace JEV without introducing another opaque decision layer.
-
-|
-ID
-
-|
-
-Issue / why it matters
-
-|
-
-Exact change required
-
-|
-
-How to verify
-
-|
-| --- | --- | --- | --- |
-|
-
-P1-01
-
-|
-
-JEV-specific integration must be removed from the active decision path.
-
-|
-
-In `src/agent/api/v1/dependencies.py`, replace the `JEVAdapter(settings)` initialization with a dedicated `LayaAdapter`. Remove JEV-specific configuration and imports from active code. Preserve the existing dependency injection pattern.
-
-|
-
-Start the application with LAYA enabled. Confirm logs show LAYA initialized and no JEV adapter is constructed or called.
-
-|
-|
-
-P1-02
-
-|
-
-LAYA must not be treated as a generative planner or browser executor.
-
-|
-
-Create a typed LAYA decision contract for routing, intent, risk, and escalation. Keep planning in the existing reasoning component and browser execution in Playwright. LAYA should return bounded decisions that the orchestrator validates before acting.
-
-|
-
-Inspect traces for a complete run. Confirm LAYA emits typed decisions, the planner produces steps, and Playwright performs actions.
-
-|
-|
-
-P1-03
-
-|
-
-Confidence-based decisions may be unreliable if thresholds are arbitrary.
-
-|
-
-Add a configurable confidence policy to the LAYA adapter. Define thresholds using a labelled validation set, with explicit fallback behavior for low-confidence, contradictory, or malformed decisions.
-
-|
-
-Evaluate thresholds on held-out labelled cases. Report accuracy at each automation coverage level and the escalation rate.
-
-|
-|
-
-P1-04
-
-|
-
-LAYA may classify a decision correctly in simple cases but fail on nuanced UI states.
-
-|
-
-Restrict LAYA to decision types that pass measured validation. Keep complex reasoning, visual interpretation, and multi-step planning in their existing components. Use a fallback or human review for unsupported decision categories.
-
-|
-
-Test simple routing, ambiguous incidents, conflicting instructions, and unsupported states. Verify that uncertain decisions are escalated rather than blindly executed.
-
-|
-|
-
-P1-05
-
-|
-
-LAYA model loading and concurrent requests may cause startup or inference problems.
-
-|
-
-Load the model once during application startup, perform a warm-up, and serialize inference through a lock or bounded queue if the serving setup requires it. Add readiness and inference health checks.
-
-|
-
-Test cold startup, warm inference, concurrent requests, model load failure, and memory pressure. Verify predictable behavior and recovery.
-
-|
-|
-
-P1-06
-
-|
-
-The adapter may silently fall back to another decision path without traceability.
-
-|
-
-Add explicit provider selection and fallback reasons to run metadata. Distinguish LAYA decision, reasoning-model fallback, and human escalation. Fail closed for actions that require a validated decision.
-
-|
-
-Disable LAYA and trigger an inference error. Confirm the fallback is recorded and unsafe actions are blocked.
-
-|
-|
-
-P1-07
-
-|
-
-LAYA outputs may be poorly calibrated for this project's ServiceNow-specific data.
-
-|
-
-Build a labelled dataset of representative incident states, UI observations, and decision outcomes. Compare alternative question phrasings and calibrate thresholds on held-out data. Fine-tune only if evaluation demonstrates a need.
-
-|
-
-Report per-class accuracy, calibration, coverage, and escalation rate on data not used for calibration.
-
-|
-|
-
-P1-08
-
-|
-
-The skill registry currently registers IncidentSkill but excludes ChangeSkill, based on the prior review.
-
-|
-
-Confirm whether Change Management is in scope. If it is, register and validate `ChangeSkill` through the same skill interface. If it is out of scope, explicitly mark it unsupported rather than implying broad workflow coverage.
-
-|
-
-Run an incident workflow and a change workflow. Confirm supported workflows execute and unsupported ones are clearly rejected.
-
-|
-
-LAYA's own documentation recommends evaluating it on labelled examples, setting thresholds from observed error costs, and escalating uncertain decisions. Its confidence scores are not proof that a decision is correct.
-
-![](https://www.google.com/s2/favicons?domain=https://github.com\&sz=32)
-
-GitHub
-
-+1
-
-
-## P2 — Make browser execution behave more like a human tester
-
-These changes focus on the gap between a script that clicks through a workflow and an agent that can observe, reason, recover, and verify outcomes.
-
-|
-ID
-
-|
-
-Issue / why it matters
-
-|
-
-Exact change required
-
-|
-
-How to verify
-
-|
-| --- | --- | --- | --- |
-|
-
-P2-01
-
-|
-
-The agent may rely too heavily on a single locator or UI representation.
-
-|
-
-In `src/agent` browser interaction modules, use a locator strategy with this order: semantic role/label, stable DOM attributes, verified DOM locator, then Moondream visual grounding. Validate the target before acting.
-
-|
-
-Change labels, reorder fields, and alter nonessential layout. Confirm the agent still finds the correct control or safely stops.
-
-|
-|
-
-P2-02
-
-|
-
-Visual grounding can identify an element but still click the wrong target.
-
-|
-
-In the browser interaction and grounding flow, validate the target using the current screenshot, element bounds, visibility, enabled state, and surrounding DOM context. Re-observe before clicking if the page has changed.
-
-|
-
-Test overlapping elements, hidden controls, stale screenshots, and similar-looking buttons. Confirm no action is taken on an unverified target.
-
-|
-|
-
-P2-03
-
-|
-
-The agent may continue after an action fails or the page changes unexpectedly.
-
-|
-
-Add an action state machine: `OBSERVE → PLAN → ACT → WAIT → VERIFY → CONTINUE/RECOVER`. Record each transition and stop after a bounded number of failed recovery attempts.
-
-|
-
-Inject a delayed page load, failed click, modal, and unexpected navigation. Confirm the agent re-observes and recovers or stops safely.
-
-|
-|
-
-P2-04
-
-|
-
-Fixed sleeps and brittle timing can cause intermittent failures.
-
-|
-
-Replace fixed delays with explicit waits for expected DOM state, navigation, network-idle conditions where appropriate, or application-specific readiness indicators. Set bounded timeouts.
-
-|
-
-Run the same scenario under normal and deliberately slow page loads. Compare timeout and completion rates.
-
-|
-|
-
-P2-05
-
-|
-
-Form submission may be treated as success without checking the saved record.
-
-|
-
-After creating or updating a record, read the record back through the ServiceNow API or an independent UI verification step. Compare requested values with persisted values.
-
-|
-
-Submit a record with multiple fields. Confirm each required field persisted correctly and that the final state matches the expected state.
-
-|
-|
-
-P2-06
-
-|
-
-Agent may not recover from stale references or invalid form state.
-
-|
-
-On a failed interaction, invalidate stale element references, capture a new observation, reassess the target, and replan within a bounded recovery policy.
-
-|
-
-Force a form refresh and a stale locator. Verify the agent re-observes instead of repeating the same failed action indefinitely.
-
-|
-|
-
-P2-07
-
-|
-
-The system may miss defects outside the primary incident flow.
-
-|
-
-Expand the scenario library to cover field validation, assignment, state transitions, permissions, notifications, and SLA-related behavior where supported by the test environment.
-
-|
-
-Run each scenario against both a defect and a clean control. Verify the oracle can distinguish them.
-
-|
-|
-
-P2-08
-
-|
-
-The agent may report completion without checking all acceptance criteria.
-
-|
-
-Introduce a structured completion contract with preconditions, required actions, postconditions, evidence, and a terminal status. Only return `PASSED` if every mandatory postcondition is verified.
-
-|
-
-Make one required postcondition fail while the rest pass. Confirm the overall result is `FAILED` or `INCONCLUSIVE`, not `PASSED`.
-
-|
-|
-
-P2-09
-
-|
-
-Retries can duplicate records or repeat non-idempotent actions.
-
-|
-
-Add action idempotency keys where supported, check whether the action already succeeded before retrying, and distinguish safe retries from actions requiring human approval.
-
-|
-
-Simulate a timeout after a successful record creation. Confirm retry logic does not create a duplicate.
-
-|
-|
-
-P2-10
-
-|
-
-Navigation and UI recovery may be inconsistent across application pages.
-
-|
-
-Centralize page-state recognition, navigation validation, modal handling, and recovery rules in the existing browser interaction layer rather than duplicating them across skills.
-
-|
-
-Test page navigation, unexpected dialogs, session timeout, and return-to-record behavior. Verify consistent recovery.
-
-|
-
-### The intended execution loop
-
-1. Observe
-
-Capture DOM, screenshot, relevant console/network signals, current URL, and application state.
-
-2. Decide and plan
-
-LAYA handles validated typed decisions. The existing reasoning component plans the next action using the current observation.
-
-3. Ground and execute
-
-Use DOM locators first where reliable, Moondream for visual grounding when needed, Gemini as the existing fallback, and Playwright for actions.
-
-4. Verify
-
-Check the actual persisted state against the expected postconditions using an independent source of truth.
-
-5. Recover or finish
-
-Retry safely, re-observe and replan, escalate to a human, or finish with an evidence-backed result.
-
-## P3 — Observability, reproducibility, and product maturity
-
-|
-ID
-
-|
-
-Issue / why it matters
-
-|
-
-Exact change required
-
-|
-
-How to verify
-
-|
-| --- | --- | --- | --- |
-|
-
-P3-01
-
-|
-
-Findings and run counts can become inconsistent.
-
-|
-
-Preserve the existing findings persistence fixes. Add database-level consistency checks for `Run.defect_count`, `Run.findings_count`, and the associated findings records.
-
-|
-
-Create, update, and retry runs. Confirm counts match persisted records and no duplicate findings appear.
-
-|
-|
-
-P3-02
-
-|
-
-A finding may lack enough evidence for a human to validate it.
-
-|
-
-Require evidence references containing screenshot path or ID, relevant DOM snapshot, target record, expected/observed state, and timestamps. Redact credentials and sensitive data.
-
-|
-
-Open each finding and verify that a reviewer can independently understand and reproduce the claim.
-
-|
-|
-
-P3-03
-
-|
-
-Results may not be reproducible across model or code changes.
-
-|
-
-Store repository commit, configuration version, LAYA checkpoint/version, model provider, prompt or decision schema version, and benchmark manifest hash with every run.
-
-|
-
-Re-run a stored scenario using the recorded configuration. Confirm the environment and decision path are identifiable.
-
-|
-|
-
-P3-04
-
-|
-
-There may be no clear separation between product defects and environment failures.
-
-|
-
-Add distinct terminal states such as `PASSED`, `FAILED`, `INCONCLUSIVE`, `BLOCKED`, and `INFRA_ERROR`. Define when each is permitted.
-
-|
-
-Simulate a genuine defect, an authentication failure, a network outage, and an ambiguous observation. Confirm each receives the correct status.
-
-|
-|
-
-P3-05
-
-|
-
-A single aggregate score can hide critical failure modes.
-
-|
-
-Report per-scenario metrics, per-defect-type recall, false-positive rate, recovery success, and confidence intervals alongside the aggregate score.
-
-|
-
-Confirm the report exposes failures even when aggregate accuracy is high.
-
-|
-|
-
-P3-06
-
-|
-
-Test data and application state may contaminate repeated runs.
-
-|
-
-Add environment reset and cleanup procedures, unique run identifiers, and isolation between benchmark scenarios.
-
-|
-
-Execute the benchmark repeatedly. Verify each run starts from the expected baseline and leaves no unintended residual records.
-
-|
-|
-
-P3-07
-
-|
-
-Human intervention and recovery may be reported inaccurately.
-
-|
-
-Replace hardcoded `human_intervention_steps=0` with event-based counting of actual intervention, approval, and escalation events.
-
-|
-
-Force a human approval step. Confirm it is recorded and included in the appropriate metric.
-
-|
-|
-
-P3-08
-
-|
-
-There may be insufficient evidence of runtime stability.
-
-|
-
-Add structured logs, bounded retries, timeouts, readiness checks, and metrics for inference latency, browser action latency, and run duration.
-
-|
-
-Run a sustained workload and verify error rates, resource usage, timeouts, and recovery behavior.
-
-|
-
-# 3. Exact LAYA integration design
-
-The LAYA change should be implemented as a bounded adapter, not as a wholesale rewrite of the current architecture.
-
-ServiceNow UAT API / Run Manager
-
-Accepts the test objective and creates a run.
-
-Existing Orchestrator + LAYA Adapter
-
-LAYA classifies the observed state, routes a supported decision, or requests escalation. The orchestrator owns task state and execution control.
-
-Existing Reasoning and Planning Layer
-
-NVIDIA reasoning model plans the next steps from the objective and current observations.
-
-Observation and Grounding
-
-DOM, console, network and page-state observations → direct DOM locator → Moondream → Gemini fallback.
-
-Playwright Action Executor
-
-Performs the browser action, waits for the expected state, and returns execution evidence.
-
-Independent Verification and Findings
-
-Checks persisted state against the scenario oracle, records findings, and determines the terminal run status.
-
-### LAYA decision contract
-
-The adapter should accept a compact state and return a typed decision. A suitable initial contract is:
-
-|
-Decision
-
-|
-
-Purpose
-
-|
-
-Required behavior
-
-|
 | --- | --- | --- |
 |
 
-`intent`
+P0
 
 |
 
-Identify the requested test operation.
+`scripts/run_incident_benchmark.py`
 
 |
 
-Select from a bounded set of supported operations.
+Load the seeded manifest and pass the exact `target_sys_id` into the test execution context. Verify that the run is bound to the intended record.
 
 |
 |
 
-`route`
+P0
 
 |
 
-Choose a supported workflow or skill.
+Benchmark finding evaluator
 
 |
 
-Reject unsupported workflow categories.
+Replace description matching with structured defect-ID matching and independent verification of the observed condition.
 
 |
 |
 
-`risk`
+P0
 
 |
 
-Classify whether the next action needs additional controls.
+`scripts/seed_golden_environment.py`
 
 |
 
-Escalate actions that exceed the configured safety policy.
+Verify every injected defect through ServiceNow after seeding. Reject scenarios whose intended defect cannot be proven.
 
 |
 |
 
-`verification_needed`
+P0
 
 |
 
-Decide whether a condition requires an independent check.
+`src/agent/testing/benchmark_runner.py`
 
 |
 
-Require verification for every mandatory postcondition, regardless of model confidence.
+Calculate TP/FP/FN using verified ground truth. Add true-negative counts and false-positive-rate calculation.
 
 |
 |
 
-`escalation`
+P1
 
 |
 
-Decide whether to continue, request a fallback, or involve a human.
+`src/agent/decision/laya_adapter.py`
 
 |
 
-Escalate when the input is ambiguous, confidence is insufficient, or the action is unsupported.
+Connect the actual LAYA inference mechanism, validate its typed output, and remove heuristic-only decision paths where LAYA is intended to make the decision.
 
 |
-
-Important: LAYA's output should not be allowed to bypass deterministic validation, authorization, or the scenario's required verification steps.
-
-For the first implementation, start with intent classification, supported-workflow routing, and escalation. Add more decision types only after measuring their accuracy on labelled ServiceNow data.
-
-
-# 4. Benchmark design: how to prove the agent works
-
-The biggest scoring improvement will come from making the benchmark trustworthy, not from adding more models.
-
-## A. Build a real golden test environment
-
-Every benchmark scenario should have the following structure:
-
-|
-Field
-
-|
-
-Required content
-
-|
-| --- | --- |
-|
-
-`scenario_id`
-
-|
-
-Stable unique identifier
-
-|
-|
-
-`defect_id`
-
-|
-
-Unique defect type or `null` for a clean control
-
-|
-|
-
-`target_sys_id`
-
-|
-
-Exact ServiceNow record identifier
-
-|
-|
-
-`preconditions`
-
-|
-
-Verified initial state
-
-|
-|
-
-`injected_defect`
-
-|
-
-Actual defect mutation, if applicable
-
-|
-|
-
-`expected_behavior`
-
-|
-
-What a human tester should observe
-
-|
-|
-
-`required_actions`
-
-|
-
-Actions the agent is expected to perform
-
-|
-|
-
-`expected_postconditions`
-
-|
-
-Conditions that must hold at the end
-
-|
-|
-
-`oracle_result`
-
-|
-
-Independently verified ground truth
-
-|
-|
-
-`evidence_requirements`
-
-|
-
-Evidence required to validate the result
-
-|
-|
-
-`cleanup`
-
-|
-
-How to restore the test environment
-
-|
-
-### Suggested initial scenario suite
-
-Start with a controlled set of scenarios. These are proposed test cases, not claims that the current repository already supports them.
-
-|
-Scenario
-
-|
-
-Injected condition
-
-|
-
-Expected result
-
-|
-| --- | --- | --- |
-|
-
-Clean incident
-
-|
-
-All required fields and state transitions are valid.
-
-|
-
-No defect reported.
-
-|
-|
-
-Assignment defect
-
-|
-
-Incident is assigned to an incorrect group.
-
-|
-
-Correct assignment defect identified.
-
-|
-|
-
-Missing mandatory field
-
-|
-
-Required field is empty.
-
-|
-
-Missing-field defect identified.
-
-|
-|
-
-Invalid state transition
-
-|
-
-Requested transition is not allowed.
-
-|
-
-Transition failure identified.
-
-|
-|
-
-Incorrect priority
-
-|
-
-Priority differs from the expected requirement.
-
-|
-
-Priority defect identified.
-
-|
-|
-
-Unauthorized access
-
-|
-
-User lacks permission for the intended operation.
-
-|
-
-Access failure identified without unauthorized modification.
-
-|
-|
-
-Notification defect
-
-|
-
-A controlled notification condition is deliberately broken.
-
-|
-
-Notification defect identified using actual delivery or event evidence.
-
-|
-|
-
-SLA defect
-
-|
-
-A real SLA condition is violated in a controlled environment.
-
-|
-
-SLA defect identified using the SLA record and applicable timing rules.
-
-|
-|
-
-UI layout variation
-
-|
-
-The same valid workflow is presented with changed layout or labels.
-
-|
-
-Correct workflow still executes or safely stops.
-
-|
-|
-
-Ambiguous task
-
-|
-
-The objective lacks a required field or has conflicting instructions.
-
-|
-
-Agent requests clarification or escalates.
-
-|
-
-For the first benchmark, prioritize incident workflows. Expand into Change Management only after the incident benchmark is stable and the corresponding skill is explicitly enabled.
-
-## B. Measure the correct metrics
-
-|
-Metric
-
-|
-
-Definition
-
-|
-
-What it reveals
-
-|
-| --- | --- | --- |
-|
-
-Defect recall
-
-|
-
-TP / (TP + FN)
-
-|
-
-How many real defects are found
-
-|
-|
-
-Precision
-
-|
-
-TP / (TP + FP)
-
-|
-
-How many reported defects are genuine
-
-|
-|
-
-False-positive rate
-
-|
-
-FP / (FP + TN)
-
-|
-
-How often clean scenarios are incorrectly flagged
-
-|
-|
-
-Clean-scenario pass rate
-
-|
-
-Correctly passed clean scenarios / all clean scenarios
-
-|
-
-Whether the agent avoids inventing defects
-
-|
-|
-
-Workflow success rate
-
-|
-
-Successfully completed supported workflows / attempted supported workflows
-
-|
-
-Whether the agent can execute the task
-
-|
-|
-
-Postcondition verification rate
-
-|
-
-Runs with independently verified mandatory postconditions / completed runs
-
-|
-
-Whether the agent actually checks the result
-
-|
-|
-
-Recovery success rate
-
-|
-
-Recoverable failures resolved without unsafe behavior / recoverable failures encountered
-
-|
-
-Whether the agent handles unexpected states
-
-|
-|
-
-Evidence completeness
-
-|
-
-Findings with all required evidence / total findings
-
-|
-
-Whether a human can audit the result
-
-|
-|
-
-Human intervention rate
-
-|
-
-Runs requiring human assistance / total runs
-
-|
-
-How much autonomous operation is achieved
-
-|
-|
-
-Median and p95 duration
-
-|
-
-Median and 95th-percentile run time
-
-|
-
-Speed and consistency
-
-|
-
-Report these separately. A high workflow completion rate does not prove good defect detection, and a high defect recall does not prove that the agent can complete workflows.
-
-# 5. Exact verification plan
-
-Use the following sequence to validate the changes after implementation.
-
-Stage 1
-
-Static and unit verification
-
-1. Run the project's linting, type checks, and unit tests.
-
-2. Test the LAYA adapter independently with valid, invalid, ambiguous, and low-confidence inputs.
-
-3. Test benchmark manifest parsing, target record resolution, defect mapping, and metric calculations.
-
-4. Test findings persistence, duplicate prevention, and run-count consistency.
-
-Stage 2
-
-Integration verification
-
-1. Start the existing application using the current non-Docker local setup.
-
-2. Verify LAYA startup, readiness, inference, fallback, and escalation behavior.
-
-3. Execute a single seeded incident workflow and independently inspect the persisted record.
-
-4. Verify that screenshots, findings, logs, and run status are linked to the same run ID.
-
-Stage 3
-
-Golden benchmark verification
-
-1. Seed a controlled batch of defects and clean controls.
-
-2. Verify the seed state independently before launching the agent.
-
-3. Run the benchmark without manual intervention unless the scenario explicitly requires it.
-
-4. Compare the agent's findings with independently verified ground truth.
-
-5. Repeat the benchmark to measure consistency and identify flaky scenarios.
-
-Stage 4
-
-Robustness and human-like behavior
-
-1. Test changed UI layouts, slow page loads, stale locators, unexpected dialogs, and navigation failures.
-
-2. Test permission failures, invalid state transitions, missing fields, and ambiguous requirements.
-
-3. Verify the agent can recover, re-observe, replan, or stop safely.
-
-4. Review a sample of complete execution traces manually against the intended human testing procedure.
-
-# 6. Scoring gates: what it takes to move forward
-
-The following are proposed project acceptance thresholds. They are deliberately separated from the current assessment score.
-
-|
-Target
-
-|
-
-Proposed acceptance criteria
-
-|
-| --- | --- |
-|
-
-7/10
-
-|
-
-At least 90% workflow success on the supported benchmark; defect recall and precision each at least 90%; clean-scenario false-positive rate at most 5%; mandatory postcondition verification at least 95%; reproducible benchmark with independent ground truth.
-
 |
-|
-
-8/10
-
-|
-
-At least 95% workflow success; defect recall and precision each at least 95%; false-positive rate at most 3%; recovery success at least 85% on recoverable failures; strong evidence completeness and repeatability across UI variations.
-
-|
-|
-
-9/10
-
-|
-
-At least 98% workflow success and defect recall/precision on a broad, held-out scenario set; false-positive rate at most 1%; recovery success at least 95%; very high postcondition verification and evidence completeness; reliable handling of unseen but supported variations.
-
-|
-
-These thresholds are targets, not guarantees. Report sample sizes and confidence intervals. A small test set cannot establish 98% reliability with meaningful confidence.
-
-Hard gates for every score:
-
-* No unsupported claims of successful execution.
-
-* No silent fallback from LAYA to another decision path.
-
-* No unverified seeded defects counted as ground truth.
-
-* No critical authorization or data-integrity failures.
-
-* No benchmark pass if required postconditions were not checked.
-
-
-# 7. Implementation order: what to do first
-
-Do not implement every item simultaneously. Fix the evidence pipeline first, then integrate LAYA, then improve browser reliability.
-
-|
-Phase
 
-|
-
-Work items
-
-|
-
-Completion condition
-
-|
-| --- | --- | --- |
-|
-
-Phase 1 — Benchmark integrity
-
-|
-
-P0-01 through P0-07
-
-|
-
-Seeded defects, exact targets, independent oracle, and trustworthy metrics.
-
-|
-|
-
-Phase 2 — LAYA migration
+P1
 
 |
 
-P1-01 through P1-07
+`src/agent/api/v1/dependencies.py`
 
 |
 
-JEV removed from the active path; LAYA adapter tested, calibrated, and integrated with existing orchestration.
+Make LAYA startup, readiness, fallback, and failure behavior explicit. Ensure fallback decisions are recorded.
 
 |
 |
 
-Phase 3 — Human-like execution
+P1
 
 |
 
-P2-01 through P2-10
+CI workflow
 
 |
 
-Observe–plan–act–verify loop, robust grounding, recovery, and independently checked postconditions.
+Fix the causes of the excluded integration tests and restore them incrementally as mandatory checks.
 
 |
 |
 
-Phase 4 — Coverage and auditability
+P2
 
 |
 
-P1-08 and P3-01 through P3-08
+Benchmark reporting
 
 |
 
-Expanded supported workflows, complete evidence, reliable persistence, and reproducible runs.
+Replace hardcoded human intervention counts with actual event-based tracking.
 
 |
 |
 
-Phase 5 — Score validation
+P2
 
 |
 
-Full benchmark and robustness suite
+End-to-end execution
 
 |
 
-Publish measured results, failure analysis, and the score justified by evidence.
+Verify the full observe → plan → act → verify → recover flow against real seeded incidents.
 
 |
-
-## 8. Immediate next steps
-
-Implementation checklist
-
-0/8
-
-Audit the latest branch and confirm the exact files and remaining JEV references.
-
-Fix benchmark targeting using the exact ServiceNow sys_id and incident number.
-
-Implement independent ground-truth verification and remove text-substring defect matching.
-
-Repair the seed script so every scenario creates a verifiable defect and has a clean control.
 
-Replace JEV initialization with a LAYA adapter while preserving existing orchestration and browser architecture.
+## 5. What to run next
 
-Build a labelled ServiceNow dataset and validate LAYA decisions and escalation thresholds.
+The next meaningful milestone is not another architecture change. It is a verified live benchmark.
 
-Implement and test the observe → plan → act → verify → recover loop.
+1. Seed a controlled ServiceNow subproduction environment.
 
-Run the golden benchmark and publish precision, recall, workflow success, false-positive rate, and recovery metrics.
+2. Verify each seeded defect independently.
 
-Copy checklist
+3. Run each scenario against its exact target record.
 
-## Final recommendation
+4. Compare the findings with independent ground truth.
 
-The three highest-impact changes are:
+5. Repeat the scenarios to measure consistency.
 
-1. Make the benchmark trustworthy with exact record targeting, real seeded defects, and independent verification.
+6. Publish recall, precision, false-positive rate, workflow success, recovery rate, and evidence completeness.
 
-2. Replace JEV with LAYA as a bounded decision component, while retaining the existing reasoning, Moondream/Gemini grounding, and Playwright execution architecture.
+## Bottom line
 
-3. Make every run prove its outcome through persisted-state verification, structured evidence, and a reliable recovery loop.
+The repository has moved forward structurally, and the LAYA migration has started. But the critical benchmark integrity problems are not fully resolved.
 
-The previous 4.8/10 evidence-adjusted assessment should not be raised simply because LAYA is integrated. The score should move only when the system demonstrates measurable improvements on the same controlled benchmark, with reproducible results and no critical failures.
+The most important remaining fix is to make the benchmark prove that the agent detected the correct defect on the correct ServiceNow record. Until that works and produces repeatable live results, the evidence-adjusted score remains 4.8/10.
