@@ -7,7 +7,10 @@ These learnings influence future planning and decision-making.
 
 from __future__ import annotations
 
-import fcntl
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
 import json
 import os
 import tempfile
@@ -153,7 +156,7 @@ class KnowledgeMemory:
             # (automatically at end of `with` block).
             with open(lockfile_path, "w") as lockf:
                 try:
-                    fcntl.flock(lockf.fileno(), fcntl.LOCK_EX)
+                    if fcntl: fcntl.flock(lockf.fileno(), fcntl.LOCK_EX)
                 except (OSError, ValueError):
                     # flock not supported (Windows) — proceed without lock;
                     # the os.replace atomicity still protects against

@@ -11,7 +11,7 @@ class Tenant(Base):
 
     __tablename__ = "tenants"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(__import__("uuid").uuid4()))
     name = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -21,7 +21,7 @@ class User(Base):
 
     __tablename__ = "users"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(__import__("uuid").uuid4()))
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
     username = Column(String, unique=True, nullable=False, index=True)
     hashed_password = Column(String, nullable=False)
@@ -34,7 +34,7 @@ class Run(Base):
 
     __tablename__ = "runs"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(__import__("uuid").uuid4()))
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
     requester_id = Column(String, ForeignKey("users.id"), nullable=True)
     goal = Column(String, nullable=False)
@@ -53,7 +53,7 @@ class Finding(Base):
 
     __tablename__ = "findings"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(__import__("uuid").uuid4()))
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
     run_id = Column(String, ForeignKey("runs.id"), nullable=False, index=True)
     capability = Column(String, nullable=False)
@@ -69,7 +69,7 @@ class Screenshot(Base):
 
     __tablename__ = "screenshots"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(__import__("uuid").uuid4()))
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
     run_id = Column(String, ForeignKey("runs.id"), nullable=True, index=True)
     filename = Column(String, nullable=False, index=True)
@@ -81,7 +81,7 @@ class TestCaseModel(Base):
 
     __tablename__ = "test_cases"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=lambda: str(__import__("uuid").uuid4()))
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
     story_id = Column(String, nullable=True, index=True)
     title = Column(String, nullable=False)
