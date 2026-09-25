@@ -125,12 +125,17 @@ class TestReport(BaseModel):
         default_factory=list,
         description="Acceptance-criterion IDs tested during this run.",
     )
-    # INC-UAT-15 (Minor, D8): exit-criteria engine verdict. If populated,
-    # this gives human project leads a deterministic go/no-go decision
-    # package instead of requiring manual coverage interpretation.
+    # INC-UAT-15 (Minor, D8): exit-criteria engine verdict.
     exit_criteria: dict[str, Any] | None = Field(
         default=None,
         description="Deterministic exit-criteria verdict from IncidentExitCriteriaEngine.",
+    )
+    # P3-03: reproducibility metadata — stores the exact config version,
+    # repo commit, model versions, and manifest hash with every run so
+    # results can be reproduced and compared across changes.
+    reproducibility: dict[str, Any] | None = Field(
+        default=None,
+        description="Reproducibility metadata: repo_commit, config_version, model_versions, manifest_hash.",
     )
 
     # Metadata
