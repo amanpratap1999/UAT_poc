@@ -525,6 +525,25 @@ class DomainConfig(BaseSubConfig):
         return url
 
 
+class LayaConfig(BaseSubConfig):
+    """LAYA decision model configuration (P1-01).
+
+    LAYA replaces JEV in the decision layer. It is a typed-decision
+    model that classifies, routes, and scores information — NOT a
+    generative planner or browser executor.
+    """
+    model_config = SettingsConfigDict(
+        env_file_encoding="utf-8",
+        env_prefix="LAYA_",
+        extra="ignore",
+    )
+    enabled: bool = Field(default=False, description="Enable LAYA decision provider")
+    endpoint: str = Field(default="", description="LAYA API endpoint URL")
+    api_key: str = Field(default="", description="LAYA API key")
+    model: str = Field(default="", description="LAYA model identifier")
+    timeout: float = Field(default=30.0, description="Inference timeout in seconds")
+
+
 class Settings(BaseSubConfig):
     """Root application settings.
 
@@ -555,6 +574,7 @@ class Settings(BaseSubConfig):
     domain: DomainConfig = Field(default_factory=DomainConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
     safety_budgets: SafetyBudgetConfig = Field(default_factory=SafetyBudgetConfig)
+    laya: LayaConfig = Field(default_factory=LayaConfig)
 
     # Logging
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"

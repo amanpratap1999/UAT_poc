@@ -303,21 +303,36 @@ def get_decision_engine(settings: Settings | None = None) -> DecisionEngine:
     """
     llm = get_llm_client(settings, purpose='decision')
 
-    # INC-UAT-07: attempt to attach JEV as the default DecisionProvider.
-    # If JEV is not configured or fails to initialize, fall back to
-    # the internal LLM-based verification (backward compat).
+    # P1-01: LAYA replaces JEV as the default DecisionProvider.
+    # LAYA is a bounded typed-decision model that classifies, routes,
+    # and scores information — NOT a generative planner or browser executor.
+    # If LAYA is not configured or fails to initialize, fall back to
+    # the internal LLM-based verification (P1-06 fallback traceability).
     decision_provider = None
     try:
-        from agent.decision.jev_adapter import JEVAdapter
-        jev = JEVAdapter(settings)
+        from agent.decision.laya_adapter import LayaAdapter
+        laya = LayaAdapter(settings)
         # Only attach if the adapter loaded its config successfully
-        if jev.is_configured():
-            decision_provider = jev
-            logger.info("jev_decision_provider_attached")
+        if laya.is_configured():
+            # P1-05: warm up the model during startup
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # Can't await in a sync context — schedule warm-up
+                    loop.create_task(laya.warm_up())
+                else:
+                    loop.run_until_complete(laya.warm_up())
+            except Exception:
+                # Warm-up failure is non-fatal — LAYA will be used
+                # on first actual decision call
+                logger.warning("laya_warmup_skipped")
+            decision_provider = laya
+            logger.info("laya_decision_provider_attached")
         else:
-            logger.info("jev_not_configured_using_llm_fallback")
+            logger.info("laya_not_configured_using_llm_fallback")
     except Exception as e:
-        logger.warning("jev_adapter_init_failed", error=str(e))
+        logger.warning("laya_adapter_init_failed", error=str(e))
 
     return DecisionEngine(
         llm_client=llm,
