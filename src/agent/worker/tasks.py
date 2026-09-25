@@ -244,6 +244,40 @@ async def _run_agent_async(run_id: str, goal: str, tenant_id: str, test_case_id:
     if persona:
         settings.servicenow.active_persona = persona
     settings.servicenow.verify_persona_for_benchmark()
+
+    # INC-UAT-04 (Major): verify the logged-in user's actual ServiceNow
+    # role matches the expected role from the persona configuration.
+    # This is the runtime role introspection that makes the 'role' field
+    # in personas authoritative, not just a local label.
+    expected_role = settings.servicenow.get_persona_role()
+    if expected_role:
+        try:
+            from agent.skills.incident.role_verifier import RoleVerifier
+            verifier = RoleVerifier()
+            role_result = await verifier.verify_role(settings.servicenow, expected_role)
+            if not role_result["match"]:
+                raise RuntimeError(
+                    f"INC-UAT-04: Role mismatch — expected '{expected_role}' "
+                    f"but user has roles {role_result['actual_roles']}. "
+                    f"The persona's declared role does not match the actual "
+                    f"ServiceNow role."
+                )
+            logger.info(
+                "role_verified",
+                persona=persona,
+                expected_role=expected_role,
+                actual_roles=role_result["actual_roles"],
+            )
+        except RuntimeError:
+            raise  # re-raise role mismatch
+        except Exception as e:
+            logger.warning("role_verification_skipped", error=str(e))
+
+    # INC-UAT-03 (Major): enforce oracle persona constraint when a
+    # persona is active — the API oracle should only query persona-visible
+    # fields, not privileged server-side audit data.
+    if settings.servicenow.active_persona:
+        settings.servicenow.oracle_persona_constrained = True
     engine = create_async_engine(
         settings.domain.postgres_url,
         poolclass=NullPool,
