@@ -116,14 +116,18 @@ jobs:
       - name: Run integration tests (memory-backed only)
         env:
           SESSION_STORE_TYPE: memory
-        # Audit follow-up: the previous `|| true` here masked integration
-        # test failures so CI passed even when integration tests broke.
-        # Removed `|| true` so integration test failures actually fail CI
-        # (that's what an integration test gate is for). The explicit
-        # `--deselect` list skips the pre-existing collection-error tests
-        # that have nothing to do with the audit remediation work.
-        # If integration tests start failing, treat it as a real regression
-        # and fix the broken test — don't re-add `|| true`.
+        # P0-06: CI exclusions reviewed. The --deselect list skips tests
+        # that have pre-existing collection errors due to import-time DB
+        # connection attempts. These are NOT audit regressions — they're
+        # environment-dependent tests that require a live ServiceNow instance
+        # or have SQLAlchemy URL parsing issues at import time.
+        #
+        # Mandatory tests (unit + audit-remediation + step-cache) are NOT
+        # excluded — they run in the unit test step above.
+        #
+        # To fix these exclusions: make the DB/Redis imports lazy in the
+        # test files (import inside fixtures, not at module level).
+        # Until then, these tests are deselected to avoid false CI failures.
         run: |
           pytest tests/integration/ -v --tb=short --maxfail=10 \
             --deselect tests/integration/test_agent_loop.py \

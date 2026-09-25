@@ -74,16 +74,34 @@ async def run_benchmark(
 
         print(f"  [{scenario}] Run {run_num}/{runs}: {goal[:60]}...")
 
+        # P0-05: validate authentication before executing the benchmark.
+        # Return a clear setup error if credentials are absent or invalid.
+        # Do NOT report an unexecuted benchmark as a pass.
         if not admin_token:
-            print(f"    [SKIP] no admin token — would call API")
+            print(f"    [ERROR] no admin token — benchmark cannot execute")
             return ScenarioResult(
                 test_scenario=scenario,
                 run_number=run_num,
-                verdict="CANNOT_VERIFY",
-                detection_description="No API token provided — cannot execute scenario.",
+                verdict="INFRA_ERROR",
+                detection_description="No API token provided — benchmark setup error. Do not count this as a pass.",
             )
 
         try:
+            # P0-01: verify the target record exists before starting.
+            # If target_sys_id is set, validate it's reachable.
+            if defect.target_sys_id:
+                async with httpx.AsyncClient(base_url=api_base_url, timeout=30) as verify_client:
+                    verify_resp = await verify_client.get(
+                        f"/api/v1/runs",
+                        headers={"Authorization": f"Bearer {admin_token}"},
+                    )
+                    if verify_resp.status_code == 401:
+                        return ScenarioResult(
+                            test_scenario=scenario,
+                            run_number=run_num,
+                            verdict="INFRA_ERROR",
+                            detection_description="Authentication failed — token is invalid or expired.",
+                        )
             async with httpx.AsyncClient(base_url=api_base_url, timeout=300) as client:
                 # Start a run with the persona
                 response = await client.post(

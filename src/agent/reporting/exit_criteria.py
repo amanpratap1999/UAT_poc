@@ -23,9 +23,18 @@ logger = get_logger(__name__)
 
 @dataclass
 class ExitCriteriaResult:
-    """Deterministic exit-criteria verdict for an Incident UAT run."""
+    """Deterministic exit-criteria verdict for an Incident UAT run.
 
-    verdict: str  # "PASS" | "CONDITIONAL_PASS" | "FAIL" | "BLOCKED"
+    P3-04: distinct terminal states. Each state has a clear meaning:
+    - PASS: all requirements covered, no open defects, all retests passed
+    - CONDITIONAL_PASS: all major defects resolved, some caveats (minor defects, unverified items)
+    - FAIL: open major defects or retest failures or insufficient coverage
+    - BLOCKED: blockers prevent sign-off
+    - INCONCLUSIVE: not enough data to determine pass/fail (e.g., all runs errored)
+    - INFRA_ERROR: infrastructure failure (auth, network, DB, etc.) — not a product defect
+    """
+
+    verdict: str  # "PASS" | "CONDITIONAL_PASS" | "FAIL" | "BLOCKED" | "INCONCLUSIVE" | "INFRA_ERROR"
     reason: str
     requirements_covered: int = 0
     requirements_total: int = 0
@@ -84,10 +93,14 @@ class IncidentExitCriteriaEngine:
         retest_passed: int = 0,
         retest_failed: int = 0,
         blockers: list[str] | None = None,
+        infra_errors: int = 0,
+        total_runs: int = 0,
     ) -> ExitCriteriaResult:
         """Evaluate exit criteria and produce a deterministic verdict.
 
-        Decision rules (applied in order):
+        P3-04: Decision rules (applied in order):
+        0. INFRA_ERROR: all runs errored → infrastructure failure, not a product defect.
+        0. INCONCLUSIVE: not enough completed runs to determine pass/fail.
         1. BLOCKED: any blockers present → cannot proceed to sign-off.
         2. FAIL: open major defects > 0 → quality gate not met.
         3. FAIL: retest_failed > 0 → a fix was applied but retest failed.
@@ -117,6 +130,25 @@ class IncidentExitCriteriaEngine:
             retest_failed=retest_failed,
             blockers=blockers,
         )
+
+        # P3-04: Rule 0a — INFRA_ERROR (all runs errored)
+        if infra_errors > 0 and total_runs > 0 and infra_errors >= total_runs:
+            result.verdict = "INFRA_ERROR"
+            result.reason = (
+                f"All {infra_errors} run(s) failed with infrastructure errors — "
+                f"this is not a product defect. Check auth, network, and DB."
+            )
+            return result
+
+        # P3-04: Rule 0b — INCONCLUSIVE (not enough completed runs)
+        if total_runs > 0 and (infra_errors + unverified_items) >= total_runs:
+            result.verdict = "INCONCLUSIVE"
+            result.reason = (
+                f"Not enough completed runs to determine pass/fail — "
+                f"{infra_errors} infra errors, {unverified_items} unverified, "
+                f"out of {total_runs} total runs."
+            )
+            return result
 
         # Rule 1: BLOCKED
         if blockers:
