@@ -1,7 +1,9 @@
 #!/bin/bash
 # Runtime script — runs as postStartCommand (every time the container starts).
-# Starts API + worker, triggers a test run, collects evidence, pushes to git.
-# This MUST be non-fatal — a failure here should NOT block the editor.
+# Starts API + worker, triggers a test run, collects evidence, pushes to a new
+# evidence branch (NOT main directly — main has its own history and the push
+# would be rejected as non-fast-forward). The evidence branch is then merged
+# into main via the GitHub API by an external orchestrator.
 set -u
 
 echo "=== Codespace Runtime (postStart) ==="
@@ -60,7 +62,7 @@ else
     echo "[4/5] Skipping test run — no valid token"
 fi
 
-# 5. Collect + push evidence (best-effort, never fatal)
+# 5. Collect + push evidence to a NEW evidence branch (not main directly)
 echo "[5/5] Collecting evidence..."
 mkdir -p reports
 cp /tmp/readiness.json reports/readiness_probe.json 2>/dev/null || true
@@ -82,20 +84,33 @@ print(f'src/: {len(errors)} syntax errors')
 pytest tests/unit/ -v --tb=short > reports/test_suite_results.txt 2>&1 || true
 git rev-parse HEAD > reports/repo_commit_hash.txt 2>/dev/null || true
 
-git add -f reports/ 2>/dev/null || true
+# Configure git
 git config --global user.email "codespace@uat-poc" 2>/dev/null || true
 git config --global user.name "UAT Codespace" 2>/dev/null || true
+
+# Stage + commit evidence
+git add -f reports/ 2>/dev/null || true
 git commit -m "evidence: codespace execution — API logs + test run + test suite results
 
 Executed on GitHub Codespace
 Instance: aelumconsultingpvtltddemo3.service-now.com
 Persona: prakhar.s1
 LLM: NVIDIA NIM
-" 2>/dev/null || echo "  Nothing to commit"
-git push origin HEAD:main 2>/dev/null || echo "  Push attempt completed (may need PAT config)"
+" 2>/dev/null || echo "  Nothing new to commit (evidence unchanged)"
+
+# Push to a new evidence branch (avoids non-fast-forward rejection from main)
+EVIDENCE_BRANCH="evidence/codespace-run-$(date -u +%Y%m%d-%H%M%S)"
+echo "  Pushing to new branch: $EVIDENCE_BRANCH"
+git push origin "HEAD:refs/heads/$EVIDENCE_BRANCH" 2>&1 | tail -3 || echo "  Push attempt failed"
+
+# Also write the branch name to a file for any orchestrator to pick up
+echo "$EVIDENCE_BRANCH" > /tmp/evidence_branch.txt
+echo "  Evidence branch name: $EVIDENCE_BRANCH"
 
 echo ""
 echo "=== Runtime Complete ==="
 echo "API PID: $API_PID | Worker PID: $WORKER_PID"
 echo "Logs: /tmp/api.log, /tmp/worker.log"
-echo "Editor is ready — runtime ran in background."
+echo "Evidence branch: $EVIDENCE_BRANCH"
+echo ""
+echo "Next step (orchestrator): merge $EVIDENCE_BRANCH into main via GitHub API."
