@@ -1,33 +1,47 @@
 #!/bin/bash
 # Safe-to-fail setup script — runs as postCreateCommand.
-# Installs deps, starts system services, generates .env.local, inits DB.
-# NEVER triggers a test run, NEVER pushes to git — that's runtime's job.
+# Installs deps (apt + pip + playwright), starts system services (postgres + redis),
+# generates .env.local, inits DB. NEVER triggers a test run, NEVER pushes to git.
 set -u  # undefined var = error, but DO NOT use set -e (too aggressive for postCreate)
 
 echo "=== Codespace Setup (postCreate) ==="
 FAIL=0
 
-# 1. Install deps
-echo "[1/4] Installing apt + pip + playwright deps..."
-sudo apt-get update -qq || { echo "apt-get update failed"; FAIL=1; }
-sudo apt-get install -y -qq redis-server build-essential libpq-dev || { echo "apt install failed"; FAIL=1; }
-pip install -e . || { echo "pip install failed"; FAIL=1; }
-playwright install chromium || { echo "playwright install failed"; FAIL=1; }
-playwright install-deps chromium || { echo "playwright install-deps failed"; FAIL=1; }
+# 1. Install deps — postgresql + redis + build-essential + libpq-dev (for psycopg/asyncpg)
+# NOTE: We install postgresql ourselves because we removed the (broken) 3rd-party
+# ghcr.io/robbert22/devcontainer-features/postgresql:1 feature from devcontainer.json.
+echo "[1/4] Installing apt + pip + playwright deps (this takes ~3-5 min)..."
+sudo apt-get update -qq || { echo "  apt-get update failed"; FAIL=1; }
+sudo apt-get install -y -qq \
+  redis-server \
+  build-essential \
+  libpq-dev \
+  postgresql \
+  postgresql-contrib \
+  || { echo "  apt install failed"; FAIL=1; }
+pip install -e . || { echo "  pip install -e . failed"; FAIL=1; }
+playwright install chromium || { echo "  playwright install failed"; FAIL=1; }
+playwright install-deps chromium || { echo "  playwright install-deps failed"; FAIL=1; }
 
-# 2. Start services (best-effort — services may not be ready yet)
+# 2. Start services (best-effort — postgres cluster may need init)
 echo "[2/4] Starting postgres + redis..."
-sudo service postgresql start 2>/dev/null || true
+# Initialize the postgres cluster if it doesn't exist (Debian/Ubuntu convention)
+if [ ! -d /var/lib/postgresql/15/main ] && [ -d /usr/lib/postgresql/15/bin ]; then
+    sudo mkdir -p /var/lib/postgresql/15/main
+    sudo chown -R postgres:postgres /var/lib/postgresql/15
+    sudo -u postgres /usr/lib/postgresql/15/bin/initdb -D /var/lib/postgresql/15/main 2>&1 | tail -5 || true
+fi
+sudo pg_ctlcluster 15 main start 2>/dev/null || sudo service postgresql start 2>/dev/null || true
 sleep 2
 sudo -u postgres psql -c "CREATE DATABASE servicenow_qa;" 2>/dev/null || true
 sudo -u postgres psql -d servicenow_qa -c "CREATE EXTENSION IF NOT EXISTS vector;" 2>/dev/null || true
 sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres';" 2>/dev/null || true
-sudo service redis-server start 2>/dev/null || true
+sudo service redis-server start 2>/dev/null || sudo redis-server --daemonize yes 2>/dev/null || true
 sleep 1
 
 # 3. Generate .env.local from Codespaces secrets (injected as env vars)
 echo "[3/4] Generating .env.local..."
-python3 << 'PYEOF' || { echo ".env.local generation failed"; FAIL=1; }
+python3 << 'PYEOF' || { echo "  .env.local generation failed"; FAIL=1; }
 import json, os
 password = os.environ.get('SERVICENOW_PASSWORD', '')
 nvidia_key = os.environ.get('NVIDIA_API_KEY', '')
@@ -65,7 +79,7 @@ LOG_LEVEL=INFO
 '''
 with open('.env.local', 'w') as f:
     f.write(env)
-print('.env.local generated')
+print('  .env.local generated')
 PYEOF
 
 # 4. Init DB + bootstrap admin (non-fatal)
@@ -76,7 +90,8 @@ python scripts/bootstrap_admin.py --username qa-admin --password 'QuickStart123!
 echo ""
 echo "=== Setup Complete (FAIL=$FAIL) ==="
 if [ "$FAIL" -ne 0 ]; then
-  echo "Some setup steps failed. Check the log above. Container will still start so you can debug."
-  exit 0  # exit 0 so postCreateCommand doesn't fail the container build
+  echo "Some setup steps failed. Container will still start so you can debug."
 fi
 echo "Container is ready. Runtime script will start API + worker on container start."
+# Always exit 0 — never let postCreateCommand fail the container build
+exit 0
