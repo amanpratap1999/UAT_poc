@@ -8,6 +8,26 @@ collecting ... collected 322 items / 4 errors
 
 ==================================== ERRORS ====================================
 ______________ ERROR collecting tests/unit/test_headed_browser.py ______________
+/usr/local/python/3.11.16/lib/python3.11/site-packages/pydantic_settings/sources/base.py:608: in __call__
+    field_value = self.prepare_field_value(field_name, field, field_value, value_is_complex)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/site-packages/pydantic_settings/sources/providers/env.py:150: in prepare_field_value
+    value = self.decode_complex_value(field_name, field, value)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/site-packages/pydantic_settings/sources/base.py:208: in decode_complex_value
+    return json.loads(value)
+           ^^^^^^^^^^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/json/decoder.py:337: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/json/decoder.py:355: in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+E   json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+The above exception was the direct cause of the following exception:
 tests/unit/test_headed_browser.py:14: in <module>
     from agent.main import AgentOrchestrator, app
 src/agent/main.py:25: in <module>
@@ -24,10 +44,34 @@ src/agent/core/config.py:84: in __init__
     super().__init__(*args, **kwargs)
 /usr/local/python/3.11.16/lib/python3.11/site-packages/pydantic_settings/main.py:262: in __init__
     super().__init__(**__pydantic_self__.__class__._settings_build_values(sources, init_kwargs))
-E   pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
-E     Value error, SERVICENOW_INSTANCE_URL is not set or is using the default placeholder. Execution cannot proceed. [type=value_error, input_value={}, input_type=dict]
-E       For further information visit https://errors.pydantic.dev/2.13/v/value_error
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/site-packages/pydantic_settings/main.py:498: in _settings_build_values
+    source_state = source()
+                   ^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/site-packages/pydantic_settings/sources/base.py:610: in __call__
+    raise SettingsError(
+E   pydantic_settings.exceptions.SettingsError: error parsing value for field "browser" from source "EnvSettingsSource"
 ________ ERROR collecting tests/unit/test_readiness_and_diagnostics.py _________
+/usr/local/python/3.11.16/lib/python3.11/site-packages/pydantic_settings/sources/base.py:608: in __call__
+    field_value = self.prepare_field_value(field_name, field, field_value, value_is_complex)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/site-packages/pydantic_settings/sources/providers/env.py:150: in prepare_field_value
+    value = self.decode_complex_value(field_name, field, value)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/site-packages/pydantic_settings/sources/base.py:208: in decode_complex_value
+    return json.loads(value)
+           ^^^^^^^^^^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/json/decoder.py:337: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/json/decoder.py:355: in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+E   json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+The above exception was the direct cause of the following exception:
 tests/unit/test_readiness_and_diagnostics.py:8: in <module>
     from agent.main import app
 src/agent/main.py:25: in <module>
@@ -44,10 +88,34 @@ src/agent/core/config.py:84: in __init__
     super().__init__(*args, **kwargs)
 /usr/local/python/3.11.16/lib/python3.11/site-packages/pydantic_settings/main.py:262: in __init__
     super().__init__(**__pydantic_self__.__class__._settings_build_values(sources, init_kwargs))
-E   pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
-E     Value error, SERVICENOW_INSTANCE_URL is not set or is using the default placeholder. Execution cannot proceed. [type=value_error, input_value={}, input_type=dict]
-E       For further information visit https://errors.pydantic.dev/2.13/v/value_error
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/site-packages/pydantic_settings/main.py:498: in _settings_build_values
+    source_state = source()
+                   ^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/site-packages/pydantic_settings/sources/base.py:610: in __call__
+    raise SettingsError(
+E   pydantic_settings.exceptions.SettingsError: error parsing value for field "browser" from source "EnvSettingsSource"
 ______________ ERROR collecting tests/unit/test_screenshot_api.py ______________
+/usr/local/python/3.11.16/lib/python3.11/site-packages/pydantic_settings/sources/base.py:608: in __call__
+    field_value = self.prepare_field_value(field_name, field, field_value, value_is_complex)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/site-packages/pydantic_settings/sources/providers/env.py:150: in prepare_field_value
+    value = self.decode_complex_value(field_name, field, value)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/site-packages/pydantic_settings/sources/base.py:208: in decode_complex_value
+    return json.loads(value)
+           ^^^^^^^^^^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/json/decoder.py:337: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/json/decoder.py:355: in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+E   json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+The above exception was the direct cause of the following exception:
 tests/unit/test_screenshot_api.py:10: in <module>
     from agent.core.db import Base, get_db_session
 src/agent/core/db.py:11: in <module>
@@ -60,10 +128,34 @@ src/agent/core/config.py:84: in __init__
     super().__init__(*args, **kwargs)
 /usr/local/python/3.11.16/lib/python3.11/site-packages/pydantic_settings/main.py:262: in __init__
     super().__init__(**__pydantic_self__.__class__._settings_build_values(sources, init_kwargs))
-E   pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
-E     Value error, SERVICENOW_INSTANCE_URL is not set or is using the default placeholder. Execution cannot proceed. [type=value_error, input_value={}, input_type=dict]
-E       For further information visit https://errors.pydantic.dev/2.13/v/value_error
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/site-packages/pydantic_settings/main.py:498: in _settings_build_values
+    source_state = source()
+                   ^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/site-packages/pydantic_settings/sources/base.py:610: in __call__
+    raise SettingsError(
+E   pydantic_settings.exceptions.SettingsError: error parsing value for field "browser" from source "EnvSettingsSource"
 ________ ERROR collecting tests/unit/test_security_tenant_isolation.py _________
+/usr/local/python/3.11.16/lib/python3.11/site-packages/pydantic_settings/sources/base.py:608: in __call__
+    field_value = self.prepare_field_value(field_name, field, field_value, value_is_complex)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/site-packages/pydantic_settings/sources/providers/env.py:150: in prepare_field_value
+    value = self.decode_complex_value(field_name, field, value)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/site-packages/pydantic_settings/sources/base.py:208: in decode_complex_value
+    return json.loads(value)
+           ^^^^^^^^^^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/json/decoder.py:337: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/json/decoder.py:355: in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+E   json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+The above exception was the direct cause of the following exception:
 tests/unit/test_security_tenant_isolation.py:17: in <module>
     from agent.domain.models import Run
 src/agent/domain/models.py:6: in <module>
@@ -78,9 +170,13 @@ src/agent/core/config.py:84: in __init__
     super().__init__(*args, **kwargs)
 /usr/local/python/3.11.16/lib/python3.11/site-packages/pydantic_settings/main.py:262: in __init__
     super().__init__(**__pydantic_self__.__class__._settings_build_values(sources, init_kwargs))
-E   pydantic_core._pydantic_core.ValidationError: 1 validation error for Settings
-E     Value error, SERVICENOW_INSTANCE_URL is not set or is using the default placeholder. Execution cannot proceed. [type=value_error, input_value={}, input_type=dict]
-E       For further information visit https://errors.pydantic.dev/2.13/v/value_error
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/site-packages/pydantic_settings/main.py:498: in _settings_build_values
+    source_state = source()
+                   ^^^^^^^^
+/usr/local/python/3.11.16/lib/python3.11/site-packages/pydantic_settings/sources/base.py:610: in __call__
+    raise SettingsError(
+E   pydantic_settings.exceptions.SettingsError: error parsing value for field "browser" from source "EnvSettingsSource"
 =============================== warnings summary ===============================
 ../../usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/config/__init__.py:1464
   /usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/config/__init__.py:1464: PytestConfigWarning: Unknown config option: asyncio_mode
@@ -721,9 +817,9 @@ tests/unit/test_validation_engine.py:265
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 =========================== short test summary info ============================
-ERROR tests/unit/test_headed_browser.py - pydantic_core._pydantic_core.Valida...
-ERROR tests/unit/test_readiness_and_diagnostics.py - pydantic_core._pydantic_...
-ERROR tests/unit/test_screenshot_api.py - pydantic_core._pydantic_core.Valida...
-ERROR tests/unit/test_security_tenant_isolation.py - pydantic_core._pydantic_...
+ERROR tests/unit/test_headed_browser.py - pydantic_settings.exceptions.Settin...
+ERROR tests/unit/test_readiness_and_diagnostics.py - pydantic_settings.except...
+ERROR tests/unit/test_screenshot_api.py - pydantic_settings.exceptions.Settin...
+ERROR tests/unit/test_security_tenant_isolation.py - pydantic_settings.except...
 !!!!!!!!!!!!!!!!!!! Interrupted: 4 errors during collection !!!!!!!!!!!!!!!!!!!!
-======================= 159 warnings, 4 errors in 28.06s =======================
+======================= 159 warnings, 4 errors in 6.56s ========================
