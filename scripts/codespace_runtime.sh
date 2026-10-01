@@ -6,7 +6,18 @@
 # into main via the GitHub API by an external orchestrator.
 set -u
 
+# CRITICAL: export UAT_RUNTIME_MODE=local so get_active_env_file() in
+# src/agent/core/config.py enters the "mode == local" branch and loads .env.local.
+# Without this, the function sees /.dockerenv (which exists in devcontainers)
+# and tries to load .env.docker (which doesn't exist), so .env.local is never
+# loaded and the Settings validator rejects SERVICENOW_INSTANCE_URL as "not set".
+export UAT_RUNTIME_MODE=local
+# Belt-and-suspenders: also set UAT_ENV_FILE explicitly
+export UAT_ENV_FILE="${UAT_ENV_FILE:-/workspaces/UAT_poc/.env.local}"
+
 echo "=== Codespace Runtime (postStart) ==="
+echo "  UAT_RUNTIME_MODE=$UAT_RUNTIME_MODE"
+echo "  UAT_ENV_FILE=$UAT_ENV_FILE"
 
 # 1. Start API + Worker (best-effort)
 echo "[1/5] Starting uvicorn + celery..."
