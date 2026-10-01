@@ -1,0 +1,11 @@
+{
+  "name": "UAT_poc",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": { "version": "3.11" },
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "postCreateCommand": "bash scripts/codespace_setup.sh",
+  "postStartCommand": "bash scripts/codespace_runtime.sh",
+  "forwardPorts": [5432, 6379, 8000]
+}
