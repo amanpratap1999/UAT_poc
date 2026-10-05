@@ -336,7 +336,7 @@ class ValidationEngine:
         passed = True
         error_message = None
         
-        target_record = intent.target_record
+        target_record = getattr(intent, "target_record", None) or intent.extracted_entities.get("target_record")
         if not target_record:
             # Try to parse from goal
             match = re.search(r'(INC\d+|CHG\d+|REQ\d+|RITM\d+|SCTASK\d+|CS\d+)', intent.goal)

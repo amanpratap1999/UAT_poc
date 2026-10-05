@@ -56,7 +56,7 @@ def incident_observation() -> PageObservation:
             ),
         ],
         buttons=[
-            ButtonInfo(label="Update", text="Update", is_visible=True, is_disabled=False),
+            ButtonInfo(label="Update", is_visible=True, is_enabled=True),
         ],
         tabs=[],
         validation_messages=[],
@@ -187,7 +187,7 @@ async def test_password_field_never_reaches_laya(laya_primary_policy):
             ),
         ],
         buttons=[
-            ButtonInfo(label="Log in", text="Log in", is_visible=True, is_disabled=False),
+            ButtonInfo(label="Log in", is_visible=True, is_enabled=True),
         ],
         tabs=[],
         validation_messages=[],

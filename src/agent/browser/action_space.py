@@ -104,7 +104,7 @@ class BrowserActionSpace:
                     index=index_counter,
                     kind="click",
                     role="button",
-                    label=button.label or button.text or "button",
+                    label=button.label or getattr(button, "text", "") or "button",
                     value="",
                     locator=locator,
                     node_id=id(button),  # identity hash — stable within a single observation
@@ -223,7 +223,11 @@ class BrowserActionSpace:
         # Visible check
         if hasattr(button, "is_visible") and not button.is_visible:
             return False
-        # Enabled check
+        # Enabled check — ButtonInfo uses `is_enabled` (not `is_disabled`).
+        # Fall back to checking `is_disabled` for backward compat with
+        # test doubles that might use the inverted field name.
+        if hasattr(button, "is_enabled") and not button.is_enabled:
+            return False
         if hasattr(button, "is_disabled") and button.is_disabled:
             return False
         # Blocked-action check — if the world state says this action is

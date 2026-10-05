@@ -73,12 +73,12 @@ def sample_observation() -> PageObservation:
         ],
         mandatory_fields=["short_description", "state"],
         buttons=[
-            ButtonInfo(label="Update", text="Update", is_visible=True, is_disabled=False),
-            ButtonInfo(label="Cancel", text="Cancel", is_visible=True, is_disabled=False),
+            ButtonInfo(label="Update", is_visible=True, is_enabled=True),
+            ButtonInfo(label="Cancel", is_visible=True, is_enabled=True),
             # Disabled button — should be filtered out
-            ButtonInfo(label="Resolve", text="Resolve", is_visible=True, is_disabled=True),
+            ButtonInfo(label="Resolve", is_visible=True, is_enabled=False),
             # Invisible button — should be filtered out
-            ButtonInfo(label="Hidden", text="Hidden", is_visible=False, is_disabled=False),
+            ButtonInfo(label="Hidden", is_visible=False, is_enabled=True),
         ],
         tabs=[],
         validation_messages=[],
@@ -87,7 +87,6 @@ def sample_observation() -> PageObservation:
             ElementInfo(
                 role="link",
                 name="Open related record",
-                text="Open related record",
                 is_visible=True,
                 is_enabled=True,
             ),
@@ -325,7 +324,7 @@ def test_max_candidates_cap():
     """The action space respects MAX_CANDIDATES."""
     # Build an observation with >250 buttons
     buttons = [
-        ButtonInfo(label=f"Button{i}", text=f"Button{i}", is_visible=True, is_disabled=False)
+        ButtonInfo(label=f"Button{i}", is_visible=True, is_enabled=True)
         for i in range(300)
     ]
     obs = PageObservation(
