@@ -1,1 +1,14 @@
-/usr/local/python/current/bin/python: No module named uvicorn
+INFO:     Started server process [759]
+INFO:     Waiting for application startup.
+[2m2026-10-05T08:08:16.493597Z[0m [[32m[1minfo     [0m] [1mapplication_started                     [0m [36mversion[0m=[35m1.0.0[0m
+HTTP Request: POST https://integrate.api.nvidia.com/v1/embeddings "HTTP/1.1 401 Unauthorized"
+[2m2026-10-05T08:08:17.371458Z[0m [[33m[1mwarning  [0m] [1membedding_model_health_check_failed     [0m [36maction[0m=[35mcircuit_breaker_opened_fallback_to_in_memory[0m [36merror[0m=[35m'Header of type `authorization` was missing'[0m [36mmodel[0m=[35mnvidia/nemotron-3-embed-1b[0m
+[2m2026-10-05T08:08:17.371764Z[0m [[32m[1minfo     [0m] [1membedding_startup_probe_result          [0m [36mhealthy[0m=[35mFalse[0m [36mmodel[0m=[35mnvidia/nemotron-3-embed-1b[0m
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+HTTP Request: POST https://integrate.api.nvidia.com/v1/embeddings "HTTP/1.1 401 Unauthorized"
+[2m2026-10-05T08:08:26.727526Z[0m [[33m[1mwarning  [0m] [1membedding_model_health_check_failed     [0m [36maction[0m=[35mcircuit_breaker_opened_fallback_to_in_memory[0m [36merror[0m=[35m'Header of type `authorization` was missing'[0m [36mmodel[0m=[35mnvidia/nemotron-3-embed-1b[0m
+INFO:     127.0.0.1:39142 - "GET /api/v1/ready HTTP/1.1" 503 Service Unavailable
+[2m2026-10-05T08:08:26.915234Z[0m [[33m[1mwarning  [0m] [1mredis_auth_lock_fallback                [0m [36merror[0m=[35m'Error 111 connecting to 127.0.0.1:6379. Connection refused.'[0m
+[2m2026-10-05T08:08:27.008724Z[0m [[33m[1mwarning  [0m] [1mredis_auth_lock_fallback                [0m [36merror[0m=[35m'Error 111 connecting to 127.0.0.1:6379. Connection refused.'[0m
+INFO:     127.0.0.1:39152 - "POST /api/v1/token HTTP/1.1" 500 Internal Server Error
