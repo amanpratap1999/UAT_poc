@@ -1,10 +1,24 @@
 """Planner — the brain of the autonomous agent.
 
-The planner uses an LLM to reason about goals, create execution plans,
-decide next actions, assess validations, suggest recovery strategies,
-and determine when the goal is complete. It never touches Playwright —
-it only emits structured actions that the ExecutionController translates
-into browser operations.
+The planner uses an LLM (Gemini or any OpenAI-compatible provider) to reason
+about goals, create execution plans, decide next actions, assess
+validations, suggest recovery strategies, and determine when the goal is
+complete. It never touches Playwright — it only emits structured actions
+that the ExecutionController translates into browser operations.
+
+P1-LAYA: The Planner remains solely responsible for HIGH-LEVEL test
+planning — goal decomposition, acceptance criteria, expected outcomes,
+and any values already provided by the test case. The LAYA action-policy
+adapter (``agent.decision.laya_action_policy``) handles only
+BROWSER-LEVEL micro-decisions (which visible control to click/fill/select).
+Do not send the whole test-planning job to LAYA — LAYA is a bounded
+421M-parameter decision model, not a generative planner. The separation
+is:
+    Gemini (here)  → plan steps, AC, expected outcomes, report summaries
+    LAYA           → "given this plan step + these visible controls,
+                      which control should the agent interact with?"
+The LAYA path is wired in ``DecisionEngine`` and the orchestrator; this
+file is untouched by that integration except for this docstring guard.
 """
 
 from __future__ import annotations

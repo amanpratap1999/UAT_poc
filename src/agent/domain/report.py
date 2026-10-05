@@ -125,6 +125,18 @@ class TestReport(BaseModel):
         default_factory=list,
         description="Acceptance-criterion IDs tested during this run.",
     )
+    # P0-03 (D1, D6 — AC mapping): per-criterion structured results so a
+    # reviewer can see, for every acceptance criterion, its ID, expected
+    # result, observed result, and pass/fail/block status. Unknown criteria
+    # are reported as BLOCKED, not silently treated as coverage.
+    acceptance_criteria_results: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description=(
+            "Per-acceptance-criterion result mapping: "
+            "[{criterion_id, expected, observed, status, evidence_refs}]. "
+            "status ∈ {pass, fail, blocked, not_scored}."
+        ),
+    )
     # INC-UAT-15 (Minor, D8): exit-criteria engine verdict.
     exit_criteria: dict[str, Any] | None = Field(
         default=None,
@@ -136,6 +148,19 @@ class TestReport(BaseModel):
     reproducibility: dict[str, Any] | None = Field(
         default=None,
         description="Reproducibility metadata: repo_commit, config_version, model_versions, manifest_hash.",
+    )
+    # P1-08 (D7): Retest / regression chain results. A fix must not erase
+    # the original finding — both the original and the retest outcome are
+    # retained here so a reviewer can trace whether the fix resolved the
+    # defect AND whether it introduced any regressions.
+    retest_results: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description=(
+            "Retest package results: "
+            "[{retest_id, original_finding_id, fix_reference, failed_scenario, "
+            "regression_scenarios, status, retest_results}]. status ∈ "
+            "{PENDING, RETESTING, PASSED, FAILED, REGRESSION_DETECTED, INCOMPLETE}."
+        ),
     )
 
     # Metadata

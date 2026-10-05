@@ -560,6 +560,65 @@ class LayaConfig(BaseSubConfig):
     timeout: float = Field(default=30.0, description="Inference timeout in seconds")
 
 
+class LayaActionPolicyConfig(BaseSubConfig):
+    """P6-LAYA: Local LAYA action-policy configuration.
+
+    Configures a LOCAL LAYA checkpoint for browser-level micro-decisions
+    (which visible control to click/fill/select). This is SEPARATE from
+    ``LayaConfig`` above, which configures the remote LAYA verifier
+    adapter (``LayaAdapter``). The action policy does NOT require Jev
+    endpoint credentials — it runs locally via ``transformers`` (CPU/GPU)
+    or MLX (Apple Silicon).
+
+    Defaults are conservative: the policy is OFF by default so existing
+    flows are unaffected until an operator explicitly enables it.
+    """
+    model_config = SettingsConfigDict(
+        env_file_encoding="utf-8",
+        env_prefix="LAYA_ACTION_",
+        extra="ignore",
+    )
+    enabled: bool = Field(
+        default=False,
+        description="Enable the LAYA action-policy adapter for browser-level decisions",
+    )
+    mode: Literal["shadow", "primary"] = Field(
+        default="shadow",
+        description=(
+            "Action-policy mode: 'shadow' runs LAYA but records decisions "
+            "for comparison without using them; 'primary' uses LAYA "
+            "decisions when confidence >= threshold"
+        ),
+    )
+    checkpoint: str = Field(
+        default="",
+        description=(
+            "HuggingFace repo or local path to the LAYA checkpoint "
+            "(e.g., 'cklxx/laya-browser' or '/models/laya')"
+        ),
+    )
+    device: Literal["auto", "cpu", "cuda", "mps", "mlx"] = Field(
+        default="auto",
+        description="Device/runtime for LAYA inference (auto-detects mlx on Apple Silicon, then cuda, then cpu)",
+    )
+    confidence_threshold: float = Field(
+        default=0.65,
+        description="Minimum confidence for LAYA decisions in 'primary' mode; below this the Gemini path runs",
+    )
+    inference_timeout_seconds: float = Field(
+        default=5.0,
+        description="Max seconds for a single LAYA inference before falling back to Gemini",
+    )
+    max_candidates: int = Field(
+        default=250,
+        description="Hard cap on action-space candidates (mirrors jev-ultrafast)",
+    )
+    warmup_at_startup: bool = Field(
+        default=True,
+        description="Warm up the model at app startup (P7) so the first decision isn't slow",
+    )
+
+
 class Settings(BaseSubConfig):
     """Root application settings.
 
@@ -591,6 +650,10 @@ class Settings(BaseSubConfig):
     security: SecurityConfig = Field(default_factory=SecurityConfig)
     safety_budgets: SafetyBudgetConfig = Field(default_factory=SafetyBudgetConfig)
     laya: LayaConfig = Field(default_factory=LayaConfig)
+    # P6-LAYA: local action-policy config (separate from the remote LAYA
+    # verifier config above). The action policy does NOT require Jev
+    # endpoint credentials — it runs locally via transformers/MLX.
+    laya_action: LayaActionPolicyConfig = Field(default_factory=LayaActionPolicyConfig)
 
     # Logging
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"

@@ -328,6 +328,17 @@ async def readiness_check() -> JSONResponse:
             "model": settings.llm.embedding_model,
         }
 
+    # 5. P7-LAYA: LAYA action-policy health (optional — not required for readiness)
+    try:
+        from agent.api.v1.dependencies import get_laya_action_policy_diagnostics
+        checks["laya_action_policy"] = get_laya_action_policy_diagnostics()
+    except Exception as e:
+        checks["laya_action_policy"] = {
+            "enabled": False,
+            "healthy": False,
+            "error": str(e)[:200],
+        }
+
     content = {
         "status": "ready" if is_ready else "not_ready",
         "runtime_mode": settings.runtime_mode,

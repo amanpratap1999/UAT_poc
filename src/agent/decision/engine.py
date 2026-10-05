@@ -132,6 +132,15 @@ class DecisionEngine:
     LLM-based verification. When a provider is set, the provider's
     verification logic takes precedence — this gives the intended
     independent judgement layer (JEV) a real role in the verdict path.
+
+    P3-LAYA: optionally uses a LAYA action-policy adapter
+    (``LayaActionPolicy``) to make browser-level micro-decisions BEFORE
+    falling back to the Gemini/LLM decision path. The LAYA path is
+    tried first when the policy is configured and healthy; on any
+    fallback (low confidence, timeout, unsupported page, model failure,
+    or shadow mode), the existing Gemini path runs unchanged. This
+    preserves the step cache, confidence assessment, reflection, and
+    AgentAction format exactly as before.
     """
 
     def __init__(
@@ -145,6 +154,10 @@ class DecisionEngine:
         # internal LLM-based verification. Provider provenance is recorded
         # in the CognitiveDecision output.
         decision_provider: Any = None,
+        # P3-LAYA: optional LAYA action-policy adapter for browser-level
+        # micro-decisions. When set and healthy, the LAYA path is tried
+        # first; on any fallback the existing Gemini path runs unchanged.
+        laya_action_policy: Any = None,
     ) -> None:
         self._llm = llm_client
         self._confidence_engine = confidence_engine or ConfidenceEngine()
@@ -152,6 +165,10 @@ class DecisionEngine:
         self._tool_registry = tool_registry
         # INC-UAT-07: store the verification provider (e.g., JEVAdapter).
         self._decision_provider = decision_provider
+        # P3-LAYA: store the action-policy adapter (separate from the
+        # verification provider — LayaAdapter does verification; this
+        # does action selection).
+        self._laya_action_policy = laya_action_policy
 
         from agent.cognition.step_cache import StepCache
         self._step_cache = StepCache()
@@ -166,6 +183,19 @@ class DecisionEngine:
     def has_decision_provider(self) -> bool:
         """True if a DecisionProvider (e.g., JEVAdapter) is attached."""
         return self._decision_provider is not None
+
+    # P3-LAYA: public accessors for the action policy
+    def get_laya_action_policy(self) -> Any:
+        """Return the attached LayaActionPolicy (or None if not set)."""
+        return self._laya_action_policy
+
+    @property
+    def has_laya_action_policy(self) -> bool:
+        """True if a LayaActionPolicy is attached and healthy."""
+        return (
+            self._laya_action_policy is not None
+            and getattr(self._laya_action_policy, "is_healthy", lambda: False)()
+        )
 
     async def decide_next_action(
         self,
@@ -212,6 +242,64 @@ class DecisionEngine:
                 chosen_action = cached
                 rationale = "Retrieved from StepCache"
                 expected = plan_expected
+
+        # P3-LAYA: try the LAYA action-policy path BEFORE the Gemini/LLM
+        # call. The policy receives the current plan step and a compact
+        # indexed list of visible+eligible controls (built by the caller
+        # — see CognitiveOrchestrator P8). On any fallback (shadow mode,
+        # low confidence, timeout, model failure, unsupported page), the
+        # decision carries a non-empty ``fallback_reason`` and we proceed
+        # to the existing Gemini path below. This preserves the step
+        # cache, confidence assessment, reflection, and AgentAction format.
+        laya_decision_metadata: dict[str, Any] | None = None
+        if not chosen_action and self.has_laya_action_policy:
+            try:
+                from agent.decision.laya_action_policy import LayaActionDecision, _ActionSpacePayload  # type: ignore[attr-defined]
+                # The action space is built by the orchestrator (P8) and
+                # stashed on the memory's current observation. If the
+                # caller didn't build one, we skip the LAYA path.
+                action_space = self._build_laya_action_space(world_state, memory, plan_desc)
+                if action_space is not None:
+                    policy = self._laya_action_policy
+                    laya_decision = await policy.choose_action(action_space)
+                    laya_decision_metadata = laya_decision.to_dict()
+                    if laya_decision and not laya_decision.fallback_reason:
+                        # LAYA made a confident decision — use it
+                        chosen_action = laya_decision.action
+                        rationale = (
+                            f"LAYA action-policy: {laya_decision.operation} "
+                            f"(confidence={laya_decision.confidence:.2f})"
+                        )
+                        expected = plan_expected or "Action executes successfully"
+                        # Stamp the action's metadata with LAYA provenance
+                        # so the reporting engine (P9) can record the source.
+                        if not chosen_action.metadata:
+                            chosen_action.metadata = {}
+                        chosen_action.metadata["laya_source"] = True
+                        chosen_action.metadata["laya_confidence"] = laya_decision.confidence
+                        chosen_action.metadata["laya_inference_latency_ms"] = laya_decision.inference_latency_ms
+                        chosen_action.metadata["laya_model_version"] = laya_decision.model_version
+                        chosen_action.metadata["action_source"] = "laya"
+                    else:
+                        # LAYA fell back — record the reason for telemetry
+                        # and proceed to the Gemini path below
+                        logger.info(
+                            "laya_action_policy_fallback",
+                            reason=laya_decision.fallback_reason if laya_decision else "none",
+                        )
+                        # Record the shadow decision metadata for offline
+                        # comparison even in primary mode (useful for
+                        # evaluating LAYA vs Gemini before switching).
+                        if memory and hasattr(memory, "timeline"):
+                            # Stash on the action's metadata later when
+                            # the Gemini path produces an action
+                            pass
+            except Exception as e:
+                logger.warning("laya_action_policy_path_failed", error=str(e))
+                laya_decision_metadata = {
+                    "fallback_reason": f"path_error:{type(e).__name__}",
+                    "provider": "laya",
+                }
 
         if not chosen_action and self._llm:
             try:
@@ -274,6 +362,16 @@ class DecisionEngine:
                     value=value,
                     reasoning=rationale,
                 )
+                # P9-LAYA: stamp the action source for telemetry so the
+                # reporting engine can record whether each action came
+                # from LAYA, Gemini, or a deterministic rule.
+                if not chosen_action.metadata:
+                    chosen_action.metadata = {}
+                chosen_action.metadata["action_source"] = "gemini"
+                # If LAYA ran in shadow mode, record its decision alongside
+                # the Gemini decision for offline comparison.
+                if laya_decision_metadata:
+                    chosen_action.metadata["laya_shadow_decision"] = laya_decision_metadata
             except Exception as e:
                 # Classify billing/auth/quota errors vs transient failures.
                 # Billing errors will never recover — abort the run instead of
@@ -296,6 +394,14 @@ class DecisionEngine:
             rationale = chosen_action.reasoning
             expected = "Action executes"
 
+        # P9-LAYA: stamp heuristic fallback actions with their source
+        if chosen_action and not chosen_action.metadata.get("action_source"):
+            if not chosen_action.metadata:
+                chosen_action.metadata = {}
+            chosen_action.metadata["action_source"] = "heuristic"
+            if laya_decision_metadata:
+                chosen_action.metadata["laya_shadow_decision"] = laya_decision_metadata
+
         # Evaluate action confidence
         confidence_assessment = self._confidence_engine.evaluate_confidence(
             action=chosen_action,
@@ -307,6 +413,40 @@ class DecisionEngine:
             reasoning=rationale,
             expected_outcome=expected,
             confidence_assessment=confidence_assessment,
+        )
+
+    def _build_laya_action_space(
+        self,
+        world_state: SemanticWorldState,
+        memory: SessionMemory,
+        plan_step: str,
+    ) -> Any | None:
+        """P3-LAYA/P4-LAYA: build a compact indexed action space for LAYA.
+
+        Delegates to ``BrowserActionSpace.from_observation`` (P4) to
+        produce the indexed candidate list from the latest page
+        observation stored on ``memory``. Returns None if no observation
+        is available or the action-space module is not importable, in
+        which case the LAYA path is skipped and the existing Gemini path
+        runs unchanged.
+        """
+        try:
+            from agent.browser.action_space import BrowserActionSpace
+        except ImportError:
+            return None
+        # The latest observation is stashed on memory.observations[-1]
+        # by the CognitiveOrchestrator before calling decide_next_action.
+        latest_obs = (
+            memory.observations[-1] if memory.observations else None
+        )
+        if latest_obs is None:
+            return None
+        persona = getattr(memory, "persona", "") or "itil"
+        return BrowserActionSpace.from_observation(
+            observation=latest_obs,
+            world_state=world_state,
+            plan_step=plan_step,
+            persona=persona,
         )
 
     def _heuristic_decision(

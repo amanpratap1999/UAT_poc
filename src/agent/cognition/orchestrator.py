@@ -5,6 +5,7 @@ Manages the dynamic multi-skill reasoning loop.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from typing import Any
@@ -312,6 +313,108 @@ class CognitiveOrchestrator:
             validation.overall_passed and domain_validation.overall_passed
         )
         return validation
+
+    async def _observe_with_retries(
+        self,
+        expected_record: str | None = None,
+        requested_fields: tuple[str, ...] = (),
+        max_attempts: int = 3,
+        delay_seconds: float = 1.0,
+    ):
+        """P1-07 (D3, D6): bounded-wait observation helper.
+
+        Re-observes the active page up to ``max_attempts`` times until all
+        ``requested_fields`` are present in the visible-fields list (or
+        until the page stabilizes between two observations). Distinguishes
+        three failure modes:
+
+          1. PAGE_STILL_LOADING — required fields appeared on a later
+             attempt → returns the final observation but flags
+             ``_read_timeout=True`` so callers can mark the step BLOCKED
+             rather than as a wrong-value FAIL.
+          2. FIELD_ABSENT — required fields never appeared (not even after
+             retries) → callers report blocked with evidence.
+          3. WRONG_VALUE — fields appeared, value didn't match expected →
+             callers report fail (handled at the call site, not here).
+
+        This helper is intentionally side-effect-free (it only observes).
+        """
+        if not self._observation_engine or not self._browser_manager:
+            # Nothing we can do — return whatever the page currently shows.
+            # Caller will handle the missing-record case as before.
+            page = self._browser_manager.page if self._browser_manager else None
+            if page:
+                try:
+                    return await self._observation_engine.observe(page)
+                except Exception:
+                    return None
+            return None
+
+        page = self._browser_manager.page
+        last_obs = None
+        prior_field_set: set[str] = set()
+        stabilized = False
+        timed_out = True
+
+        for attempt in range(max_attempts):
+            try:
+                obs = await self._observation_engine.observe(page)
+            except Exception as e:
+                logger.warning(
+                    "observe_with_retries_attempt_failed",
+                    attempt=attempt + 1,
+                    error=str(e),
+                )
+                if attempt < max_attempts - 1:
+                    await asyncio.sleep(delay_seconds)
+                continue
+            last_obs = obs
+            current_field_set = {
+                f.name.lower() for f in obs.visible_fields if f.is_visible
+            }
+
+            # If we have a target record, also make sure it's visible
+            record_visible = (
+                not expected_record
+                or (obs.record_number or "").lower() == expected_record.lower()
+            )
+            required_present = all(
+                any(field_name in name for name in current_field_set)
+                for field_name in requested_fields
+            )
+
+            if required_present and record_visible:
+                # Check stability: the field set didn't change between this
+                # and the previous attempt.
+                if attempt > 0 and current_field_set == prior_field_set:
+                    stabilized = True
+                    timed_out = False
+                    break
+                elif attempt == 0:
+                    # First attempt already had everything — no need to retry.
+                    stabilized = True
+                    timed_out = False
+                    break
+            prior_field_set = current_field_set
+            if attempt < max_attempts - 1:
+                await asyncio.sleep(delay_seconds)
+
+        if last_obs is not None:
+            # Attach a private attribute that callers can inspect to
+            # distinguish "loading timeout" from "wrong value". Pydantic v2
+            # models can be strict about __setattr__; we use __dict__ to
+            # bypass validation since this is a private diagnostic flag,
+            # not a real field.
+            try:
+                last_obs.__dict__["_read_timeout"] = timed_out
+            except Exception:
+                try:
+                    last_obs.__dict__["_read_meta"] = {"read_timeout": timed_out}
+                except Exception:
+                    pass
+        return last_obs
+
+    # ------------------------------------------------------------------
 
     # ------------------------------------------------------------------
     # QA-005: independent Table-API persistence oracle
@@ -1298,6 +1401,18 @@ class CognitiveOrchestrator:
             )
             if any(marker in objective.lower() for marker in read_only_markers):
                 expected_record = gate_result.expected_record
+                # P1-07: bounded waits/retries for required fields so a page
+                # that is still loading does NOT get misread as "field
+                # absent" or "wrong value". We re-observe the page up to 3
+                # times with a 1s gap before declaring a field missing or
+                # wrong; a timeout that prevents a stable read is reported
+                # as BLOCKED with evidence, NOT a functional defect.
+                raw_obs = await self._observe_with_retries(
+                    expected_record=expected_record,
+                    requested_fields=("state", "priority"),
+                    max_attempts=3,
+                    delay_seconds=1.0,
+                )
                 actual_record = raw_obs.record_number or ""
                 observation_screenshot = raw_obs.screenshot_path
                 if not observation_screenshot and self._browser_manager:
@@ -1330,12 +1445,52 @@ class CognitiveOrchestrator:
                 validation.add_check(record_check)
                 # For a field-specific inspection, presence of the record
                 # alone is not enough to report a pass. Confirm each named
-                # field was actually observed and attach its value as evidence.
+                # field was actually observed and compare its value to any
+                # expected outcome supplied via acceptance criteria — not
+                # just presence (the prior implementation only checked
+                # presence, which does not establish correctness).
                 requested_fields = [
                     field_name
                     for field_name in ("state", "priority")
                     if re.search(rf"\b{field_name}\b", objective, re.IGNORECASE)
                 ]
+                # P0-04 (D1, D6): pull authoritative expected values from
+                # the imported test case's acceptance_criteria list rather
+                # than from the free-text goal. This is the source of
+                # truth the report will compare observed state/priority
+                # against; a goal text mention is treated only as a hint
+                # of which fields to inspect, never as the expected value.
+                tc_data = memory.test_case_data or {}
+                ac_list = tc_data.get("acceptance_criteria", []) or []
+                expected_field_values: dict[str, str] = {}
+                for ac in ac_list:
+                    if not isinstance(ac, dict):
+                        continue
+                    field_name = str(ac.get("field") or ac.get("field_path") or "").strip().lower()
+                    expected_value = str(ac.get("expected") or ac.get("expected_value") or "").strip()
+                    if field_name and expected_value:
+                        expected_field_values[field_name] = expected_value
+
+                # Track whether any read timed out — affects pass/block status
+                read_timed_out = bool(
+                    getattr(raw_obs, "_read_timeout", False)
+                    or (
+                        isinstance(getattr(raw_obs, "_read_meta", None), dict)
+                        and bool(raw_obs._read_meta.get("read_timeout", False))
+                    )
+                )
+                if read_timed_out:
+                    validation.add_check(
+                        ValidationCheck(
+                            check_name="page_readiness",
+                            description="The ServiceNow form finished loading within the bounded wait window.",
+                            passed=False,
+                            expected="form fields stable for >1 second",
+                            actual="form did not stabilize within 3 retries — possible slow load",
+                            evidence={"url": raw_obs.url},
+                        )
+                    )
+
                 for field_name in requested_fields:
                     matches = [
                         field for field in raw_obs.visible_fields
@@ -1346,16 +1501,76 @@ class CognitiveOrchestrator:
                         if field_name == "state" and raw_obs.current_state is not None
                         else str(matches[0].value or "") if matches else ""
                     )
+                    expected_value = expected_field_values.get(field_name, "")
+
+                    # P0-04: distinguish "field not observed" from
+                    # "value wrong". The previous code only checked
+                    # presence — which a reviewer correctly flagged as not
+                    # establishing correctness. We now compare the observed
+                    # value against the acceptance-criteria expected value
+                    # when one is supplied, and produce three distinct
+                    # statuses: pass / fail (wrong value) / blocked (field
+                    # never appeared, possibly because page is loading).
+                    if not observed_value.strip():
+                        status = "blocked" if read_timed_out else "blocked"
+                        check_description = (
+                            f"The requested {field_name} value was not observed within the "
+                            f"bounded wait window — possibly the page is still loading."
+                        )
+                        check_passed = False
+                    elif expected_value:
+                        # State-name tolerant comparison: "2" ↔ "In Progress"
+                        state_label_map = {
+                            "1": "new", "2": "in progress", "3": "on hold",
+                            "6": "resolved", "7": "closed", "8": "canceled",
+                        }
+                        obs_norm = observed_value.strip().casefold()
+                        exp_norm = expected_value.strip().casefold()
+                        if field_name == "state":
+                            obs_label = state_label_map.get(obs_norm, obs_norm)
+                            exp_label = state_label_map.get(exp_norm, exp_norm)
+                            check_passed = (
+                                obs_norm == exp_norm
+                                or obs_label == exp_label
+                                or obs_norm == exp_label
+                                or obs_label == exp_norm
+                            )
+                        else:
+                            check_passed = obs_norm == exp_norm
+                        status = "pass" if check_passed else "fail"
+                        check_description = (
+                            f"The requested {field_name} value matches the acceptance-criterion "
+                            f"expected value."
+                            if check_passed
+                            else f"The observed {field_name} value does NOT match the expected value."
+                        )
+                    else:
+                        # No expected value supplied — fall back to the
+                        # previous presence check (still useful for
+                        # read-only smoke checks that didn't specify an
+                        # expected value).
+                        check_passed = bool(observed_value.strip())
+                        status = "pass" if check_passed else "blocked"
+                        check_description = (
+                            f"The requested {field_name} value is present in the active Incident observation. "
+                            f"No expected value was supplied — only presence is checked."
+                        )
                     validation.add_check(
                         ValidationCheck(
-                            check_name=f"requested_{field_name}_observed",
-                            description=f"The requested {field_name} value is present in the active Incident observation.",
-                            passed=bool(observed_value.strip()),
-                            expected=f"{field_name} is visible and has a value",
+                            check_name=f"requested_{field_name}_{'matches_expected' if expected_value else 'observed'}",
+                            description=check_description,
+                            passed=check_passed,
+                            expected=(
+                                expected_value
+                                if expected_value
+                                else f"{field_name} is visible and has a value"
+                            ),
                             actual=observed_value or "field not observed",
                             evidence={
                                 "matched_field": matches[0].name if matches else None,
                                 "record_number": actual_record,
+                                "expected_source": "acceptance_criteria" if expected_value else "goal_text_presence",
+                                "criterion_status": status,
                             },
                         )
                     )
@@ -1366,6 +1581,23 @@ class CognitiveOrchestrator:
                         field.name: field.value
                         for field in raw_obs.visible_fields
                         if field.is_visible
+                    },
+                    # P0-04: also surface the expected-vs-actual comparison
+                    # so the report can render criterion-level results.
+                    "acceptance_criteria_evaluated": {
+                        field_name: {
+                            "expected": expected_field_values.get(field_name, ""),
+                            "observed": (
+                                str(raw_obs.current_state or "")
+                                if field_name == "state"
+                                else str(next(
+                                    (f.value for f in raw_obs.visible_fields
+                                     if f.is_visible and field_name in f.name.lower()),
+                                    "",
+                                ))
+                            ),
+                        }
+                        for field_name in requested_fields
                     },
                 }
                 step.observed_values = observed_values
@@ -1391,7 +1623,24 @@ class CognitiveOrchestrator:
                 if validation.overall_passed:
                     step.mark_success()
                 else:
-                    step.mark_failed("The requested record was not identified in the observation.")
+                    # P1-07: distinguish "page still loading" from "wrong
+                    # value" when deciding the step status — a loading
+                    # timeout is a BLOCKED, not a FAIL.
+                    if read_timed_out and not any(
+                        c.check_name.startswith(f"requested_{fn}_matches_expected")
+                        and not c.passed
+                        for fn in requested_fields
+                        for c in validation.checks
+                        if c.check_name.startswith(f"requested_{fn}_")
+                    ):
+                        step.mark_failed(
+                            "The page did not stabilize within the bounded wait window — "
+                            "reporting BLOCKED rather than treating transient loading as a defect."
+                        )
+                    else:
+                        step.mark_failed(
+                            "The requested record or acceptance criterion was not satisfied."
+                        )
                 memory.add_timeline_entry(
                     action=f"Read-only observation: {step.description}",
                     result=validation.to_summary(),
@@ -1441,6 +1690,18 @@ class CognitiveOrchestrator:
                     logger.info("decision_engine_bypassed", reason="Scripted test execution mode active")
 
             if action is None:
+                # P8-LAYA: the DecisionEngine may now delegate browser-level
+                # micro-decisions to the LAYA action policy (when configured
+                # and healthy) before falling back to the Gemini path. The
+                # action policy receives the current plan step (from
+                # memory.plan.current_step.description), the active persona
+                # (from memory.persona), and the compact indexed action
+                # space built from the latest observation stashed on
+                # memory.observations[-1]. The orchestrator's safety gates
+                # (page_gate, mutation authorization, execution limits) and
+                # independent post-action verification remain unchanged — the
+                # LAYA-chosen AgentAction flows through the exact same
+                # execution + validation path as a Gemini-chosen action.
                 decision = await self._decision_engine.decide_next_action(  # type: ignore[union-attr]
                     intent=memory.structured_intent,
                     world_state=world_state,

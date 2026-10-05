@@ -171,6 +171,14 @@ class SessionMemory(BaseModel):
     gemini_calls: int = 0
     verification_calls: int = 0
 
+    # P1-08 (D7): Retest / regression chain packages created during this
+    # run (or restored from a persisted session when resuming). Each entry
+    # is the dict form of a RetestPackage — see RetestChainManager.to_dict.
+    # The reporting engine reads this list to retain original AND retest
+    # results in the final report (a fix must not erase the original
+    # finding, and a regression must be visible alongside the retest).
+    retest_packages: list[dict[str, Any]] = Field(default_factory=list)
+
     def add_observation(self, observation: PageObservation) -> None:
         """Add a page observation, maintaining the rolling window."""
         from agent.core.redaction import redact_dict

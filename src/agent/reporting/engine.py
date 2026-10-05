@@ -260,10 +260,52 @@ class ReportingEngine:
                 if getattr(s, "requirement_id", None)
             ))
 
+        # P0-03 (D1, D6 — AC mapping): build a structured per-criterion
+        # result list. We REQUIRE real acceptance-criterion IDs from the
+        # imported test case; never infer the requirement count from plan
+        # steps when the AC list is empty (lines 279–283 of the prior
+        # implementation did exactly that, which silently manufactured
+        # coverage from execution length and produced false-positive UAT
+        # sign-offs). With this change:
+        #   • AC list empty  → authoritative_total = 0 → coverage reports
+        #     as 0% and the run is marked blocked (NOT a pass).
+        #   • AC list present but a criterion has no observed evidence →
+        #     status = "blocked", reported as such, not as coverage.
+        #   • AC matched → status = pass / fail with expected+observed.
+        tc_data = memory.test_case_data or {}
+        authoritative_ac_list = tc_data.get("acceptance_criteria", []) or []
+        if not isinstance(authoritative_ac_list, list):
+            authoritative_ac_list = []
+        # Coerce list-of-dict to a stable shape with id, expected, field,
+        # operator. Tolerate AC entries that are bare strings too.
+        normalized_ac: list[dict[str, Any]] = []
+        for idx, ac in enumerate(authoritative_ac_list):
+            if isinstance(ac, dict):
+                normalized_ac.append({
+                    "criterion_id": str(ac.get("id") or ac.get("criterion_id") or f"AC-{idx + 1:03d}"),
+                    "expected": str(ac.get("expected") or ac.get("expected_value") or ac.get("description") or ""),
+                    "field": str(ac.get("field") or ac.get("field_path") or ""),
+                    "operator": str(ac.get("operator") or "equals"),
+                    "description": str(ac.get("description") or ""),
+                })
+            else:
+                normalized_ac.append({
+                    "criterion_id": f"AC-{idx + 1:03d}",
+                    "expected": str(ac),
+                    "field": "",
+                    "operator": "equals",
+                    "description": str(ac),
+                })
+        report.acceptance_criteria_results = self._map_acceptance_criteria(
+            normalized_ac, memory
+        )
+
         # INC-UAT-15 (Minor): evaluate exit criteria and embed in the report
-        # INC-UAT-12 fix (reviewer feedback): use an AUTHORITATIVE total
+        # P0-03 fix (reviewer feedback): use an AUTHORITATIVE total
         # requirement count from the test case data — NOT from
-        # requirement_ids_covered (which would always make coverage 100%).
+        # requirement_ids_covered (which would always make coverage 100%)
+        # and NOT from plan steps when the AC list is empty (lines 279–283
+        # of the prior implementation did that and inflated coverage).
         try:
             from agent.reporting.exit_criteria import IncidentExitCriteriaEngine
             exit_engine = IncidentExitCriteriaEngine()
@@ -271,16 +313,11 @@ class ReportingEngine:
             minor_defects = sum(1 for d in defects if getattr(d, "severity", "").lower() in ("minor", "low"))
             unverified = sum(1 for v in memory.completed_validations if not v.overall_passed and not v.failed_checks)
             # Authoritative total: from test_case_data's acceptance_criteria
-            # list, OR from memory's test_case_data, OR fall back to 0
-            # (which means "unknown total" → coverage will be 0% in the
-            # exit criteria, honestly reflecting that we don't know the
-            # authoritative denominator).
-            tc_data = memory.test_case_data or {}
-            authoritative_total = len(tc_data.get("acceptance_criteria", []))
-            if authoritative_total == 0:
-                # Fall back to the plan's expected steps (not ideal but
-                # better than using the covered set as the total)
-                authoritative_total = len(memory.plan.steps) if memory.plan else 0
+            # list ONLY. When the list is empty the run honestly reports
+            # coverage as 0% (which the exit-criteria engine treats as a
+            # coverage-gap → BLOCKED), rather than fabricating a denominator
+            # from plan-step count.
+            authoritative_total = len(normalized_ac)
             exit_result = exit_engine.evaluate(
                 requirements_total=authoritative_total,
                 requirements_covered=len(report.requirement_ids_covered),
@@ -337,6 +374,72 @@ class ReportingEngine:
             "generated_at": datetime.now(UTC).isoformat(),
         }
 
+        # P1-08 (D7): copy the retest packages from session memory onto the
+        # report so a reviewer can see both the original finding AND the
+        # retest outcome. A fix must not erase the original finding.
+        report.retest_results = list(getattr(memory, "retest_packages", []) or [])
+
+        # P2-10 (D6, D10): extend report output with run ID, timestamp,
+        # persona, criteria mapping, screenshots, errors, and final status
+        # so a reviewer can trace every reported result to its run and
+        # supporting artifact. These are simple additions to the existing
+        # TestReport fields (no new model fields required) — we just
+        # populate them explicitly so the JSON / Markdown renderers always
+        # emit them.
+        if not report.environment:
+            report.environment = {}
+        report.environment.update({
+            "run_id": memory.session_id,
+            "persona": getattr(memory, "persona", "") or "",
+            "tenant_id": getattr(memory, "tenant_id", "") or "",
+            "generated_at": datetime.now(UTC).isoformat(),
+            "final_status": report.status,
+        })
+        # P2-12 (D6, D8): surface Gemini quota exhaustion explicitly so
+        # a reviewer sees it as a run limitation rather than mistaking
+        # a silent fallback to other perception paths for a passing
+        # result. Also surfaces the per-instance cache stats so the cost
+        # of duplicate Gemini calls within the run is visible.
+        try:
+            from agent.perception.backends import GeminiBackend
+            report.environment["gemini_quota_exhausted"] = bool(
+                GeminiBackend.is_quota_exhausted()
+            )
+            # The exhausted_at timestamp lives on the class — surface it
+            # so a reviewer can correlate with provider rate-limit windows.
+            if GeminiBackend._QUOTA_EXHAUSTED_AT:
+                report.environment["gemini_quota_exhausted_at"] = (
+                    GeminiBackend._QUOTA_EXHAUSTED_AT
+                )
+            # Reset the quota flag at the end of the run so the next run
+            # starts fresh (otherwise a single quota hit would block all
+            # subsequent runs until the cool-down elapses).
+            GeminiBackend.reset_quota_state()
+        except Exception as quota_err:
+            logger.warning("gemini_quota_status_check_failed", error=str(quota_err))
+        # Collect screenshot paths from all completed steps so reviewers
+        # can trace every reported result to its supporting artifact.
+        step_screenshots: list[str] = []
+        for step in memory.completed_steps:
+            if step.result and step.result.screenshot_path:
+                step_screenshots.append(step.result.screenshot_path)
+            if step.observation_after and getattr(step.observation_after, "screenshot_path", None):
+                step_screenshots.append(step.observation_after.screenshot_path)
+        if step_screenshots and not report.screenshots:
+            report.screenshots = step_screenshots
+        # Console errors aggregated from browser telemetry
+        if not report.console_errors and getattr(memory, "console_errors", []):
+            report.console_errors = list(memory.console_errors)
+
+        # P9-LAYA: record per-action source telemetry so a reviewer can see
+        # whether each action came from LAYA, Gemini, or a deterministic
+        # rule, plus confidence, inference latency, fallback reason, and
+        # model version. Also measures total cost and latency per run.
+        action_source_telemetry = self._build_action_source_telemetry(memory)
+        if not report.environment:
+            report.environment = {}
+        report.environment["action_source_telemetry"] = action_source_telemetry
+
         logger.info(
             "report_generated",
             report_id=report_id,
@@ -344,6 +447,104 @@ class ReportingEngine:
             defects=len(defects),
         )
         return report
+
+    def _build_action_source_telemetry(self, memory: SessionMemory) -> dict[str, Any]:
+        """P9-LAYA: build per-action source telemetry for the report.
+
+        Walks ``memory.completed_steps`` and extracts the ``action_source``
+        metadata from each step's action. Returns a summary dict with:
+          - ``per_action``: list of {step_index, source, confidence,
+            latency_ms, fallback_reason, model_version}
+          - ``summary``: {laya_count, gemini_count, heuristic_count,
+            laya_avg_confidence, laya_avg_latency_ms, total_inference_ms}
+        """
+        per_action: list[dict[str, Any]] = []
+        source_counts: dict[str, int] = {"laya": 0, "gemini": 0, "heuristic": 0, "unknown": 0}
+        laya_confidences: list[float] = []
+        laya_latencies: list[float] = []
+        laya_model_versions: set[str] = set()
+        laya_fallback_reasons: dict[str, int] = {}
+
+        for step in memory.completed_steps:
+            action = getattr(step, "action", None)
+            if action is None:
+                continue
+            metadata = getattr(action, "metadata", {}) or {}
+            source = str(metadata.get("action_source", "unknown"))
+            confidence = float(metadata.get("laya_confidence", 0.0) or 0.0)
+            latency_ms = float(metadata.get("laya_inference_latency_ms", 0.0) or 0.0)
+            fallback_reason = str(metadata.get("laya_fallback_reason", "") or "")
+            model_version = str(metadata.get("laya_model_version", "") or "")
+
+            # Normalize source
+            if source not in source_counts:
+                source_counts["unknown"] = source_counts.get("unknown", 0) + 1
+            else:
+                source_counts[source] = source_counts.get(source, 0) + 1
+
+            if source == "laya":
+                laya_confidences.append(confidence)
+                laya_latencies.append(latency_ms)
+                if model_version:
+                    laya_model_versions.add(model_version)
+                if fallback_reason:
+                    laya_fallback_reasons[fallback_reason] = (
+                        laya_fallback_reasons.get(fallback_reason, 0) + 1
+                    )
+
+            per_action.append({
+                "step_index": getattr(step, "step_index", -1),
+                "source": source,
+                "confidence": round(confidence, 4),
+                "inference_latency_ms": round(latency_ms, 2),
+                "fallback_reason": fallback_reason,
+                "model_version": model_version,
+                "action_type": str(getattr(action, "action_type", "")),
+                "target": str(getattr(action, "target", ""))[:80],
+            })
+
+        # Compute LAYA averages
+        laya_avg_confidence = (
+            sum(laya_confidences) / len(laya_confidences)
+            if laya_confidences else 0.0
+        )
+        laya_avg_latency = (
+            sum(laya_latencies) / len(laya_latencies)
+            if laya_latencies else 0.0
+        )
+        total_inference_ms = sum(laya_latencies)
+
+        # Total run cost estimation (very rough — operator should refine)
+        # Gemini planning calls + LAYA inference calls
+        gemini_calls = getattr(memory, "planner_calls", 0) or 0
+        laya_calls = len(laya_confidences)
+        moondream_calls = getattr(memory, "moondream_calls", 0) or 0
+        gemini_vision_calls = getattr(memory, "gemini_calls", 0) or 0
+        verification_calls = getattr(memory, "verification_calls", 0) or 0
+
+        return {
+            "per_action": per_action,
+            "summary": {
+                "source_counts": source_counts,
+                "laya_count": source_counts.get("laya", 0),
+                "gemini_count": source_counts.get("gemini", 0),
+                "heuristic_count": source_counts.get("heuristic", 0),
+                "laya_avg_confidence": round(laya_avg_confidence, 4),
+                "laya_avg_latency_ms": round(laya_avg_latency, 2),
+                "laya_total_inference_ms": round(total_inference_ms, 2),
+                "laya_model_versions": sorted(laya_model_versions),
+                "laya_fallback_reasons": laya_fallback_reasons,
+                "total_model_calls": {
+                    "gemini_planning": gemini_calls,
+                    "laya_action": laya_calls,
+                    "moondream_vision": moondream_calls,
+                    "gemini_vision": gemini_vision_calls,
+                    "verification": verification_calls,
+                },
+                "total_duration_seconds": getattr(memory, "total_actions_executed", 0)
+                and 0.0,  # filled by caller if available
+            },
+        }
 
     def _build_timeline(self, memory: SessionMemory) -> list[TimelineEntry]:
         """Build the execution timeline from session memory."""
@@ -522,6 +723,180 @@ class ReportingEngine:
 
         return defects, agent_issues, len(agent_issues), application_mismatch_count
 
+    def _map_acceptance_criteria(
+        self,
+        criteria: list[dict[str, Any]],
+        memory: SessionMemory,
+    ) -> list[dict[str, Any]]:
+        """P0-03 (D1, D6): map each acceptance criterion to its observed result.
+
+        Each criterion is resolved against ``memory.completed_steps``:
+        - If a step's expected_values or observed_values reference the
+          criterion's field, the criterion's status is ``pass`` or ``fail``
+          based on the validation result.
+        - If no step touched the criterion's field, the status is
+          ``blocked`` — explicitly NOT treated as coverage.
+        - Criteria whose expected value is empty (no contract) are
+          ``not_scored`` rather than silently passed.
+
+        Returns a list of dicts with keys: criterion_id, expected, observed,
+        field, operator, status, evidence_refs, related_step_index.
+        """
+        results: list[dict[str, Any]] = []
+        # Index completed-step observed_values by field name for quick lookup
+        field_observations: dict[str, list[tuple[int, str, Any, bool]]] = {}
+        for step in memory.completed_steps:
+            if not step.validation:
+                continue
+            observed_values = (
+                step.observation_after.observed_values
+                if step.observation_after and hasattr(step.observation_after, "observed_values")
+                else None
+            )
+            if not observed_values:
+                # Fall back to ActionResult.details["observed_values"]
+                if step.result and isinstance(step.result.details, dict):
+                    observed_values = step.result.details.get("observed_values")
+            if not isinstance(observed_values, dict):
+                continue
+            for field_name, value in observed_values.items():
+                field_observations.setdefault(str(field_name).lower(), []).append(
+                    (step.step_index, str(value), value, bool(step.validation.overall_passed))
+                )
+
+        # Also index the final_assertions evaluations from SessionMemory
+        # (memory.completed_validations carries the canonical checks; their
+        # `checks` list has check_name like "field_update" / "state_match"
+        # with `expected` and `actual` fields).
+        for validation in memory.completed_validations:
+            for check in validation.checks:
+                check_name = (getattr(check, "check_name", "") or "").lower()
+                # Only consider field-level checks
+                if "field" in check_name or "state" in check_name or "priority" in check_name:
+                    field_label = ""
+                    expected = getattr(check, "expected", "")
+                    actual = getattr(check, "actual", "")
+                    # Try to extract the field name from the check description
+                    description = getattr(check, "description", "") or ""
+                    if "state" in description.lower():
+                        field_label = "state"
+                    elif "priority" in description.lower():
+                        field_label = "priority"
+                    elif description:
+                        # Use the first word of the description as a heuristic
+                        field_label = description.lower().split()[0] if description.split() else ""
+                    if field_label:
+                        field_observations.setdefault(field_label.lower(), []).append(
+                            (
+                                getattr(check, "step_index", -1) if hasattr(check, "step_index") else -1,
+                                str(actual),
+                                actual,
+                                bool(getattr(check, "passed", False)),
+                            )
+                        )
+
+        for ac in criteria:
+            criterion_id = ac["criterion_id"]
+            expected = ac["expected"]
+            field = ac["field"]
+            operator = ac["operator"]
+            description = ac.get("description", "")
+
+            observed_hits = field_observations.get(field.lower(), []) if field else []
+
+            if not expected.strip() and not field.strip():
+                # No contract → do not silently pass
+                results.append({
+                    "criterion_id": criterion_id,
+                    "expected": expected,
+                    "observed": "",
+                    "field": field,
+                    "operator": operator,
+                    "status": "not_scored",
+                    "reason": "criterion has no expected value or field — cannot score",
+                    "evidence_refs": [],
+                    "related_step_index": None,
+                })
+                continue
+
+            if not observed_hits:
+                # Criterion exists but no step touched the field → blocked
+                results.append({
+                    "criterion_id": criterion_id,
+                    "expected": expected,
+                    "observed": "",
+                    "field": field,
+                    "operator": operator,
+                    "status": "blocked",
+                    "reason": (
+                        f"no executed step observed the field '{field}' required by this criterion"
+                    ),
+                    "evidence_refs": [],
+                    "related_step_index": None,
+                })
+                continue
+
+            # Pick the most recent observation for this field
+            step_index, observed_str, observed_val, step_passed = observed_hits[-1]
+
+            # Evaluate operator
+            ok = False
+            try:
+                if operator == "equals":
+                    ok = str(observed_val).strip().casefold() == str(expected).strip().casefold()
+                elif operator == "not_equals":
+                    ok = str(observed_val).strip().casefold() != str(expected).strip().casefold()
+                elif operator == "contains":
+                    ok = str(expected).strip().casefold() in str(observed_val).strip().casefold()
+                elif operator == "not_empty":
+                    ok = bool(str(observed_val).strip())
+                elif operator == "is_empty":
+                    ok = not str(observed_val).strip()
+                elif operator == "state_matches":
+                    # State-name tolerant comparison: "2" ↔ "In Progress"
+                    state_label_map = {
+                        "1": "new", "2": "in progress", "3": "on hold",
+                        "6": "resolved", "7": "closed", "8": "canceled",
+                    }
+                    obs_norm = str(observed_val).strip().casefold()
+                    exp_norm = str(expected).strip().casefold()
+                    obs_label = state_label_map.get(obs_norm, obs_norm)
+                    exp_label = state_label_map.get(exp_norm, exp_norm)
+                    ok = obs_norm == exp_norm or obs_label == exp_label
+                else:
+                    ok = step_passed  # fall back to the step's overall verdict
+            except Exception:
+                ok = False
+
+            evidence_refs: list[str] = []
+            matching_step = next(
+                (s for s in memory.completed_steps if s.step_index == step_index),
+                None,
+            )
+            if matching_step:
+                if matching_step.result and matching_step.result.screenshot_path:
+                    evidence_refs.append(matching_step.result.screenshot_path)
+                if matching_step.observation_after and getattr(
+                    matching_step.observation_after, "screenshot_path", None
+                ):
+                    evidence_refs.append(matching_step.observation_after.screenshot_path)
+
+            results.append({
+                "criterion_id": criterion_id,
+                "expected": expected,
+                "observed": observed_str,
+                "field": field,
+                "operator": operator,
+                "status": "pass" if ok else "fail",
+                "reason": (
+                    f"{field} {operator} {expected!r}: observed {observed_str!r}"
+                ),
+                "evidence_refs": evidence_refs,
+                "related_step_index": step_index,
+            })
+
+        return results
+
     def _categorize_issue(self, error_type: str, check_names: str) -> str:
         """Categorize an agent issue for diagnostics."""
         token = (error_type or "").lower()
@@ -606,12 +981,14 @@ class ReportingEngine:
     async def render_markdown(self, report: TestReport) -> str:
         """Render the report as a Markdown document.
 
-        Args:
-            report: The TestReport to render.
-
-        Returns:
-            Markdown string.
+        P2-10 (D6, D10): now includes a Run Identification header (run
+        ID, persona, tenant, generated_at, final_status), an Acceptance
+        Criteria Mapping section (criterion_id, expected, observed,
+        status, related step), and a Retest Results section so a
+        reviewer can trace every reported result to its run and
+        supporting artifact.
         """
+        env = report.environment or {}
         lines = [
             f"# QA Test Report: {report.report_id}",
             "",
@@ -620,6 +997,16 @@ class ReportingEngine:
             f"**Duration:** {report.duration_seconds:.1f}s",
             f"**Started:** {report.started_at.isoformat()}",
             f"**Completed:** {report.completed_at.isoformat() if report.completed_at else 'N/A'}",
+            "",
+            "---",
+            "",
+            "## Run Identification",
+            "",
+            f"- **Run ID:** {env.get('run_id', '')}",
+            f"- **Persona:** {env.get('persona', '')}",
+            f"- **Tenant ID:** {env.get('tenant_id', '')}",
+            f"- **Generated At:** {env.get('generated_at', '')}",
+            f"- **Final Status:** {env.get('final_status', report.status)}",
             "",
             "---",
             "",
@@ -639,6 +1026,26 @@ class ReportingEngine:
             f"| Pass Rate | {report.pass_rate:.1f}% |",
             "",
         ]
+
+        # P2-10 (D6, D10): Acceptance Criteria Mapping section — gives a
+        # reviewer a per-criterion view of expected vs. observed so they
+        # can trace every reported result to its supporting artifact.
+        if report.acceptance_criteria_results:
+            lines.extend([
+                "---",
+                "",
+                "## Acceptance Criteria Mapping",
+                "",
+                "| Criterion ID | Field | Expected | Observed | Status | Step |",
+                "|--------------|-------|----------|----------|--------|------|",
+            ])
+            for ac in report.acceptance_criteria_results:
+                lines.append(
+                    f"| {ac.get('criterion_id', '')} | {ac.get('field', '')} | "
+                    f"{ac.get('expected', '')} | {ac.get('observed', '')} | "
+                    f"{ac.get('status', '')} | {ac.get('related_step_index', '')} |"
+                )
+            lines.append("")
 
         # Defects
         if report.defects:
@@ -665,6 +1072,34 @@ class ReportingEngine:
                 if defect.root_cause_hypothesis:
                     lines.append(f"**Root Cause Hypothesis:** {defect.root_cause_hypothesis}")
                     lines.append("")
+
+        # P1-08 (D7): Retest Results section — preserves BOTH the
+        # original finding AND the retest outcome.
+        if report.retest_results:
+            lines.extend([
+                "---",
+                "",
+                "## Retest Results",
+                "",
+                "_Each entry preserves the original finding AND the retest "
+                "outcome so a fix cannot erase the original defect and a "
+                "regression is visible alongside the retest._",
+                "",
+            ])
+            for pkg in report.retest_results:
+                lines.extend([
+                    f"### Retest {pkg.get('retest_id', '')}",
+                    f"- **Original Finding:** {pkg.get('original_finding_id', '')}",
+                    f"- **Fix Reference:** {pkg.get('fix_reference', '')}",
+                    f"- **Failed Scenario:** {pkg.get('failed_scenario', '')}",
+                    f"- **Regression Scenarios:** {', '.join(pkg.get('regression_scenarios', [])) or 'none'}",
+                    f"- **Final Status:** {pkg.get('status', '')}",
+                ])
+                for r in pkg.get("retest_results", []):
+                    lines.append(
+                        f"  - {r.get('scenario', '')}: {r.get('verdict', '')}"
+                    )
+                lines.append("")
 
         # Agent issues (QA engine diagnostics — NOT application defects)
         if report.agent_issues:
