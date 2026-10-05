@@ -88,7 +88,37 @@ echo "[1/5] Starting uvicorn + celery..."
 pkill -f "uvicorn agent.main:app" 2>/dev/null || true
 pkill -f "celery -A agent.core.celery_app" 2>/dev/null || true
 
-# 1a. Verify uvicorn is installed — if not, retry pip install -e . inline
+# 1a. Verify system services (postgres + redis) are installed + running.
+# codespace_setup.sh's apt install + service start has been failing in postCreate.
+# We retry inline here so the runtime can recover even if setup didn't fully complete.
+if ! command -v psql >/dev/null 2>&1; then
+  echo "  postgres not installed — running apt-get install inline"
+  sudo apt-get update -qq >> /tmp/setup_inline.log 2>&1 || true
+  sudo apt-get install -y -qq postgresql postgresql-contrib redis-server build-essential libpq-dev >> /tmp/setup_inline.log 2>&1 || true
+fi
+# Initialize + start postgres if not running
+if command -v pg_ctlcluster >/dev/null 2>&1; then
+  if [ ! -d /var/lib/postgresql/15/main ] && [ -d /usr/lib/postgresql/15/bin ]; then
+    sudo mkdir -p /var/lib/postgresql/15/main
+    sudo chown -R postgres:postgres /var/lib/postgresql/15 2>/dev/null || true
+    sudo -u postgres /usr/lib/postgresql/15/bin/initdb -D /var/lib/postgresql/15/main >> /tmp/setup_inline.log 2>&1 || true
+  fi
+  sudo pg_ctlcluster 15 main start >> /tmp/setup_inline.log 2>&1 2>/dev/null || sudo service postgresql start >> /tmp/setup_inline.log 2>&1 2>/dev/null || true
+fi
+# Start redis if not running
+if command -v redis-server >/dev/null 2>&1; then
+  sudo service redis-server start >> /tmp/setup_inline.log 2>&1 2>/dev/null || sudo redis-server --daemonize yes >> /tmp/setup_inline.log 2>&1 2>/dev/null || true
+fi
+sleep 2
+# Initialize DB + admin (best-effort)
+sudo -u postgres psql -c "CREATE DATABASE servicenow_qa;" 2>/dev/null >> /tmp/setup_inline.log || true
+sudo -u postgres psql -d servicenow_qa -c "CREATE EXTENSION IF NOT EXISTS vector;" 2>/dev/null >> /tmp/setup_inline.log || true
+sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres';" 2>/dev/null >> /tmp/setup_inline.log || true
+# Run init_db + bootstrap_admin if not already done
+python scripts/init_db.py >> /tmp/setup_inline.log 2>&1 || true
+python scripts/bootstrap_admin.py --username qa-admin --password 'QuickStart123!' >> /tmp/setup_inline.log 2>&1 || true
+
+# 1b. Verify uvicorn is installed — if not, retry pip install -e . inline
 # (codespace_setup.sh's pip install sometimes fails transiently during postCreate)
 if ! python -c "import uvicorn" 2>/dev/null; then
   echo "  uvicorn not installed — running pip install -e . inline (logging to /tmp/pip_install.log)"
@@ -160,6 +190,7 @@ cp /tmp/run_report.json reports/sample_run_report.json 2>/dev/null || true
 cp /tmp/api.log reports/api_execution_log.txt 2>/dev/null || true
 cp /tmp/worker.log reports/worker_execution_log.txt 2>/dev/null || true
 cp /tmp/pip_install.log reports/pip_install_log.txt 2>/dev/null || true
+cp /tmp/setup_inline.log reports/setup_inline_log.txt 2>/dev/null || true
 python3 -c "
 import ast, os
 errors = []
