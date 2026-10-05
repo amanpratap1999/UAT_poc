@@ -25,10 +25,63 @@ export UAT_ENV_FILE="${UAT_ENV_FILE:-/workspaces/UAT_poc/.env.local}"
 # likely suspects defensively.
 unset BROWSER LLM SERVICENOW AGENT SESSION PERCEPTION DOMAIN SECURITY SAFETY_BUDGET LAYA 2>/dev/null || true
 
+# CRITICAL: ensure .env.local exists. codespace_setup.sh's python heredoc
+# sometimes fails silently during postCreate (reason unclear — possibly cwd
+# issue or heredoc parsing). Without .env.local, get_active_env_file() returns
+# the path but is_file() returns False, so load_dotenv() is never called, so
+# only UAT_RUNTIME_MODE ends up in os.environ, and Settings() rejects
+# SERVICENOW_INSTANCE_URL as "not set" (input_value={'UAT_RUNTIME_MODE': 'local'}).
+# Fix: if .env.local doesn't exist, create it inline with the known values.
+if [ ! -f "$UAT_ENV_FILE" ]; then
+  echo "  .env.local not found at $UAT_ENV_FILE — creating inline"
+  python3 << 'PYEOF'
+import json, os
+password = os.environ.get('SERVICENOW_PASSWORD', '')
+nvidia_key = os.environ.get('NVIDIA_API_KEY', '')
+moondream_key = os.environ.get('MOONDREAM_API_KEY', '')
+gemini_key = os.environ.get('GEMINI_API_KEY', '')
+personas = json.dumps({'prakhar.s1': {'username': 'prakhar.s1', 'password': password, 'role': 'itil'}})
+env = f'''SERVICENOW_INSTANCE_URL=https://aelumconsultingpvtltddemo3.service-now.com
+SERVICENOW_USERNAME=prakhar.s1
+SERVICENOW_PASSWORD={password}
+SERVICENOW_IS_SUBPRODUCTION=true
+SERVICENOW_ALLOW_MUTATIONS=true
+SERVICENOW_ALLOWED_INSTANCES=aelumconsultingpvtltddemo3.service-now.com
+SERVICENOW_PERSONAS={personas}
+SERVICENOW_ACTIVE_PERSONA=prakhar.s1
+SERVICENOW_REQUIRE_PERSONA_FOR_BENCHMARK=true
+SERVICENOW_ORACLE_PERSONA_CONSTRAINED=true
+LLM_PROVIDER=nvidia
+LLM_BASE_URL=https://integrate.api.nvidia.com/v1
+LLM_MODEL=nvidia/nemotron-3-ultra-550b-a55b
+OPENAI_API_KEY={nvidia_key}
+MOONDREAM_API_KEY={moondream_key}
+GEMINI_API_KEY={gemini_key}
+JWT_SECRET_KEY=codespace-jwt-secret-32-chars-min
+JWT_ALGORITHM=HS256
+DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/servicenow_qa
+REDIS_URL=redis://127.0.0.1:6379/0
+SESSION_STORE_TYPE=redis
+CELERY_BROKER_URL=redis://127.0.0.1:6379/0
+CELERY_RESULT_BACKEND=redis://127.0.0.1:6379/1
+BROWSER_HEADLESS=true
+BROWSER_KEEP_BROWSER_OPEN=false
+UAT_RUNTIME_MODE=local
+ENVIRONMENT=development
+LOG_LEVEL=INFO
+'''
+target = os.environ.get('UAT_ENV_FILE', '/workspaces/UAT_poc/.env.local')
+with open(target, 'w') as f:
+    f.write(env)
+print(f'  wrote {target} ({len(env)} bytes)')
+PYEOF
+fi
+
 echo "=== Codespace Runtime (postStart) ==="
 echo "  UAT_RUNTIME_MODE=$UAT_RUNTIME_MODE"
 echo "  UAT_ENV_FILE=$UAT_ENV_FILE"
 echo "  BROWSER env var: ${BROWSER:-<unset>}"
+echo "  .env.local exists: $([ -f "$UAT_ENV_FILE" ] && echo yes || echo NO)"
 
 # 1. Start API + Worker (best-effort)
 echo "[1/5] Starting uvicorn + celery..."
