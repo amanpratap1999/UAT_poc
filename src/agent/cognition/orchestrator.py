@@ -17,8 +17,8 @@ from agent.cognition.stuck_detector import StuckDetector
 from agent.core.logging import get_logger
 from agent.core.types import ActionType, AgentState, RunEventType, StepStatus
 from agent.domain.plan import ExecutionPlan
-from agent.domain.actions import AgentAction
-from agent.domain.validation import ValidationResult
+from agent.domain.actions import ActionResult, AgentAction
+from agent.domain.validation import ValidationCheck, ValidationResult
 from agent.domain.knowledge_model import CustomerKnowledgeModel
 from agent.memory.session import SessionMemory
 from agent.world.model import WorldModel
@@ -203,8 +203,6 @@ class CognitiveOrchestrator:
         "_browser_manager",
         "_observation_engine",
         "_validation_engine",
-        "_perception_engine",
-        "_settings",
     )
 
     def _ensure_required_dependencies(self, context: str) -> None:
@@ -680,7 +678,17 @@ class CognitiveOrchestrator:
         # instead of reaching into the private _skills dict. Refactors
         # to CapabilityRegistry's internal storage layout won't break
         # this call site.
-        for _name, _skill, definition in self._skill_registry.iter_skills():
+        skills = self._skill_registry.iter_skills()
+        try:
+            skill_entries = iter(skills)
+        except TypeError:
+            # Compatibility with lightweight registry adapters/mocks that
+            # expose the historical mapping but not the iterator contract.
+            skill_entries = (
+                (name, skill, definition)
+                for name, (skill, definition) in self._skill_registry._skills.items()
+            )
+        for _name, _skill, definition in skill_entries:
             capabilities_list.append(
                 {
                     "name": definition.name,
@@ -1281,6 +1289,126 @@ class CognitiveOrchestrator:
                     )
                     continue
 
+            # Read-only Incident plans are observations, never model-selected
+            # browser actions. This keeps transient LLM failures from turning
+            # an inspection request into an accidental mutation.
+            read_only_markers = (
+                "read-only", "read only", "do not change", "do not modify",
+                "do not update", "inspect only", "observe only", "no mutations",
+            )
+            if any(marker in objective.lower() for marker in read_only_markers):
+                expected_record = gate_result.expected_record
+                actual_record = raw_obs.record_number or ""
+                observation_screenshot = raw_obs.screenshot_path
+                if not observation_screenshot and self._browser_manager:
+                    try:
+                        observation_screenshot = str(
+                            await self._browser_manager.take_screenshot(
+                                f"read_only_observation_{step.step_index}"
+                            )
+                        )
+                    except Exception as screenshot_error:
+                        logger.warning(
+                            "read_only_screenshot_capture_failed",
+                            error=str(screenshot_error),
+                        )
+                record_check = ValidationCheck(
+                    check_name="target_record_visible",
+                    description="The requested ServiceNow record is the active observed record.",
+                    passed=bool(expected_record and actual_record == expected_record),
+                    expected=expected_record or "a specific target record",
+                    actual=actual_record or "no record identified",
+                    evidence={
+                        "url": raw_obs.url,
+                        "page_type": raw_obs.page_type.value,
+                        "screenshot": observation_screenshot,
+                    },
+                )
+                validation = ValidationResult(
+                    action_description=f"Read-only observation: {step.description}"
+                )
+                validation.add_check(record_check)
+                # For a field-specific inspection, presence of the record
+                # alone is not enough to report a pass. Confirm each named
+                # field was actually observed and attach its value as evidence.
+                requested_fields = [
+                    field_name
+                    for field_name in ("state", "priority")
+                    if re.search(rf"\b{field_name}\b", objective, re.IGNORECASE)
+                ]
+                for field_name in requested_fields:
+                    matches = [
+                        field for field in raw_obs.visible_fields
+                        if field.is_visible and field_name in field.name.lower()
+                    ]
+                    observed_value = (
+                        str(raw_obs.current_state or "")
+                        if field_name == "state" and raw_obs.current_state is not None
+                        else str(matches[0].value or "") if matches else ""
+                    )
+                    validation.add_check(
+                        ValidationCheck(
+                            check_name=f"requested_{field_name}_observed",
+                            description=f"The requested {field_name} value is present in the active Incident observation.",
+                            passed=bool(observed_value.strip()),
+                            expected=f"{field_name} is visible and has a value",
+                            actual=observed_value or "field not observed",
+                            evidence={
+                                "matched_field": matches[0].name if matches else None,
+                                "record_number": actual_record,
+                            },
+                        )
+                    )
+                observed_values = {
+                    "record_number": actual_record,
+                    "state": raw_obs.current_state,
+                    "fields": {
+                        field.name: field.value
+                        for field in raw_obs.visible_fields
+                        if field.is_visible
+                    },
+                }
+                step.observed_values = observed_values
+                action = AgentAction(
+                    action_type=ActionType.VALIDATE,
+                    target=actual_record,
+                    reasoning="Read-only request: captured the current observation without browser actions.",
+                    metadata={"observation_only": True},
+                )
+                result = ActionResult(
+                    success=validation.overall_passed,
+                    action=action,
+                    screenshot_path=observation_screenshot,
+                    details={"observation_only": True, "observed_values": observed_values},
+                )
+                memory.add_completed_step(
+                    action=action,
+                    result=result,
+                    observation_before=raw_obs,
+                    observation_after=raw_obs,
+                    validation=validation,
+                )
+                if validation.overall_passed:
+                    step.mark_success()
+                else:
+                    step.mark_failed("The requested record was not identified in the observation.")
+                memory.add_timeline_entry(
+                    action=f"Read-only observation: {step.description}",
+                    result=validation.to_summary(),
+                )
+                await self._publish_event(
+                    RunEventType.STEP_FINISHED,
+                    {
+                        "step_index": step.step_index,
+                        "description": step.description,
+                        "status": "success" if validation.overall_passed else "failed",
+                        "actual_result": validation.to_summary(),
+                        "observed_values": observed_values,
+                        "screenshot": observation_screenshot,
+                    },
+                )
+                continue
+
             # 3. Decision
             self._transition(AgentState.DECISION, f"Deciding action for: {step.description}")
             
@@ -1485,7 +1613,9 @@ class CognitiveOrchestrator:
                 result=result,
                 before=raw_obs,
                 after=raw_obs_after,
-                intent=plan.intent,
+                # The structured intent lives in session memory; ExecutionPlan
+                # stores only the executable steps and goal.
+                intent=memory.structured_intent,
             )
 
             if skill and hasattr(skill, "validate"):

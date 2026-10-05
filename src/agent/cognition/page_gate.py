@@ -73,7 +73,8 @@ class PageGate:
         elif expected_record.startswith("REQ"):
             expected_table = "sc_request"
 
-        # 2. Check if we are on a dialog, dashboard or home page
+        # A number appearing in a dialog URL is not proof that the Incident
+        # form is active. Require a record-capable page before trusting it.
         if observed_page_type in ("dialog", "dashboard", "homepage", "login"):
             return PageGateResult(
                 passed=False,
@@ -84,7 +85,34 @@ class PageGate:
                 expected_record=expected_record,
                 expected_table=expected_table,
             )
-            
+
+        # A matching record number identifies the active record on a valid
+        # form-capable page, even when its route is inside unified navigation.
+        if observed_record:
+            if observed_record != expected_record:
+                return PageGateResult(
+                    passed=False,
+                    reason=(
+                        f"Observed record {observed_record} does not match "
+                        f"expected target {expected_record}."
+                    ),
+                    observed_url=observed_url,
+                    observed_record=observed_record,
+                    observed_page_type=observed_page_type,
+                    expected_record=expected_record,
+                    expected_table=expected_table,
+                )
+            return PageGateResult(
+                passed=True,
+                reason="Observed record number matches the requested target.",
+                observed_url=observed_url,
+                observed_record=observed_record,
+                observed_page_type=observed_page_type,
+                expected_record=expected_record,
+                expected_table=expected_table,
+            )
+
+        # 2. Check whether the URL appears to point at the target table.
         if expected_table and (f"{expected_table}.do" not in observed_url and f"sow/record/{expected_table}" not in observed_url):
             if "nav_to.do" not in observed_url and "/now/nav/" not in observed_url:
                 pass # it might still be ok if it's some other view, but typically we want the table in URL

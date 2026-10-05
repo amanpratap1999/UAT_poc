@@ -1,31 +1,29 @@
-"""Reset INC0000007 to the On Hold (state=3, hold_reason=1) test baseline.
+"""Explicitly reset a selected Incident to the On Hold test baseline.
 
 Uses the ServiceNow g_form client API (not raw DOM select mutation) so the
 form model actually registers the change and the Update save persists.
 Verifies the persisted state by re-reading the record in the same session
 and exits non-zero if the baseline was not established.
 
-Usage: .venv/Scripts/python.exe scripts/reset_incident_baseline.py
+Usage: python scripts/reset_incident_baseline.py --incident-number INC0012345 --apply
 """
 
 from __future__ import annotations
 
 import asyncio
+import argparse
 import sys
+from pathlib import Path
 
-sys.path.insert(0, r"c:\Users\Prakhar Singh\Desktop\UAT_Servicenow\UAT_poc\src")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent / "diagnostics"))
 
 from agent.api.v1.dependencies import get_browser_manager, get_cached_settings
+from incident_navigation import open_incident_by_number
 
 settings = get_cached_settings()
 if not settings.servicenow.instance_url:
     raise ValueError("SERVICENOW_INSTANCE_URL is not set.")
-
-INCIDENT_URL = (
-    f"{settings.servicenow.instance_url}/"
-    "incident.do?sys_id=8d6353eac0a8016400d8a125ca14fc1f"
-)
-
 
 async def read_state(page) -> tuple[str, str]:
     """Read (value, label) of the incident state select."""
@@ -36,16 +34,23 @@ async def read_state(page) -> tuple[str, str]:
 
 
 async def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--incident-number", required=True)
+    parser.add_argument("--apply", action="store_true", help="Confirm that this record may be changed")
+    args = parser.parse_args()
     settings = get_cached_settings()
+    if not args.apply:
+        parser.error("refusing to mutate ServiceNow without --apply")
+    if not settings.servicenow.is_subproduction or not settings.servicenow.allow_mutations:
+        raise RuntimeError("Reset requires SERVICENOW_IS_SUBPRODUCTION=true and SERVICENOW_ALLOW_MUTATIONS=true")
     browser_manager = get_browser_manager(settings)
 
-    print("Launching browser to restore baseline state on INC0000007...")
+    print(f"Launching browser to restore baseline state on {args.incident_number}...")
     await browser_manager.launch()
-    page = browser_manager.get_page()
+    page = await open_incident_by_number(browser_manager, settings, args.incident_number)
 
     # 1. Navigate + authenticate if required
-    await browser_manager.navigate(INCIDENT_URL)
-    await page.wait_for_timeout(3000)
+    # The helper verifies the exact visible Incident number before we allow edits.
     login_user = page.locator("input#user_name, input[name='user_name']")
     if await login_user.count() > 0:
         print("Login form detected! Performing login...")
@@ -58,8 +63,7 @@ async def main() -> None:
         ).first.click()
         await browser_manager.wait_for_load()
         await page.wait_for_timeout(4000)
-        await browser_manager.navigate(INCIDENT_URL)
-        await page.wait_for_timeout(4000)
+        page = await open_incident_by_number(browser_manager, settings, args.incident_number)
 
     # 2. Confirm current state before mutation
     value, label = await read_state(page)
@@ -103,8 +107,7 @@ async def main() -> None:
 
     # 5. Re-open the record and verify persistence
     print("Re-opening record to verify persistence...")
-    await browser_manager.navigate(INCIDENT_URL)
-    await page.wait_for_timeout(5000)
+    page = await open_incident_by_number(browser_manager, settings, args.incident_number)
 
     value, label = await read_state(page)
     print(f"State after reset: {value} ({label})")
@@ -117,10 +120,13 @@ async def main() -> None:
 
     await browser_manager.close()
 
-    if value != "3":
-        print(f"FAILED: expected state 3 (On Hold) but record is {value} ({label})")
+    if value != "3" or hold_val != "1":
+        print(
+            "FAILED: expected state=3 (On Hold) and hold_reason=1 "
+            f"(Awaiting Caller); observed state={value} ({label}), hold_reason={hold_val!r}"
+        )
         raise SystemExit(1)
-    print("Baseline restored: INC0000007 is On Hold (3) with hold reason Awaiting Caller (1).")
+    print(f"Baseline restored: {args.incident_number} is On Hold (3) with hold reason Awaiting Caller (1).")
 
 
 if __name__ == "__main__":

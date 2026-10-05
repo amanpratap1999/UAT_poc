@@ -447,6 +447,13 @@ async def get_run(
                 cleanup_details=snapshot.get("cleanup_details"),
                 api_verification_status=snapshot.get("api_verification_status"),
                 telemetry=snapshot.get("telemetry") or {},
+                persona=snapshot.get("persona"),
+                exit_criteria=snapshot.get("exit_criteria"),
+                environment=snapshot.get("environment") or {},
+                requirement_ids_covered=snapshot.get("requirement_ids_covered") or [],
+                defects=snapshot.get("defects") or [],
+                step_evidence=snapshot.get("step_evidence") or [],
+                reproducibility=snapshot.get("reproducibility"),
             )
         except (OSError, json.JSONDecodeError):
             pass

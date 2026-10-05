@@ -106,6 +106,13 @@ class RunDetailResponse(BaseModel):
     cleanup_details: str | None = None
     api_verification_status: str | None = None
     telemetry: dict[str, Any] = Field(default_factory=dict)
+    persona: str | None = None
+    exit_criteria: dict[str, Any] | None = None
+    environment: dict[str, Any] = Field(default_factory=dict)
+    requirement_ids_covered: list[str] = Field(default_factory=list)
+    defects: list[dict[str, Any]] = Field(default_factory=list)
+    step_evidence: list[dict[str, Any]] = Field(default_factory=list)
+    reproducibility: dict[str, Any] | None = None
 
 
 class FindingResponse(BaseModel):

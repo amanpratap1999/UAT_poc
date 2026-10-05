@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from agent.core.logging import get_logger
@@ -36,7 +36,7 @@ class ScenarioResult:
     actions_taken: int = 0
     evidence_count: int = 0
     duration_seconds: float = 0.0
-    human_intervention_steps: int = 0
+    human_intervention_steps: int | None = None
 
 
 @dataclass
@@ -48,6 +48,9 @@ class BenchmarkMetrics:
     false_positives: int = 0  # agent reported a defect not in the manifest
     misclassifications: int = 0  # agent detected the defect but classified it wrong
     decoy_false_positives: int = 0  # agent reported a by-design decoy as a defect
+    true_negatives: int = 0  # agent correctly left a decoy/control unreported
+    execution_errors: int = 0  # infrastructure or agent errors, not scenario verdicts
+    unscored_runs: int = 0  # blocked/cannot-verify runs without a valid observation
 
     # Consistency metrics (INC-UAT-10)
     total_scenarios: int = 0
@@ -57,7 +60,8 @@ class BenchmarkMetrics:
     # Execution metrics
     total_runs: int = 0
     total_actions: int = 0
-    total_human_intervention_steps: int = 0
+    total_human_intervention_steps: int | None = None
+    human_intervention_measured_runs: int = 0
     total_duration_seconds: float = 0.0
 
     # Per-scenario results
@@ -72,7 +76,9 @@ class BenchmarkMetrics:
     @property
     def precision(self) -> float:
         """Precision = TP / (TP + FP)."""
-        denom = self.true_positives + self.false_positives
+        # Decoy reports are false positives too; excluding them made precision
+        # look better precisely when the agent misread by-design behavior.
+        denom = self.true_positives + self.false_positives + self.decoy_false_positives
         return self.true_positives / denom if denom > 0 else 0.0
 
     @property
@@ -87,6 +93,9 @@ class BenchmarkMetrics:
             "false_positives": self.false_positives,
             "misclassifications": self.misclassifications,
             "decoy_false_positives": self.decoy_false_positives,
+            "true_negatives": self.true_negatives,
+            "execution_errors": self.execution_errors,
+            "unscored_runs": self.unscored_runs,
             "recall": round(self.recall, 3),
             "precision": round(self.precision, 3),
             "consistency_rate": round(self.consistency_rate, 3),
@@ -96,7 +105,9 @@ class BenchmarkMetrics:
             "total_runs": self.total_runs,
             "total_actions": self.total_actions,
             "total_human_intervention_steps": self.total_human_intervention_steps,
+            "human_intervention_measured_runs": self.human_intervention_measured_runs,
             "total_duration_seconds": round(self.total_duration_seconds, 1),
+            "scenario_results": [asdict(result) for result in self.scenario_results],
         }
 
 
@@ -138,6 +149,8 @@ class IncidentBenchmarkRunner:
             BenchmarkMetrics with TP/FN/FP/consistency metrics.
         """
         metrics = BenchmarkMetrics()
+        if runs_per_scenario < 3:
+            raise ValueError("Incident UAT repeatability requires at least three runs per scenario.")
         real_defect_ids = self._manifest.get_defect_ids()
         decoy_ids = self._manifest.get_decoy_ids()
 
@@ -170,15 +183,29 @@ class IncidentBenchmarkRunner:
                         verdict="ERROR",
                         detection_description=f"Execution error: {e}",
                     )
+                if result.verdict in {"ERROR", "INFRA_ERROR"}:
+                    metrics.execution_errors += 1
                 result.duration_seconds = time.monotonic() - start_time
                 metrics.scenario_results.append(result)
                 metrics.total_runs += 1
                 metrics.total_actions += result.actions_taken
-                metrics.total_human_intervention_steps += result.human_intervention_steps
+                if result.human_intervention_steps is not None:
+                    metrics.total_human_intervention_steps = (
+                        (metrics.total_human_intervention_steps or 0) + result.human_intervention_steps
+                    )
+                    metrics.human_intervention_measured_runs += 1
                 metrics.total_duration_seconds += result.duration_seconds
 
                 # Track verdicts for consistency check
-                scenario_verdicts.setdefault(scenario, []).append(result.verdict)
+                verdicts = scenario_verdicts.setdefault(scenario, [])
+                if result.verdict in {"PASS", "FAIL", "BLOCKED", "CANNOT_VERIFY"}:
+                    verdicts.append(result.verdict)
+
+                # Errors and honest non-observations are not defect misses or
+                # clean passes. Keep them visible, but outside precision/recall.
+                if result.verdict in {"ERROR", "INFRA_ERROR", "BLOCKED", "CANNOT_VERIFY"}:
+                    metrics.unscored_runs += 1
+                    continue
 
                 # Score the result against the truth manifest
                 detected = result.detected_defect_id
@@ -193,6 +220,8 @@ class IncidentBenchmarkRunner:
                             decoy_id=defect.defect_id,
                             detected_id=detected,
                         )
+                    else:
+                        metrics.true_negatives += 1
                 else:
                     # Real defect: agent should detect it
                     if detected == defect.defect_id:
@@ -221,7 +250,7 @@ class IncidentBenchmarkRunner:
         unique_scenarios = set(scenario_verdicts.keys())
         metrics.total_scenarios = len(unique_scenarios)
         for scenario, verdicts in scenario_verdicts.items():
-            if len(set(verdicts)) == 1:
+            if len(verdicts) == runs_per_scenario and len(set(verdicts)) == 1:
                 metrics.consistent_scenarios += 1
             else:
                 metrics.inconsistent_scenarios.append(scenario)

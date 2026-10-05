@@ -37,7 +37,9 @@ async def main() -> None:
     settings = get_cached_settings()
     orchestrator = create_orchestrator(settings)
 
-    report = await orchestrator.run(args.goal)
+    # Preserve the selected persona in run metadata and make the orchestrator
+    # apply its per-run credential isolation instead of reporting persona=None.
+    report = await orchestrator.run(args.goal, persona=settings.servicenow.active_persona)
 
     print("\n=== Execution Completed ===")
     print(f"Report ID: {report.report_id}")

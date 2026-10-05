@@ -8,6 +8,7 @@ executive summaries with root-cause hypotheses.
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import uuid
 from datetime import UTC, datetime
@@ -133,13 +134,16 @@ class ReportingEngine:
         # Step evidence
         step_evidence: list[dict[str, Any]] = []
         for step in memory.completed_steps:
+            screenshot_path = getattr(step.result, "screenshot_path", None)
             ev: dict[str, Any] = {
                 "step_index": step.step_index,
                 "action": step.action.action_type if hasattr(step.action, "action_type") else str(step.action),
                 "target": getattr(step.action, "target", ""),
                 "result": "success" if (hasattr(step.result, "success") and step.result.success) else "failed",
-                "screenshot_path": getattr(step.result, "screenshot_path", None),
+                "screenshot_path": screenshot_path,
             }
+            if screenshot_path and screenshot_path not in screenshots:
+                screenshots.append(screenshot_path)
             if hasattr(step.result, "details") and isinstance(step.result.details, dict):
                 if "perception" in step.result.details:
                     ev["perception"] = step.result.details["perception"]
@@ -285,6 +289,27 @@ class ReportingEngine:
                 unverified_items=unverified,
             )
             report.exit_criteria = exit_result.to_dict()
+            # The top-level report status is the result clients and runners
+            # commonly consume. Never leave it as PASSED when the stricter
+            # Incident sign-off engine found insufficient coverage or a
+            # blocker; doing so creates a false-positive UAT sign-off.
+            if report.status in {"passed", "partial"}:
+                exit_status = {
+                    "FAIL": "failed",
+                    "BLOCKED": "blocked",
+                    "INCONCLUSIVE": "blocked",
+                    "INFRA_ERROR": "error",
+                    "CONDITIONAL_PASS": "partial",
+                }.get(exit_result.verdict)
+                if exit_status:
+                    logger.warning(
+                        "report_status_downgraded_by_exit_criteria",
+                        report_id=report.report_id,
+                        previous_status=report.status,
+                        exit_verdict=exit_result.verdict,
+                        new_status=exit_status,
+                    )
+                    report.status = exit_status
             logger.info(
                 "exit_criteria_evaluated",
                 verdict=exit_result.verdict,
@@ -315,7 +340,7 @@ class ReportingEngine:
         logger.info(
             "report_generated",
             report_id=report_id,
-            status=status,
+            status=report.status,
             defects=len(defects),
         )
         return report
@@ -712,7 +737,19 @@ class ReportingEngine:
             content = redact_string(content)
             extension = "md"
         else:
-            content = report.model_dump_json(indent=2)
+            # Some report fields intentionally accept arbitrary runtime objects
+            # (for example imported test-case models). Pydantic's JSON encoder
+            # cannot serialize every such object, so serialize the Python dump
+            # with a safe string fallback instead of dropping the JSON artifact.
+            try:
+                content = report.model_dump_json(indent=2)
+            except (TypeError, ValueError):
+                content = json.dumps(
+                    report.model_dump(mode="python"),
+                    default=str,
+                    ensure_ascii=False,
+                    indent=2,
+                )
             content = redact_string(content)
             extension = "json"
 

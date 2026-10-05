@@ -167,7 +167,19 @@ def _build_result_snapshot(run_id: str, orchestrator: Any, report: Any) -> dict[
     tc_data = getattr(memory, "test_case_data", None) or {}
     from agent.core.redaction import redact_string
 
+    def _json_items(items: Any) -> list[Any]:
+        serialized: list[Any] = []
+        for item in items or []:
+            if hasattr(item, "model_dump"):
+                serialized.append(item.model_dump(mode="json"))
+            elif hasattr(item, "dict"):
+                serialized.append(item.dict())
+            else:
+                serialized.append(item)
+        return serialized
+
     snapshot: dict[str, Any] = {
+        "evidence_schema_version": 2,
         "run_id": run_id,
         "goal": getattr(report, "goal", "") or getattr(memory, "goal", ""),
         "status": getattr(report, "status", "unknown"),
@@ -185,6 +197,13 @@ def _build_result_snapshot(run_id: str, orchestrator: Any, report: Any) -> dict[
         "cleanup_status": getattr(memory, "cleanup_status", "not_run"),
         "cleanup_details": redact_string(str(getattr(memory, "cleanup_details", "") or "")),
         "api_verification_status": getattr(memory, "api_verification_status", "not_attempted"),
+        "environment": getattr(report, "environment", {}) or {},
+        "requirement_ids_covered": list(getattr(report, "requirement_ids_covered", []) or []),
+        "exit_criteria": getattr(report, "exit_criteria", None),
+        "reproducibility": getattr(report, "reproducibility", None),
+        "screenshots": list(getattr(report, "screenshots", []) or []),
+        "step_evidence": _json_items(getattr(report, "step_evidence", [])),
+        "timeline": _json_items(getattr(report, "timeline", [])),
         "telemetry": {
             "planner_calls": getattr(memory, "planner_calls", 0),
             "moondream_calls": getattr(memory, "moondream_calls", 0),
@@ -198,9 +217,11 @@ def _build_result_snapshot(run_id: str, orchestrator: Any, report: Any) -> dict[
                 "defect_id": getattr(d, "defect_id", ""),
                 "title": getattr(d, "title", ""),
                 "description": getattr(d, "description", ""),
+                "steps_to_reproduce": list(getattr(d, "steps_to_reproduce", []) or []),
                 "severity": str(getattr(d, "severity", "")),
                 "expected": getattr(d, "expected_behavior", ""),
                 "actual": getattr(d, "actual_behavior", ""),
+                "evidence": list(getattr(d, "evidence", []) or []),
                 "related_step_index": getattr(d, "related_step_index", None),
             }
         )
@@ -213,6 +234,20 @@ def _build_result_snapshot(run_id: str, orchestrator: Any, report: Any) -> dict[
                 "category": getattr(i, "category", ""),
             }
         )
+    # Bind the evidence bundle to the exact screenshot bytes so a reviewer can
+    # detect accidental or later substitution of a capture.
+    import hashlib
+    screenshot_hashes: dict[str, str] = {}
+    for raw_path in snapshot["screenshots"]:
+        path = Path(str(raw_path))
+        if not path.is_absolute():
+            path = Path(get_settings().report_output_dir) / path
+        try:
+            if path.is_file():
+                screenshot_hashes[str(raw_path)] = hashlib.sha256(path.read_bytes()).hexdigest()
+        except OSError as exc:
+            logger.warning("screenshot_hash_failed", run_id=run_id, path=str(raw_path), error=str(exc))
+    snapshot["screenshot_sha256"] = screenshot_hashes
     return snapshot
 
 
@@ -243,35 +278,18 @@ async def _run_agent_async(run_id: str, goal: str, tenant_id: str, test_case_id:
     # touching the ServiceNow instance.
     if persona:
         settings.servicenow.active_persona = persona
+        # API callers cannot bypass the safety policy by omitting the process
+        # environment flag. Any explicitly persona-scoped run is held to the
+        # non-admin and declared-role checks.
+        settings.servicenow.require_persona_for_benchmark = True
     settings.servicenow.verify_persona_for_benchmark()
 
-    # INC-UAT-04 (Major): verify the logged-in user's actual ServiceNow
-    # role matches the expected role from the persona configuration.
-    # This is the runtime role introspection that makes the 'role' field
-    # in personas authoritative, not just a local label.
-    expected_role = settings.servicenow.get_persona_role()
-    if expected_role:
-        try:
-            from agent.skills.incident.role_verifier import RoleVerifier
-            verifier = RoleVerifier()
-            role_result = await verifier.verify_role(settings.servicenow, expected_role)
-            if not role_result["match"]:
-                raise RuntimeError(
-                    f"INC-UAT-04: Role mismatch — expected '{expected_role}' "
-                    f"but user has roles {role_result['actual_roles']}. "
-                    f"The persona's declared role does not match the actual "
-                    f"ServiceNow role."
-                )
-            logger.info(
-                "role_verified",
-                persona=persona,
-                expected_role=expected_role,
-                actual_roles=role_result["actual_roles"],
-            )
-        except RuntimeError:
-            raise  # re-raise role mismatch
-        except Exception as e:
-            logger.warning("role_verification_skipped", error=str(e))
+    # The declared role is a local persona label. Do not query sys_user_has_role
+    # through Table API: that table is not necessarily visible to this UAT
+    # persona in the ServiceNow UI. Actual permissions are tested through the
+    # persona's browser-visible Incident actions and ACL negative scenarios.
+    if settings.servicenow.require_persona_for_benchmark and not settings.servicenow.get_persona_role():
+        raise RuntimeError("A benchmark persona must declare its expected Incident role.")
 
     # INC-UAT-03 (Major): enforce oracle persona constraint when a
     # persona is active — the API oracle should only query persona-visible

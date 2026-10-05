@@ -29,12 +29,14 @@ class RetestPackage:
     fix_reference: str  # e.g., "Change INC0001234 priority to 1-High"
     failed_scenario: str  # the test scenario that originally failed
     regression_scenarios: list[str] = field(default_factory=list)  # impacted scenarios to re-run
-    status: str = "PENDING"  # PENDING | RETESTING | PASSED | FAILED | REGRESSION_DETECTED
+    status: str = "PENDING"  # PENDING | RETESTING | PASSED | FAILED | REGRESSION_DETECTED | INCOMPLETE
     retest_results: list[dict[str, Any]] = field(default_factory=list)
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     completed_at: datetime | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        completed_scenarios = {result["scenario"] for result in self.retest_results}
+        required_scenarios = {self.failed_scenario, *self.regression_scenarios}
         return {
             "retest_id": self.retest_id,
             "original_finding_id": self.original_finding_id,
@@ -43,6 +45,7 @@ class RetestPackage:
             "regression_scenarios": self.regression_scenarios,
             "status": self.status,
             "retest_results": self.retest_results,
+            "missing_scenarios": sorted(required_scenarios - completed_scenarios),
             "created_at": self.created_at.isoformat(),
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
         }
@@ -101,6 +104,13 @@ class RetestChainManager:
             logger.error("retest_package_not_found", retest_id=retest_id)
             return
         pkg = self._packages[retest_id]
+        allowed_scenarios = {pkg.failed_scenario, *pkg.regression_scenarios}
+        if scenario not in allowed_scenarios:
+            raise ValueError(
+                f"Scenario '{scenario}' is not part of retest package '{retest_id}'."
+            )
+        if verdict not in {"PASS", "FAIL", "BLOCKED", "CANNOT_VERIFY"}:
+            raise ValueError(f"Unsupported retest verdict: {verdict!r}")
         pkg.status = "RETESTING"
         pkg.retest_results.append({
             "scenario": scenario,
@@ -121,6 +131,18 @@ class RetestChainManager:
             return None
         pkg = self._packages[retest_id]
         pkg.completed_at = datetime.now(UTC)
+
+        recorded_scenarios = {result["scenario"] for result in pkg.retest_results}
+        required_scenarios = {pkg.failed_scenario, *pkg.regression_scenarios}
+        missing_scenarios = required_scenarios - recorded_scenarios
+        if missing_scenarios:
+            pkg.status = "INCOMPLETE"
+            logger.warning(
+                "retest_incomplete",
+                retest_id=retest_id,
+                missing_scenarios=sorted(missing_scenarios),
+            )
+            return pkg
 
         # Evaluate results
         # The failed scenario must PASS (fix resolved the defect)

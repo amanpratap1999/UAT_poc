@@ -135,6 +135,26 @@ class IncidentSkill(BaseSkill):
 
         goal_lower = intent.goal.lower()
 
+        # Explicit read-only intent takes precedence over incidental mentions
+        # of "state", "lifecycle", or "resolve" in the requested fields. A
+        # smoke check that asks to observe state must never become a lifecycle
+        # mutation plan.
+        read_only_markers = (
+            "read-only",
+            "read only",
+            "do not change",
+            "do not modify",
+            "do not update",
+            "inspect only",
+            "observe only",
+            "no mutations",
+        )
+        if any(marker in goal_lower for marker in read_only_markers):
+            plan.add_step("Open Target Incident Record", "Requested Incident is displayed in the form")
+            plan.add_step("Observe Requested Incident Fields", "Requested values are read from the visible form")
+            plan.add_step("Re-observe Without Saving", "The same Incident remains unchanged after read-only verification")
+            return plan
+
         if ("state" in goal_lower or "lifecycle" in goal_lower or "in progress" in goal_lower or "on hold" in goal_lower) and "inc" in goal_lower:
             plan.add_step("Open Target Incident Record", "Target incident form displayed")
             plan.add_step("Validate Initial Incident State and Preconditions", "Preconditions met: incident number and initial state match expectation")

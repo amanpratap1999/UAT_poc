@@ -13,6 +13,7 @@ from agent.browser.manager import BrowserManager
 from agent.capabilities.registry import CapabilityRegistry
 from agent.confidence.engine import ConfidenceEngine
 from agent.core.config import Settings, get_settings
+from agent.core.logging import get_logger
 from agent.decision.engine import DecisionEngine
 from agent.domain.discovery import CustomerDiscoveryAgent
 from agent.domain.knowledge_model import CustomerKnowledgeModel
@@ -50,6 +51,8 @@ from agent.tools.browser_tools import register_default_tools
 from agent.tools.registry import ToolRegistry
 from agent.validation.engine import ValidationEngine
 from agent.world.model import WorldModel
+
+logger = get_logger(__name__)
 
 
 @lru_cache

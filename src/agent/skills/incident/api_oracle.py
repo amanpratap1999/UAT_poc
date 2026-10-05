@@ -54,11 +54,14 @@ _PERSONA_VISIBLE_FIELDS = {
 def _get_persona_fields(persona_role: str | None) -> str:
     """Return the comma-separated field list for the given persona role.
 
-    Falls back to the full _API_FIELDS set if no role-specific set is defined.
+    Fails closed when the persona role has no reviewed field allowlist.
     """
-    if not persona_role:
-        return _API_FIELDS
-    return _PERSONA_VISIBLE_FIELDS.get(persona_role.lower(), _API_FIELDS)
+    if not persona_role or persona_role.lower() not in _PERSONA_VISIBLE_FIELDS or persona_role.lower() == "default":
+        raise ValueError(
+            f"No reviewed persona field allowlist for role {persona_role!r}; "
+            "API-based verification is disabled for this persona."
+        )
+    return _PERSONA_VISIBLE_FIELDS[persona_role.lower()]
 
 
 @dataclass
@@ -114,7 +117,14 @@ class IncidentApiOracle:
     ) -> None:
         self._config = config
         # INC-UAT-03: use persona credentials if active, not default admin creds.
-        username, password = config.get_active_credentials()
+        # Keep small legacy/test config objects compatible when no persona is
+        # selected; real ServiceNowConfig still uses the strict resolver.
+        active_persona = getattr(config, "active_persona", None)
+        if isinstance(active_persona, str) and active_persona.strip():
+            username, password = config.get_active_credentials()
+        else:
+            username = getattr(config, "username", "")
+            password = getattr(config, "password", "")
         self._client = client or httpx.AsyncClient(
             base_url=config.instance_url,
             auth=(username, password),

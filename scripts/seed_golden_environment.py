@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""Seed the Incident golden environment in a ServiceNow subproduction instance.
+"""Create controlled Incident records for the current golden scenarios.
 
-INC-UAT-02 (Blocker): creates the seeded defects and by-design decoys
-defined in the GoldenTruthManifest by using the ServiceNow Table API
-to create/modify Incident records with known defects.
+This script creates records with selected field values. It does NOT alter
+ServiceNow business rules, ACLs, notifications, SLA definitions, or UI
+configuration, so a created record is not proof that those defects were
+seeded. A PERSISTED status means only that the submitted record fields were
+read back successfully. Never count that as a defect-detection result.
 
 Usage:
     python scripts/seed_golden_environment.py --instance-url https://devXXXXX.service-now.com \
         --username <persona_username> --password <persona_password> \
         [--dry-run]  # just print what would be done without touching ServiceNow
 
-The script creates one Incident per seeded defect in the truth manifest,
-each with the defect's specific configuration (wrong priority, bad
-assignment, missing mandatory field, etc.). The script outputs a JSON
+The script creates one Incident per manifest entry and outputs a JSON
 manifest mapping defect IDs to Incident numbers so the benchmark runner
 can look up the seeded records.
 """
@@ -61,7 +61,8 @@ async def seed_defects(
             print(f"    Expected: {defect.expected_detection[:80]}")
             print(f"    Is decoy: {defect.is_decoy}")
 
-            # Build the Incident payload for this defect type
+            # Create scenario data only. This does not inject server-side
+            # configuration defects such as ACL, notification, or SLA faults.
             payload = _build_incident_payload(defect)
             print(f"    Payload: {json.dumps(payload, indent=2)[:200]}")
 
@@ -86,12 +87,44 @@ async def seed_defects(
                 incident = data.get("result", {})
                 incident_number = incident.get("number", "?")
                 sys_id = incident.get("sys_id", "?")
+                if incident_number == "?" or sys_id == "?":
+                    raise ValueError("ServiceNow create response omitted the Incident number or sys_id")
+
+                verify_response = await client.get(
+                    f"/api/now/table/incident/{sys_id}",
+                    params={
+                        "sysparm_fields": ",".join(["sys_id", "number", *payload.keys()]),
+                        "sysparm_display_value": "all",
+                    },
+                )
+                verify_response.raise_for_status()
+                observed = verify_response.json().get("result", {})
+                mismatches = {}
+                for field_name, expected in payload.items():
+                    value = observed.get(field_name)
+                    candidates = (
+                        [value.get("value", ""), value.get("display_value", "")]
+                        if isinstance(value, dict) else [value]
+                    )
+                    if str(expected).strip().casefold() not in {
+                        str(candidate).strip().casefold()
+                        for candidate in candidates
+                        if candidate is not None
+                    }:
+                        mismatches[field_name] = {
+                            "expected": str(expected),
+                            "actual": candidates,
+                        }
                 print(f"    Created: {incident_number} (sys_id: {sys_id})")
                 results[defect.defect_id] = {
                     "defect_id": defect.defect_id,
                     "scenario": defect.test_scenario,
                     "incident_number": incident_number,
                     "sys_id": sys_id,
+                    "verification_status": "PERSISTED" if not mismatches else "MISMATCH",
+                    "defect_verification_status": "NOT_VERIFIED",
+                    "verified_fields": list(payload.keys()) if not mismatches else [],
+                    "verification_mismatches": mismatches,
                 }
             except Exception as e:
                 print(f"    ERROR: {e}")
@@ -106,8 +139,10 @@ async def seed_defects(
 def _build_incident_payload(defect) -> dict:
     """Build the ServiceNow Incident payload for a specific defect type."""
     base = {
-        "short_description": f"[GOLDEN-ENV] {defect.defect_id}: {defect.defect_type}",
-        "description": defect.description,
+        # Keep benchmark truth out of the incident text. The agent should
+        # infer a defect from observed field values, not from its label.
+        "short_description": "[GOLDEN-ENV] Incident validation record",
+        "description": "Incident record created for controlled UAT validation.",
         "caller_id": "Abel Tuter",  # default test caller
     }
 
@@ -125,7 +160,7 @@ def _build_incident_payload(defect) -> dict:
     elif defect.defect_type == "illegal_transition":
         base["state"] = "7"  # Closed (skipping In Progress and Resolved)
     elif defect.defect_type == "acl_violation":
-        base["short_description"] = "[ACL-TEST] This incident should not be visible to requester persona"
+        base["short_description"] = "[GOLDEN-ENV] Access validation record"
     elif defect.defect_type == "notification_failure":
         base["assignment_group"] = "Network"  # triggers notification rule
     elif defect.defect_type == "dependent_choice_error":
@@ -174,7 +209,7 @@ def main() -> None:
     }
     output_path.write_text(json.dumps(manifest_data, indent=2))
     print(f"\n[+] Manifest saved to: {output_path}")
-    print(f"    {len(results)} defects seeded")
+    print(f"    {len(results)} scenario records created; defect conditions remain unverified")
 
 
 if __name__ == "__main__":

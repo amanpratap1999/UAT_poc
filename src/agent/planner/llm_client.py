@@ -81,6 +81,7 @@ class OpenAILLMClient(BaseLLMClient):
         "openai": "https://api.openai.com/v1",
         "groq": "https://api.groq.com/openai/v1",
         "anthropic": "https://api.anthropic.com/v1",
+        "google": "https://generativelanguage.googleapis.com/v1beta/openai/",
     }
 
     def __init__(self, config: LLMConfig, purpose: str = "general") -> None:

@@ -93,9 +93,11 @@ class LLMConfig(BaseSubConfig):
         extra="ignore",
     )
 
-    provider: Literal["openai", "groq", "anthropic", "nvidia"] = "openai"
+    provider: Literal["openai", "groq", "anthropic", "nvidia", "google"] = "openai"
     api_key: str = Field(
-        default="", validation_alias="OPENAI_API_KEY", description="API key for the LLM provider"
+        default="",
+        validation_alias=AliasChoices("GEMINI_API_KEY", "OPENAI_API_KEY"),
+        description="API key for the LLM provider",
     )
     base_url: str | None = Field(default=None, description="Base URL for the LLM API endpoint")
     model: str = Field(default="gpt-4o", description="Model identifier")
@@ -106,7 +108,9 @@ class LLMConfig(BaseSubConfig):
         default=None, description="Optional override for embeddings base URL"
     )
     embedding_api_key: str | None = Field(
-        default=None, description="Optional override for embeddings API key"
+        default=None,
+        validation_alias=AliasChoices("LLM_EMBEDDING_API_KEY", "OPENAI_API_KEY"),
+        description="Optional override for embeddings API key",
     )
     embedding_dimensions: int = Field(
         default=2048, description="Embedding vector dimensions (must match embedding model output)"
@@ -204,7 +208,14 @@ class ServiceNowConfig(BaseSubConfig):
                 f"INC-UAT-05: no silent fallback to prevent wrong-user execution."
             )
         p = self.personas[self.active_persona]
-        return p.get("username", self.username), p.get("password", self.password)
+        persona_username = p.get("username", "").strip()
+        persona_password = p.get("password", "")
+        if not persona_username or not persona_password:
+            raise ValueError(
+                f"Persona '{self.active_persona}' must define its own username and password; "
+                "default ServiceNow credentials are never inherited by a persona."
+            )
+        return persona_username, persona_password
 
     def get_persona_role(self) -> str | None:
         """Get the expected ServiceNow role for the active persona.
@@ -215,7 +226,8 @@ class ServiceNowConfig(BaseSubConfig):
         """
         if not self.active_persona or self.active_persona not in self.personas:
             return None
-        return self.personas[self.active_persona].get("role")
+        role = self.personas[self.active_persona].get("role", "").strip()
+        return role or None
 
     def verify_persona_for_benchmark(self) -> None:
         """INC-UAT-01 (Blocker): verify benchmark is running under a declared
@@ -239,8 +251,12 @@ class ServiceNowConfig(BaseSubConfig):
                 f"INC-UAT-01 (Blocker): active persona '{self.active_persona}' "
                 f"is not in the configured personas dict."
             )
-        p = self.personas[self.active_persona]
-        persona_user = p.get("username", "")
+        persona_user, _persona_password = self.get_active_credentials()
+        expected_role = self.get_persona_role()
+        if not expected_role:
+            raise ValueError(
+                f"INC-UAT-04: persona '{self.active_persona}' must declare its expected ServiceNow role."
+            )
         # Check that the persona credentials are NOT the same as the default
         # admin credentials — this catches the case where operators set the
         # persona name but reuse the admin username/password.

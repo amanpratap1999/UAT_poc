@@ -217,13 +217,17 @@ class ObservationEngine:
             except Exception:
                 pass
 
-            # Check for dialogs
+            # Check for visible dialogs. ServiceNow shells may keep hidden
+            # navigation dialogs mounted while the active record form is open.
             try:
-                dialog_count = await ctx.locator(
-                    "[role='dialog'], .modal.show, .glide_popup"
-                ).count()
-                if dialog_count > 0:
-                    return PageType.DIALOG
+                dialogs = ctx.locator("[role='dialog'], .modal.show, .glide_popup")
+                dialog_count = await dialogs.count()
+                for dialog_index in range(min(dialog_count, 10)):
+                    try:
+                        if await dialogs.nth(dialog_index).is_visible():
+                            return PageType.DIALOG
+                    except Exception:
+                        continue
             except Exception:
                 pass
 
