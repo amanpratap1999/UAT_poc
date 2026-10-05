@@ -87,6 +87,21 @@ echo "  .env.local exists: $([ -f "$UAT_ENV_FILE" ] && echo yes || echo NO)"
 echo "[1/5] Starting uvicorn + celery..."
 pkill -f "uvicorn agent.main:app" 2>/dev/null || true
 pkill -f "celery -A agent.core.celery_app" 2>/dev/null || true
+
+# 1a. Verify uvicorn is installed — if not, retry pip install -e . inline
+# (codespace_setup.sh's pip install sometimes fails transiently during postCreate)
+if ! python -c "import uvicorn" 2>/dev/null; then
+  echo "  uvicorn not installed — running pip install -e . inline (logging to /tmp/pip_install.log)"
+  pip install -e . > /tmp/pip_install.log 2>&1 || {
+    echo "  pip install -e . failed inline too — see /tmp/pip_install.log"
+    # Try requirements.txt as fallback (290KB lockfile, should be reliable)
+    if [ -f requirements.txt ]; then
+      echo "  trying requirements.txt fallback..."
+      pip install -r requirements.txt >> /tmp/pip_install.log 2>&1 || echo "  requirements.txt install also failed"
+    fi
+  }
+  echo "  pip install inline complete (exit code: $?)"
+fi
 sleep 1
 
 nohup python -m uvicorn agent.main:app --host 0.0.0.0 --port 8000 > /tmp/api.log 2>&1 &
@@ -144,6 +159,7 @@ cp /tmp/readiness.json reports/readiness_probe.json 2>/dev/null || true
 cp /tmp/run_report.json reports/sample_run_report.json 2>/dev/null || true
 cp /tmp/api.log reports/api_execution_log.txt 2>/dev/null || true
 cp /tmp/worker.log reports/worker_execution_log.txt 2>/dev/null || true
+cp /tmp/pip_install.log reports/pip_install_log.txt 2>/dev/null || true
 python3 -c "
 import ast, os
 errors = []
