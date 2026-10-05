@@ -15,9 +15,20 @@ export UAT_RUNTIME_MODE=local
 # Belt-and-suspenders: also set UAT_ENV_FILE explicitly
 export UAT_ENV_FILE="${UAT_ENV_FILE:-/workspaces/UAT_poc/.env.local}"
 
+# CRITICAL: unset BROWSER (and other potential conflicts) because Codespaces
+# sets BROWSER=/path/to/browser for opening URLs, which conflicts with
+# pydantic_settings trying to JSON-parse it as the `browser: BrowserConfig`
+# nested field on the parent Settings class. The value isn't valid JSON,
+# so it raises "error parsing value for field 'browser' from source
+# 'EnvSettingsSource'" → JSONDecodeError → uvicorn crashes on import.
+# Same risk applies to other env-prefix-style collisions, so unset the most
+# likely suspects defensively.
+unset BROWSER LLM SERVICENOW AGENT SESSION PERCEPTION DOMAIN SECURITY SAFETY_BUDGET LAYA 2>/dev/null || true
+
 echo "=== Codespace Runtime (postStart) ==="
 echo "  UAT_RUNTIME_MODE=$UAT_RUNTIME_MODE"
 echo "  UAT_ENV_FILE=$UAT_ENV_FILE"
+echo "  BROWSER env var: ${BROWSER:-<unset>}"
 
 # 1. Start API + Worker (best-effort)
 echo "[1/5] Starting uvicorn + celery..."
