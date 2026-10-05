@@ -1,4 +1,3095 @@
-ImportError while loading conftest '/workspaces/UAT_poc/tests/conftest.py'.
-tests/conftest.py:9: in <module>
-    from agent.core.config import (
-E   ModuleNotFoundError: No module named 'agent'
+============================= test session starts ==============================
+platform linux -- Python 3.11.17, pytest-9.1.1, pluggy-1.6.0 -- /usr/local/py-utils/venvs/pytest/bin/python
+cachedir: .pytest_cache
+rootdir: /workspaces/UAT_poc
+configfile: pyproject.toml
+plugins: anyio-4.12.1
+collecting ... collected 352 items
+
+tests/unit/test_api_oracle.py::test_check_assertion_state_accepts_value_and_label PASSED [  0%]
+tests/unit/test_api_oracle.py::test_check_assertion_priority_and_text_fields PASSED [  0%]
+tests/unit/test_api_oracle.py::test_check_assertion_non_api_field_returns_none PASSED [  0%]
+tests/unit/test_api_oracle.py::test_verify_assertions_statuses PASSED    [  1%]
+tests/unit/test_audit_p0_remediation.py::TestJwtSecretBlocklist::test_rejects_placeholder_secret_from_env_docker_example PASSED [  1%]
+tests/unit/test_audit_p0_remediation.py::TestJwtSecretBlocklist::test_rejects_replace_me_placeholder PASSED [  1%]
+tests/unit/test_audit_p0_remediation.py::TestJwtSecretBlocklist::test_rejects_low_entropy_secret PASSED [  1%]
+tests/unit/test_audit_p0_remediation.py::TestJwtSecretBlocklist::test_accepts_random_secret PASSED [  2%]
+tests/unit/test_audit_p0_remediation.py::TestInitDbNoAdminBackdoor::test_init_db_source_does_not_contain_hardcoded_admin PASSED [  2%]
+tests/unit/test_audit_p0_remediation.py::TestCeleryAppSyntax::test_celery_app_imports_cleanly PASSED [  2%]
+tests/unit/test_audit_p0_remediation.py::TestStepCacheTenantIsolation::test_hash_intent_signature_includes_tenant_id PASSED [  3%]
+tests/unit/test_audit_p0_remediation.py::TestStepCacheTenantIsolation::test_get_action_signature_requires_tenant_id PASSED [  3%]
+tests/unit/test_audit_p0_remediation.py::TestStepCacheTenantIsolation::test_save_action_signature_requires_tenant_id PASSED [  3%]
+tests/unit/test_audit_p0_remediation.py::TestPlannerPromptInjectionBoundary::test_assess_validation_uses_boundary PASSED [  3%]
+tests/unit/test_audit_p0_remediation.py::TestPlannerPromptInjectionBoundary::test_suggest_recovery_uses_boundary PASSED [  4%]
+tests/unit/test_audit_p0_remediation.py::TestPlannerPromptInjectionBoundary::test_is_goal_complete_uses_boundary PASSED [  4%]
+tests/unit/test_audit_p0_remediation.py::TestPlannerPromptInjectionBoundary::test_generate_report_summary_uses_boundary PASSED [  4%]
+tests/unit/test_audit_p0_remediation.py::TestScreenshotEndpointTenantIsolation::test_screenshot_endpoint_does_not_fall_through_to_file_response PASSED [  5%]
+tests/unit/test_audit_p0_remediation.py::TestRouterRbacEnforcement::test_update_finding_requires_qa_manager PASSED [  5%]
+tests/unit/test_audit_p0_remediation.py::TestRouterRbacEnforcement::test_cancel_run_requires_qa_manager PASSED [  5%]
+tests/unit/test_audit_p0_remediation.py::TestRouterRbacEnforcement::test_submit_approval_requires_qa_manager PASSED [  5%]
+tests/unit/test_audit_p0_remediation.py::TestRouterRbacEnforcement::test_create_run_requires_qa_engineer PASSED [  6%]
+tests/unit/test_audit_p0_remediation.py::TestRouterRbacEnforcement::test_pause_run_requires_qa_engineer PASSED [  6%]
+tests/unit/test_audit_p0_remediation.py::TestRouterRbacEnforcement::test_execute_test_case_requires_qa_engineer PASSED [  6%]
+tests/unit/test_audit_p0_remediation.py::TestLocksDecodeResponses::test_get_redis_sets_decode_responses_true PASSED [  7%]
+tests/unit/test_audit_p0_remediation.py::TestLocksDecodeResponses::test_acquire_redis_does_not_call_decode PASSED [  7%]
+tests/unit/test_audit_p0_remediation.py::TestRecoveryCounterReset::test_success_resets_action_failures_counter PASSED [  7%]
+tests/unit/test_audit_p0_remediation.py::TestRecoveryCounterReset::test_lifetime_failures_tracked_separately PASSED [  7%]
+tests/unit/test_audit_p0_remediation.py::TestIntentManagerFormatFix::test_parse_intent_uses_replace_not_format PASSED [  8%]
+tests/unit/test_audit_p0_remediation.py::TestEncapsulationSetters::test_planner_has_set_scenario_generator PASSED [  8%]
+tests/unit/test_audit_p0_remediation.py::TestEncapsulationSetters::test_planner_has_set_test_store PASSED [  8%]
+tests/unit/test_audit_p0_remediation.py::TestEncapsulationSetters::test_planner_has_get_llm_client PASSED [  9%]
+tests/unit/test_audit_p0_remediation.py::TestEncapsulationSetters::test_orchestrator_has_attach_llm PASSED [  9%]
+tests/unit/test_audit_p0_remediation.py::TestEncapsulationSetters::test_orchestrator_has_attach_state_machine PASSED [  9%]
+tests/unit/test_audit_p0_remediation.py::TestEncapsulationSetters::test_orchestrator_has_attach_journal PASSED [  9%]
+tests/unit/test_audit_p0_remediation.py::TestEncapsulationSetters::test_orchestrator_has_attach_browser_manager PASSED [ 10%]
+tests/unit/test_audit_p0_remediation.py::TestEncapsulationSetters::test_orchestrator_has_attach_execution_controller PASSED [ 10%]
+tests/unit/test_audit_p0_remediation.py::TestEncapsulationSetters::test_orchestrator_has_attach_perception_engine PASSED [ 10%]
+tests/unit/test_audit_p0_remediation.py::TestEncapsulationSetters::test_orchestrator_has_attach_lock_manager PASSED [ 11%]
+tests/unit/test_audit_p0_remediation.py::TestEncapsulationSetters::test_orchestrator_has_get_observation_engine PASSED [ 11%]
+tests/unit/test_audit_p0_remediation.py::TestEncapsulationSetters::test_orchestrator_has_get_locked_records PASSED [ 11%]
+tests/unit/test_audit_p0_remediation.py::TestEncapsulationSetters::test_orchestrator_has_execute_canonical_plan_public PASSED [ 11%]
+tests/unit/test_audit_p0_remediation.py::TestEncapsulationSetters::test_incident_api_oracle_has_get_client PASSED [ 12%]
+tests/unit/test_audit_p0_remediation.py::TestEncapsulationSetters::test_main_py_does_not_access_private_planner_attrs PASSED [ 12%]
+tests/unit/test_audit_p0_remediation.py::TestLazySettingsReads::test_auth_has_get_secret_key_function PASSED [ 12%]
+tests/unit/test_audit_p0_remediation.py::TestLazySettingsReads::test_auth_has_get_algorithm_function PASSED [ 13%]
+tests/unit/test_audit_p0_remediation.py::TestLazySettingsReads::test_auth_has_get_access_token_expire_minutes_function PASSED [ 13%]
+tests/unit/test_audit_p0_remediation.py::TestLazySettingsReads::test_auth_does_not_define_module_level_secret_key_constant PASSED [ 13%]
+tests/unit/test_audit_p0_remediation.py::TestLazySettingsReads::test_auth_does_not_define_module_level_algorithm_constant PASSED [ 13%]
+tests/unit/test_audit_p0_remediation.py::TestLazySettingsReads::test_create_access_token_uses_lazy_get_secret_key PASSED [ 14%]
+tests/unit/test_audit_p0_remediation.py::TestLazySettingsReads::test_validate_token_string_uses_lazy_get_secret_key PASSED [ 14%]
+tests/unit/test_audit_p0_remediation.py::TestLazySettingsReads::test_auth_router_uses_get_access_token_expire_minutes PASSED [ 14%]
+tests/unit/test_capabilities.py::test_registry_initialization PASSED     [ 15%]
+tests/unit/test_capabilities.py::test_register_and_discover_skills PASSED [ 15%]
+tests/unit/test_capabilities.py::test_unknown_capability PASSED          [ 15%]
+tests/unit/test_capabilities.py::test_capability_metadata PASSED         [ 15%]
+tests/unit/test_change_skill.py::test_change_lifecycle_transitions PASSED [ 16%]
+tests/unit/test_change_skill.py::test_change_invalid_transitions PASSED  [ 16%]
+tests/unit/test_change_skill.py::test_change_mandatory_constraints PASSED [ 16%]
+tests/unit/test_cognitive_orchestrator.py::test_formulate_hypotheses FAILED [ 17%]
+tests/unit/test_cognitive_orchestrator.py::test_run_cognitive_loop_success FAILED [ 17%]
+tests/unit/test_cognitive_orchestrator.py::test_run_cognitive_loop_mismatch_investigation FAILED [ 17%]
+tests/unit/test_cognitive_orchestrator.py::test_run_cognitive_loop_app_mismatch_investigation FAILED [ 17%]
+tests/unit/test_cognitive_orchestrator.py::test_run_cognitive_loop_no_hypotheses_failure FAILED [ 18%]
+tests/unit/test_cognitive_orchestrator.py::test_inconclusive_mismatch_reproduced_becomes_verified_defect FAILED [ 18%]
+tests/unit/test_cognitive_orchestrator.py::test_inconclusive_mismatch_not_reproduced_stays_inconclusive FAILED [ 18%]
+tests/unit/test_cognitive_orchestrator.py::test_attempt_reproduction_detects_persistent_mismatch FAILED [ 19%]
+tests/unit/test_cognitive_orchestrator.py::test_attempt_reproduction_agent_error_is_not_reproduction FAILED [ 19%]
+tests/unit/test_confidence_engine.py::test_confidence_evaluation PASSED  [ 19%]
+tests/unit/test_config.py::test_domain_config_asyncpg_dsn_conversion PASSED [ 19%]
+tests/unit/test_config.py::test_browser_config_defaults PASSED           [ 20%]
+tests/unit/test_decision_engine.py::test_decision_engine_heuristic FAILED [ 20%]
+tests/unit/test_decision_engine.py::test_decision_engine_llm FAILED      [ 20%]
+tests/unit/test_defect_accounting.py::test_playwright_protocol_error_is_not_a_defect FAILED [ 21%]
+tests/unit/test_defect_accounting.py::test_behavioral_verification_inconclusive_is_not_a_defect FAILED [ 21%]
+tests/unit/test_defect_accounting.py::test_selector_not_found_with_failed_checks_is_not_a_defect FAILED [ 21%]
+tests/unit/test_defect_accounting.py::test_platform_noise_js_and_network_errors_are_not_defects FAILED [ 21%]
+tests/unit/test_defect_accounting.py::test_genuine_application_defect_is_counted FAILED [ 22%]
+tests/unit/test_defect_accounting.py::test_investigation_cleared_mismatch_not_counted FAILED [ 22%]
+tests/unit/test_defect_accounting.py::test_agent_runtime_failure_recorded_as_agent_issue_not_defect FAILED [ 22%]
+tests/unit/test_defect_accounting.py::test_mixed_run_counts_only_application_defects FAILED [ 23%]
+tests/unit/test_domain_discovery.py::test_discover_table_metadata FAILED [ 23%]
+tests/unit/test_domain_discovery.py::test_discovery_http_401 FAILED      [ 23%]
+tests/unit/test_domain_discovery.py::test_discovery_http_403 FAILED      [ 23%]
+tests/unit/test_domain_discovery.py::test_discovery_empty_result FAILED  [ 24%]
+tests/unit/test_domain_knowledge.py::test_classify_anomaly_mandatory_field_expected PASSED [ 24%]
+tests/unit/test_domain_knowledge.py::test_classify_anomaly_mandatory_field_bug PASSED [ 24%]
+tests/unit/test_domain_knowledge.py::test_classify_anomaly_unknown_table PASSED [ 25%]
+tests/unit/test_execution_controller.py::test_execute_click FAILED       [ 25%]
+tests/unit/test_execution_controller.py::test_execute_fill FAILED        [ 25%]
+tests/unit/test_execution_controller.py::test_execute_navigate FAILED    [ 25%]
+tests/unit/test_execution_controller.py::test_execute_with_failure_and_recovery FAILED [ 26%]
+tests/unit/test_execution_controller.py::test_execute_with_failure_no_recovery FAILED [ 26%]
+tests/unit/test_execution_controller.py::test_execute_unknown_action FAILED [ 26%]
+tests/unit/test_execution_controller.py::test_execute_screenshot_capture FAILED [ 26%]
+tests/unit/test_ground_truth_and_factory.py::test_ground_truth_fixture_loads PASSED [ 27%]
+tests/unit/test_ground_truth_and_factory.py::test_data_factory_lifecycle FAILED [ 27%]
+tests/unit/test_headed_browser.py::test_headed_browser_config_defaults PASSED [ 27%]
+tests/unit/test_headed_browser.py::test_headed_browser_config_env_overrides PASSED [ 28%]
+tests/unit/test_headed_browser.py::test_browser_manager_passes_headed_params_to_playwright FAILED [ 28%]
+tests/unit/test_headed_browser.py::test_browser_manager_persistent_context_headed_params FAILED [ 28%]
+tests/unit/test_headed_browser.py::test_browser_manager_display_error_on_headless_linux FAILED [ 28%]
+tests/unit/test_headed_browser.py::test_browser_manager_take_screenshot_hides_cursor FAILED [ 29%]
+tests/unit/test_headed_browser.py::test_page_interactor_moves_mouse_before_actions FAILED [ 29%]
+tests/unit/test_headed_browser.py::test_orchestrator_browser_persistence_behavior FAILED [ 29%]
+tests/unit/test_headed_browser.py::test_cors_headers_on_api FAILED       [ 30%]
+tests/unit/test_incident_business_outcome_inference.py::TestBusinessOutcomeStateInference::test_select_to_in_progress_with_hold_in_reasoning_passes PASSED [ 30%]
+tests/unit/test_incident_business_outcome_inference.py::TestBusinessOutcomeStateInference::test_ambiguous_reasoning_without_explicit_state_skips_inference PASSED [ 30%]
+tests/unit/test_incident_business_outcome_inference.py::TestBusinessOutcomeStateInference::test_unambiguous_hold_reasoning_still_enforces_on_hold PASSED [ 30%]
+tests/unit/test_incident_business_outcome_inference.py::TestBusinessOutcomeStateInference::test_explicit_expected_state_mismatch_still_fails PASSED [ 31%]
+tests/unit/test_incident_business_outcome_inference.py::TestBusinessOutcomeStateInference::test_explicit_state_accepts_label_string PASSED [ 31%]
+tests/unit/test_incident_business_outcome_inference.py::TestBusinessOutcomeStateInference::test_resolve_step_still_requires_resolution_fields PASSED [ 31%]
+tests/unit/test_incident_domain.py::test_incident_domain_model_defaults PASSED [ 32%]
+tests/unit/test_incident_domain.py::test_incident_state_parsing PASSED   [ 32%]
+tests/unit/test_incident_evidence.py::test_evidence_collection PASSED    [ 32%]
+tests/unit/test_incident_knowledge.py::test_priority_matrix_calculation PASSED [ 32%]
+tests/unit/test_incident_knowledge.py::test_incident_lifecycle_transitions PASSED [ 33%]
+tests/unit/test_incident_knowledge.py::test_mandatory_fields_per_state PASSED [ 33%]
+tests/unit/test_incident_lifecycle.py::test_evaluate_valid_transition PASSED [ 33%]
+tests/unit/test_incident_lifecycle.py::test_evaluate_blocked_transition_missing_mandatory PASSED [ 34%]
+tests/unit/test_incident_lifecycle.py::test_on_hold_transition_not_blocked_when_hold_reason_present PASSED [ 34%]
+tests/unit/test_incident_lifecycle.py::test_on_hold_awaiting_caller_requires_additional_comments PASSED [ 34%]
+tests/unit/test_incident_navigation.py::test_navigation_action_generation PASSED [ 34%]
+tests/unit/test_incident_observation.py::test_parse_incident_from_observation PASSED [ 35%]
+tests/unit/test_incident_observation.py::test_parse_incident_unknown_state_stays_unknown PASSED [ 35%]
+tests/unit/test_incident_observation.py::test_parse_incident_unknown_impact_urgency_stay_unknown PASSED [ 35%]
+tests/unit/test_incident_recovery.py::test_suggest_incident_recovery_assignment_group PASSED [ 36%]
+tests/unit/test_incident_recovery.py::test_suggest_incident_recovery_resolution_notes PASSED [ 36%]
+tests/unit/test_incident_recovery.py::test_suggest_incident_recovery_readonly PASSED [ 36%]
+tests/unit/test_incident_recovery.py::test_suggest_incident_recovery_readonly_no_instance_fallback PASSED [ 36%]
+tests/unit/test_incident_skill.py::test_incident_skill_can_handle FAILED [ 37%]
+tests/unit/test_incident_skill.py::test_incident_skill_dynamic_plan FAILED [ 37%]
+tests/unit/test_incident_validation.py::test_validate_business_outcome_success PASSED [ 37%]
+tests/unit/test_incident_validation.py::test_validate_business_outcome_priority_mismatch PASSED [ 38%]
+tests/unit/test_incident_validation.py::test_validate_precondition_missing_record_number_fails PASSED [ 38%]
+tests/unit/test_incident_validation.py::test_validate_precondition_unparseable_expected_state_fails PASSED [ 38%]
+tests/unit/test_incident_validation.py::test_validate_precondition_unknown_actual_state_fails PASSED [ 38%]
+tests/unit/test_incident_validation.py::test_validate_business_outcome_unverified_priority_fails PASSED [ 39%]
+tests/unit/test_intent_manager.py::test_intent_manager_parse_rule_fallback FAILED [ 39%]
+tests/unit/test_intent_manager.py::test_intent_manager_parse_llm FAILED  [ 39%]
+tests/unit/test_intent_manager.py::test_intent_manager_parse_general_ui FAILED [ 40%]
+tests/unit/test_interactive_agent_and_breaker.py::test_embedding_circuit_breaker_trips_on_http_410 FAILED [ 40%]
+tests/unit/test_interactive_agent_and_breaker.py::test_canonical_plan_skips_remaining_steps_on_precondition_failure PASSED [ 40%]
+tests/unit/test_interactive_agent_and_breaker.py::test_state_machine_supports_interactive_states PASSED [ 40%]
+tests/unit/test_interactive_agent_and_breaker.py::test_reporting_engine_captures_canonical_steps_and_browser_telemetry FAILED [ 41%]
+tests/unit/test_interactive_agent_and_breaker.py::test_canonical_event_publisher_protocol FAILED [ 41%]
+tests/unit/test_interactive_agent_and_breaker.py::test_run_control_receiver_fail_closed_and_lowercase FAILED [ 41%]
+tests/unit/test_interactive_agent_and_breaker.py::test_clarification_and_approval_request_specific_keys FAILED [ 42%]
+tests/unit/test_investigation.py::test_investigation_false_positive_customization FAILED [ 42%]
+tests/unit/test_investigation.py::test_investigation_verified_defect_requires_reproduction FAILED [ 42%]
+tests/unit/test_investigation.py::test_investigation_learned_customization FAILED [ 42%]
+tests/unit/test_jev_adapter.py::TestDecisionProviderAbstraction::test_pass_response FAILED [ 43%]
+tests/unit/test_jev_adapter.py::TestDecisionProviderAbstraction::test_fail_response FAILED [ 43%]
+tests/unit/test_jev_adapter.py::TestDecisionProviderAbstraction::test_error_response FAILED [ 43%]
+tests/unit/test_jev_adapter.py::TestDecisionProviderAbstraction::test_decide_alias FAILED [ 44%]
+tests/unit/test_jev_adapter.py::TestJEVAdapter::test_disabled_by_default PASSED [ 44%]
+tests/unit/test_jev_adapter.py::TestJEVAdapter::test_enabled_with_config PASSED [ 44%]
+tests/unit/test_jev_adapter.py::TestJEVAdapter::test_missing_model_config PASSED [ 44%]
+tests/unit/test_jev_adapter.py::TestJEVAdapter::test_missing_endpoint_config PASSED [ 45%]
+tests/unit/test_jev_adapter.py::TestJEVAdapter::test_missing_api_key_config PASSED [ 45%]
+tests/unit/test_jev_adapter.py::TestJEVVerificationLogic::test_verify_pass FAILED [ 45%]
+tests/unit/test_jev_adapter.py::TestJEVVerificationLogic::test_verify_fail FAILED [ 46%]
+tests/unit/test_jev_adapter.py::TestJEVVerificationLogic::test_verify_unavailable_when_disabled FAILED [ 46%]
+tests/unit/test_jev_adapter.py::TestJEVVerificationLogic::test_verify_timeout FAILED [ 46%]
+tests/unit/test_jev_adapter.py::TestJEVVerificationLogic::test_verify_malformed_response FAILED [ 46%]
+tests/unit/test_jev_adapter.py::TestJEVVerificationLogic::test_multiple_assertions_all_pass FAILED [ 47%]
+tests/unit/test_jev_adapter.py::TestJEVVerificationLogic::test_multiple_assertions_one_fails FAILED [ 47%]
+tests/unit/test_jev_adapter.py::TestJEVAdapterIntegration::test_jev_disabled_mode_preserves_existing_behavior FAILED [ 47%]
+tests/unit/test_jev_adapter.py::TestJEVAdapterIntegration::test_jev_integration_with_orchestrator FAILED [ 48%]
+tests/unit/test_jwt_secret_guard.py::TestJwtSecretGuard::test_local_dev_with_fallback_secret_is_allowed PASSED [ 48%]
+tests/unit/test_jwt_secret_guard.py::TestJwtSecretGuard::test_local_dev_with_explicit_secret_is_allowed PASSED [ 48%]
+tests/unit/test_jwt_secret_guard.py::TestJwtSecretGuard::test_docker_runtime_with_fallback_secret_fails PASSED [ 48%]
+tests/unit/test_jwt_secret_guard.py::TestJwtSecretGuard::test_docker_runtime_with_empty_secret_fails PASSED [ 49%]
+tests/unit/test_jwt_secret_guard.py::TestJwtSecretGuard::test_docker_runtime_with_short_secret_fails PASSED [ 49%]
+tests/unit/test_jwt_secret_guard.py::TestJwtSecretGuard::test_docker_runtime_with_strong_secret_passes PASSED [ 49%]
+tests/unit/test_jwt_secret_guard.py::TestJwtSecretGuard::test_non_dev_environment_with_fallback_fails PASSED [ 50%]
+tests/unit/test_jwt_secret_guard.py::TestJwtSecretGuard::test_non_dev_environment_with_strong_secret_passes PASSED [ 50%]
+tests/unit/test_knowledge_memory.py::test_knowledge_memory_recording_and_retrieval PASSED [ 50%]
+tests/unit/test_learning_integration.py::test_strategy_selector_prioritization FAILED [ 50%]
+tests/unit/test_learning_integration.py::test_scenario_generator_prioritization FAILED [ 51%]
+tests/unit/test_learning_service.py::test_get_valid_recovery_success FAILED [ 51%]
+tests/unit/test_learning_service.py::test_get_valid_recovery_expired FAILED [ 51%]
+tests/unit/test_learning_service.py::test_get_valid_recovery_untrustworthy FAILED [ 51%]
+tests/unit/test_learning_service.py::test_record_strategy_execution_success FAILED [ 52%]
+tests/unit/test_llm_json_retry.py::TestCompleteJsonRetry::test_valid_json_first_attempt FAILED [ 52%]
+tests/unit/test_llm_json_retry.py::TestCompleteJsonRetry::test_malformed_then_valid_json_retries_and_succeeds FAILED [ 52%]
+tests/unit/test_llm_json_retry.py::TestCompleteJsonRetry::test_persistently_malformed_json_raises_after_max_attempts FAILED [ 53%]
+tests/unit/test_llm_json_retry.py::TestCompleteJsonRetry::test_fenced_json_is_unwrapped FAILED [ 53%]
+tests/unit/test_llm_json_retry.py::TestCompleteJsonRetry::test_empty_content_treated_as_json_error_and_retried FAILED [ 53%]
+tests/unit/test_llm_json_retry.py::TestCompleteJsonRetry::test_retry_count_configurable_constant FAILED [ 53%]
+tests/unit/test_llm_json_retry.py::test_json_payload_examples PASSED     [ 54%]
+tests/unit/test_observation_engine.py::test_detect_form_page FAILED      [ 54%]
+tests/unit/test_observation_engine.py::test_detect_list_page FAILED      [ 54%]
+tests/unit/test_observation_engine.py::test_detect_login_page FAILED     [ 55%]
+tests/unit/test_observation_engine.py::test_extract_interactive_elements FAILED [ 55%]
+tests/unit/test_observation_engine.py::test_observation_basic_properties FAILED [ 55%]
+tests/unit/test_observation_engine.py::test_compact_summary FAILED       [ 55%]
+tests/unit/test_observation_engine.py::test_extract_password_fields FAILED [ 56%]
+tests/unit/test_orchestrator_api_oracle.py::TestHelpers::test_is_save_click PASSED [ 56%]
+tests/unit/test_orchestrator_api_oracle.py::TestHelpers::test_mutation_assertion_extracts_field_and_value PASSED [ 56%]
+tests/unit/test_orchestrator_api_oracle.py::TestHelpers::test_mutation_assertion_ignores_navigation PASSED [ 57%]
+tests/unit/test_orchestrator_api_oracle.py::TestHelpers::test_mutation_assertion_ignores_empty_value PASSED [ 57%]
+tests/unit/test_orchestrator_api_oracle.py::TestVerifyPersistenceStatuses::test_no_servicenow_config_is_not_attempted FAILED [ 57%]
+tests/unit/test_orchestrator_api_oracle.py::TestVerifyPersistenceStatuses::test_disabled_flag_reports_disabled_not_verified FAILED [ 57%]
+tests/unit/test_orchestrator_api_oracle.py::TestVerifyPersistenceStatuses::test_record_not_found_fails_closed FAILED [ 58%]
+tests/unit/test_orchestrator_api_oracle.py::TestVerifyPersistenceStatuses::test_api_error_fails_closed FAILED [ 58%]
+tests/unit/test_orchestrator_api_oracle.py::TestVerifyPersistenceStatuses::test_mismatch_surfaces_mismatches FAILED [ 58%]
+tests/unit/test_orchestrator_api_oracle.py::TestVerifyPersistenceStatuses::test_verified_when_all_checked_fields_match FAILED [ 59%]
+tests/unit/test_orchestrator_api_oracle.py::TestVerifyPersistenceStatuses::test_non_verifiable_fields_report_partial_not_verified FAILED [ 59%]
+tests/unit/test_orchestrator_api_oracle.py::TestVerifyPersistenceStatuses::test_no_assertions_reports_partial FAILED [ 59%]
+tests/unit/test_page_gate.py::test_home_page_url_fails PASSED            [ 59%]
+tests/unit/test_page_gate.py::test_incident_form_url_passes PASSED       [ 60%]
+tests/unit/test_page_gate.py::test_mismatched_record_number_fails PASSED [ 60%]
+tests/unit/test_page_gate.py::test_dialog_page_type_fails PASSED         [ 60%]
+tests/unit/test_page_gate.py::test_goal_text_parsing_extracts_correctly PASSED [ 61%]
+tests/unit/test_page_gate.py::test_goal_text_with_no_record_number_passes PASSED [ 61%]
+tests/unit/test_page_interactor.py::test_disambiguate_locator_fill_password FAILED [ 61%]
+tests/unit/test_page_interactor.py::test_disambiguate_locator_fill_ambiguous FAILED [ 61%]
+tests/unit/test_page_interactor.py::test_disambiguate_locator_click_unaffected FAILED [ 62%]
+tests/unit/test_page_interactor.py::test_resolve_locator_semantic_string FAILED [ 62%]
+tests/unit/test_page_interactor.py::test_resolve_locator_nth_chaining FAILED [ 62%]
+tests/unit/test_page_interactor.py::test_resolve_locator_explicit_prefixes FAILED [ 63%]
+tests/unit/test_page_interactor.py::test_resolve_candidates_catches_exception FAILED [ 63%]
+tests/unit/test_perception_backend.py::test_puter_backend_success FAILED [ 63%]
+tests/unit/test_perception_backend.py::test_puter_backend_no_point FAILED [ 63%]
+tests/unit/test_perception_backend.py::test_puter_backend_failure FAILED [ 64%]
+tests/unit/test_perception_engine.py::test_perception_engine_single_dom_match FAILED [ 64%]
+tests/unit/test_perception_engine.py::test_perception_engine_zero_matches_visual_fallback FAILED [ 64%]
+tests/unit/test_perception_engine.py::test_perception_engine_grounding_failure FAILED [ 65%]
+tests/unit/test_perception_engine.py::test_perception_engine_dom_failure_escalates_to_vision FAILED [ 65%]
+tests/unit/test_perception_store.py::test_in_memory_recovery_store FAILED [ 65%]
+tests/unit/test_perception_store.py::test_recovery_store_expiry FAILED   [ 65%]
+tests/unit/test_perception_verifier.py::test_llm_behavioral_verifier_success FAILED [ 66%]
+tests/unit/test_perception_verifier.py::test_llm_behavioral_verifier_failure FAILED [ 66%]
+tests/unit/test_perception_verifier.py::test_visual_finding_unavailable_without_evidence FAILED [ 66%]
+tests/unit/test_perception_verifier.py::test_visual_finding_with_actual_evidence FAILED [ 67%]
+tests/unit/test_planner.py::test_create_plan FAILED                      [ 67%]
+tests/unit/test_planner.py::test_decide_next_action FAILED               [ 67%]
+tests/unit/test_planner.py::test_is_goal_complete FAILED                 [ 67%]
+tests/unit/test_planner.py::test_planner_sends_system_prompt FAILED      [ 68%]
+tests/unit/test_planner.py::test_plan_with_knowledge_context FAILED      [ 68%]
+tests/unit/test_preconditions_and_story_pipeline.py::test_precondition_initial_state_mismatch_detected FAILED [ 68%]
+tests/unit/test_preconditions_and_story_pipeline.py::test_precondition_failure_not_classified_as_defect FAILED [ 69%]
+tests/unit/test_preconditions_and_story_pipeline.py::test_reporting_engine_marks_precondition_failed_status FAILED [ 69%]
+tests/unit/test_preconditions_and_story_pipeline.py::test_story_to_test_case_decomposition FAILED [ 69%]
+tests/unit/test_preconditions_and_story_pipeline.py::test_partial_validations_never_marked_completed FAILED [ 69%]
+tests/unit/test_preconditions_and_story_pipeline.py::test_story_preserves_acceptance_criteria_and_persists_in_store FAILED [ 70%]
+tests/unit/test_preconditions_and_story_pipeline.py::test_idempotent_target_state_is_valid_pass_noop FAILED [ 70%]
+tests/unit/test_readiness_and_diagnostics.py::test_diagnostic_paths_endpoint FAILED [ 70%]
+tests/unit/test_readiness_and_diagnostics.py::test_readiness_probe_healthy FAILED [ 71%]
+tests/unit/test_readiness_and_diagnostics.py::test_readiness_probe_unhealthy_when_db_down FAILED [ 71%]
+tests/unit/test_reasoning_trace.py::test_reasoning_trace_recording PASSED [ 71%]
+tests/unit/test_recovery_engine.py::test_recovery_wait_and_retry_success FAILED [ 71%]
+tests/unit/test_recovery_engine.py::test_recovery_dismiss_dialog_success FAILED [ 72%]
+tests/unit/test_recovery_engine.py::test_recovery_exhausted FAILED       [ 72%]
+tests/unit/test_recovery_engine.py::test_recovery_refresh_page FAILED    [ 72%]
+tests/unit/test_recovery_engine.py::test_recovery_tracks_attempts FAILED [ 73%]
+tests/unit/test_reflection_engine.py::test_reflection_heuristic_fallback FAILED [ 73%]
+tests/unit/test_reflection_engine.py::test_reflection_llm FAILED         [ 73%]
+tests/unit/test_reporting_engine.py::test_generate_report FAILED         [ 73%]
+tests/unit/test_reporting_engine.py::test_report_with_summary FAILED     [ 74%]
+tests/unit/test_reporting_engine.py::test_render_markdown FAILED         [ 74%]
+tests/unit/test_reporting_engine.py::test_save_report_markdown FAILED    [ 74%]
+tests/unit/test_reporting_engine.py::test_save_report_json FAILED        [ 75%]
+tests/unit/test_reporting_engine.py::test_defect_identification FAILED   [ 75%]
+tests/unit/test_reporting_engine.py::test_defect_identification_application_scope FAILED [ 75%]
+tests/unit/test_reporting_engine.py::test_defect_withdrawn_by_investigation_verdict FAILED [ 75%]
+tests/unit/test_reporting_engine.py::test_report_status_determination FAILED [ 76%]
+tests/unit/test_runtime_modes.py::test_local_settings_defaults PASSED    [ 76%]
+tests/unit/test_runtime_modes.py::test_docker_settings_simulation PASSED [ 76%]
+tests/unit/test_runtime_modes.py::test_environment_precedence_over_env_file PASSED [ 76%]
+tests/unit/test_runtime_modes.py::test_active_env_file_resolution PASSED [ 77%]
+tests/unit/test_runtime_modes.py::test_headed_browser_local_configuration PASSED [ 77%]
+tests/unit/test_runtime_modes.py::test_celery_broker_and_result_backend_resolution PASSED [ 77%]
+tests/unit/test_screenshot_api.py::test_get_screenshot_authenticated_success ERROR [ 78%]
+tests/unit/test_screenshot_api.py::test_get_screenshot_unauthorized_fails ERROR [ 78%]
+tests/unit/test_screenshot_api.py::test_get_screenshot_not_found_returns_404 ERROR [ 78%]
+tests/unit/test_screenshot_api.py::test_get_screenshot_path_traversal_blocked[../etc/passwd] ERROR [ 78%]
+tests/unit/test_screenshot_api.py::test_get_screenshot_path_traversal_blocked[..%2F..%2Fsecret.txt] ERROR [ 79%]
+tests/unit/test_screenshot_api.py::test_get_screenshot_path_traversal_blocked[..\\windows\\win.ini] ERROR [ 79%]
+tests/unit/test_screenshot_api.py::test_get_screenshot_path_traversal_blocked[.hidden.png] ERROR [ 79%]
+tests/unit/test_screenshot_api.py::test_get_screenshot_path_traversal_blocked[sub/dir/img.png] ERROR [ 80%]
+tests/unit/test_screenshot_api.py::test_get_screenshot_path_traversal_blocked[../../screenshots/test.png] ERROR [ 80%]
+tests/unit/test_screenshot_api.py::test_get_screenshot_path_traversal_blocked[evil;cmd.png] ERROR [ 80%]
+tests/unit/test_screenshot_api.py::test_get_screenshot_path_traversal_blocked[bad name with spaces.png] ERROR [ 80%]
+tests/unit/test_screenshot_api.py::test_get_run_perception_success ERROR [ 81%]
+tests/unit/test_screenshot_api.py::test_get_run_perception_tenant_isolation ERROR [ 81%]
+tests/unit/test_screenshot_api.py::test_build_perception_evidence_filters_nonexistent_screenshots ERROR [ 81%]
+tests/unit/test_screenshot_api.py::test_docker_compose_screenshot_volume_consistency PASSED [ 82%]
+tests/unit/test_security_tenant_isolation.py::test_sse_endpoint_requires_auth FAILED [ 82%]
+tests/unit/test_security_tenant_isolation.py::test_cross_tenant_control_endpoints_return_404 FAILED [ 82%]
+tests/unit/test_security_tenant_isolation.py::test_test_case_store_and_execute_tenant_isolation FAILED [ 82%]
+tests/unit/test_session_memory.py::test_session_memory_defaults PASSED   [ 83%]
+tests/unit/test_session_memory.py::test_add_observation PASSED           [ 83%]
+tests/unit/test_session_memory.py::test_add_observation_tracks_incident PASSED [ 83%]
+tests/unit/test_session_memory.py::test_add_completed_step PASSED        [ 84%]
+tests/unit/test_session_memory.py::test_add_failure PASSED               [ 84%]
+tests/unit/test_session_memory.py::test_add_recovery_attempt PASSED      [ 84%]
+tests/unit/test_session_memory.py::test_add_timeline_entry PASSED        [ 84%]
+tests/unit/test_session_memory.py::test_latest_observation PASSED        [ 85%]
+tests/unit/test_session_memory.py::test_get_context_for_llm PASSED       [ 85%]
+tests/unit/test_session_memory.py::test_get_summary PASSED               [ 85%]
+tests/unit/test_session_memory.py::test_recent_failures PASSED           [ 86%]
+tests/unit/test_session_store.py::test_save_and_load_in_memory FAILED    [ 86%]
+tests/unit/test_session_store.py::test_load_nonexistent_returns_none_in_memory FAILED [ 86%]
+tests/unit/test_session_store.py::test_delete_in_memory FAILED           [ 86%]
+tests/unit/test_session_store.py::test_delete_nonexistent_is_noop_in_memory FAILED [ 87%]
+tests/unit/test_session_store.py::test_exists_in_memory FAILED           [ 87%]
+tests/unit/test_session_store.py::test_overwrite_in_memory FAILED        [ 87%]
+tests/unit/test_session_store.py::test_save_complex_data_in_memory FAILED [ 88%]
+tests/unit/test_session_store.py::test_save_and_load_redis SKIPPED (...) [ 88%]
+tests/unit/test_session_store.py::test_load_nonexistent_returns_none_redis SKIPPED [ 88%]
+tests/unit/test_session_store.py::test_delete_redis SKIPPED (Redis s...) [ 88%]
+tests/unit/test_session_store.py::test_delete_nonexistent_is_noop_redis SKIPPED [ 89%]
+tests/unit/test_session_store.py::test_exists_redis SKIPPED (Redis s...) [ 89%]
+tests/unit/test_session_store.py::test_overwrite_redis SKIPPED (Redi...) [ 89%]
+tests/unit/test_session_store.py::test_save_complex_data_redis SKIPPED   [ 90%]
+tests/unit/test_skill_registry.py::test_skill_registration_and_resolution FAILED [ 90%]
+tests/unit/test_skill_registry.py::test_incident_skill_planning FAILED   [ 90%]
+tests/unit/test_state_machine.py::test_state_machine_valid_transitions PASSED [ 90%]
+tests/unit/test_state_machine.py::test_state_machine_invalid_transition PASSED [ 91%]
+tests/unit/test_stuck_detector.py::test_no_actions_recorded PASSED       [ 91%]
+tests/unit/test_stuck_detector.py::test_two_different_actions PASSED     [ 91%]
+tests/unit/test_stuck_detector.py::test_same_action_repeated_default_threshold FAILED [ 92%]
+tests/unit/test_stuck_detector.py::test_same_action_repeated_with_different_action_in_between PASSED [ 92%]
+tests/unit/test_stuck_detector.py::test_reset_clears_history FAILED      [ 92%]
+tests/unit/test_stuck_detector.py::test_custom_max_repeats_threshold PASSED [ 92%]
+tests/unit/test_stuck_detector.py::test_case_insensitive_comparison FAILED [ 93%]
+tests/unit/test_testing_generator.py::test_generate_scenarios FAILED     [ 93%]
+tests/unit/test_testing_generator.py::test_generate_scenarios_with_domain_knowledge FAILED [ 93%]
+tests/unit/test_testing_generator.py::test_generate_scenarios_malformed_llm FAILED [ 94%]
+tests/unit/test_testing_generator.py::test_generate_scenarios_safety_rejection FAILED [ 94%]
+tests/unit/test_testing_safety.py::test_exploratory_safe_action PASSED   [ 94%]
+tests/unit/test_testing_safety.py::test_exploratory_safety_rejection PASSED [ 94%]
+tests/unit/test_testing_store.py::test_save_finding_with_evidence FAILED [ 95%]
+tests/unit/test_testing_strategies.py::test_strategy_selector_composition FAILED [ 95%]
+tests/unit/test_tool_registry.py::test_tool_registry_registration PASSED [ 95%]
+tests/unit/test_untrusted.py::test_sanitize_neutralizes_closing_tag_spoofing PASSED [ 96%]
+tests/unit/test_untrusted.py::test_sanitize_strips_control_characters_and_caps_length PASSED [ 96%]
+tests/unit/test_untrusted.py::test_wrap_untrusted_contains_policy_markers PASSED [ 96%]
+tests/unit/test_untrusted.py::test_scan_for_injection_detects_common_directives PASSED [ 96%]
+tests/unit/test_validation_engine.py::test_validate_successful_fill FAILED [ 97%]
+tests/unit/test_validation_engine.py::test_validate_failed_action FAILED [ 97%]
+tests/unit/test_validation_engine.py::test_validate_detects_new_errors FAILED [ 97%]
+tests/unit/test_validation_engine.py::test_validate_js_errors FAILED     [ 98%]
+tests/unit/test_validation_engine.py::test_validate_baseline_js_errors_tolerated FAILED [ 98%]
+tests/unit/test_validation_engine.py::test_validation_result_summary FAILED [ 98%]
+tests/unit/test_validation_engine.py::test_check_page_changed_field_type FAILED [ 98%]
+tests/unit/test_validation_engine.py::test_platform_noise_network_errors_filtered FAILED [ 99%]
+tests/unit/test_world_model.py::test_build_semantic_state PASSED         [ 99%]
+tests/unit/test_world_model.py::test_semantic_summary PASSED             [ 99%]
+tests/unit/test_world_model.py::test_build_semantic_state_zero_mandatory PASSED [100%]
+
+==================================== ERRORS ====================================
+_________ ERROR at setup of test_get_screenshot_authenticated_success __________
+'test_get_screenshot_authenticated_success' requested an async fixture 'test_env', with no plugin or hook that handled it. This is an error, as pytest does not natively support it.
+See: https://docs.pytest.org/en/stable/deprecations.html#sync-test-depending-on-async-fixture
+___________ ERROR at setup of test_get_screenshot_unauthorized_fails ___________
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:361: in from_call
+    result: TResult | None = func()
+                             ^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:250: in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/logging.py:858: in pytest_runtest_setup
+    yield
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/capture.py:895: in pytest_runtest_setup
+    return (yield)
+            ^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:170: in pytest_runtest_setup
+    item.session._setupstate.setup(item)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:536: in setup
+    col.setup()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/python.py:1710: in setup
+    self._request._fillfixtures()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:806: in _fillfixtures
+    item.funcargs[argname] = self.getfixturevalue(argname)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:630: in getfixturevalue
+    fixturedef = self._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:1221: in execute
+    assert not self._finalizers
+           ^^^^^^^^^^^^^^^^^^^^
+E   AssertionError
+_________ ERROR at setup of test_get_screenshot_not_found_returns_404 __________
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:361: in from_call
+    result: TResult | None = func()
+                             ^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:250: in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/logging.py:858: in pytest_runtest_setup
+    yield
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/capture.py:895: in pytest_runtest_setup
+    return (yield)
+            ^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:170: in pytest_runtest_setup
+    item.session._setupstate.setup(item)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:536: in setup
+    col.setup()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/python.py:1710: in setup
+    self._request._fillfixtures()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:806: in _fillfixtures
+    item.funcargs[argname] = self.getfixturevalue(argname)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:630: in getfixturevalue
+    fixturedef = self._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:1221: in execute
+    assert not self._finalizers
+           ^^^^^^^^^^^^^^^^^^^^
+E   AssertionError
+_ ERROR at setup of test_get_screenshot_path_traversal_blocked[../etc/passwd] __
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:361: in from_call
+    result: TResult | None = func()
+                             ^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:250: in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/logging.py:858: in pytest_runtest_setup
+    yield
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/capture.py:895: in pytest_runtest_setup
+    return (yield)
+            ^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:170: in pytest_runtest_setup
+    item.session._setupstate.setup(item)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:536: in setup
+    col.setup()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/python.py:1710: in setup
+    self._request._fillfixtures()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:806: in _fillfixtures
+    item.funcargs[argname] = self.getfixturevalue(argname)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:630: in getfixturevalue
+    fixturedef = self._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:1221: in execute
+    assert not self._finalizers
+           ^^^^^^^^^^^^^^^^^^^^
+E   AssertionError
+_ ERROR at setup of test_get_screenshot_path_traversal_blocked[..%2F..%2Fsecret.txt] _
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:361: in from_call
+    result: TResult | None = func()
+                             ^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:250: in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/logging.py:858: in pytest_runtest_setup
+    yield
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/capture.py:895: in pytest_runtest_setup
+    return (yield)
+            ^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:170: in pytest_runtest_setup
+    item.session._setupstate.setup(item)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:536: in setup
+    col.setup()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/python.py:1710: in setup
+    self._request._fillfixtures()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:806: in _fillfixtures
+    item.funcargs[argname] = self.getfixturevalue(argname)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:630: in getfixturevalue
+    fixturedef = self._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:1221: in execute
+    assert not self._finalizers
+           ^^^^^^^^^^^^^^^^^^^^
+E   AssertionError
+_ ERROR at setup of test_get_screenshot_path_traversal_blocked[..\\windows\\win.ini] _
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:361: in from_call
+    result: TResult | None = func()
+                             ^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:250: in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/logging.py:858: in pytest_runtest_setup
+    yield
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/capture.py:895: in pytest_runtest_setup
+    return (yield)
+            ^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:170: in pytest_runtest_setup
+    item.session._setupstate.setup(item)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:536: in setup
+    col.setup()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/python.py:1710: in setup
+    self._request._fillfixtures()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:806: in _fillfixtures
+    item.funcargs[argname] = self.getfixturevalue(argname)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:630: in getfixturevalue
+    fixturedef = self._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:1221: in execute
+    assert not self._finalizers
+           ^^^^^^^^^^^^^^^^^^^^
+E   AssertionError
+__ ERROR at setup of test_get_screenshot_path_traversal_blocked[.hidden.png] ___
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:361: in from_call
+    result: TResult | None = func()
+                             ^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:250: in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/logging.py:858: in pytest_runtest_setup
+    yield
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/capture.py:895: in pytest_runtest_setup
+    return (yield)
+            ^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:170: in pytest_runtest_setup
+    item.session._setupstate.setup(item)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:536: in setup
+    col.setup()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/python.py:1710: in setup
+    self._request._fillfixtures()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:806: in _fillfixtures
+    item.funcargs[argname] = self.getfixturevalue(argname)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:630: in getfixturevalue
+    fixturedef = self._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:1221: in execute
+    assert not self._finalizers
+           ^^^^^^^^^^^^^^^^^^^^
+E   AssertionError
+_ ERROR at setup of test_get_screenshot_path_traversal_blocked[sub/dir/img.png] _
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:361: in from_call
+    result: TResult | None = func()
+                             ^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:250: in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/logging.py:858: in pytest_runtest_setup
+    yield
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/capture.py:895: in pytest_runtest_setup
+    return (yield)
+            ^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:170: in pytest_runtest_setup
+    item.session._setupstate.setup(item)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:536: in setup
+    col.setup()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/python.py:1710: in setup
+    self._request._fillfixtures()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:806: in _fillfixtures
+    item.funcargs[argname] = self.getfixturevalue(argname)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:630: in getfixturevalue
+    fixturedef = self._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:1221: in execute
+    assert not self._finalizers
+           ^^^^^^^^^^^^^^^^^^^^
+E   AssertionError
+_ ERROR at setup of test_get_screenshot_path_traversal_blocked[../../screenshots/test.png] _
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:361: in from_call
+    result: TResult | None = func()
+                             ^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:250: in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/logging.py:858: in pytest_runtest_setup
+    yield
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/capture.py:895: in pytest_runtest_setup
+    return (yield)
+            ^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:170: in pytest_runtest_setup
+    item.session._setupstate.setup(item)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:536: in setup
+    col.setup()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/python.py:1710: in setup
+    self._request._fillfixtures()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:806: in _fillfixtures
+    item.funcargs[argname] = self.getfixturevalue(argname)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:630: in getfixturevalue
+    fixturedef = self._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:1221: in execute
+    assert not self._finalizers
+           ^^^^^^^^^^^^^^^^^^^^
+E   AssertionError
+__ ERROR at setup of test_get_screenshot_path_traversal_blocked[evil;cmd.png] __
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:361: in from_call
+    result: TResult | None = func()
+                             ^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:250: in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/logging.py:858: in pytest_runtest_setup
+    yield
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/capture.py:895: in pytest_runtest_setup
+    return (yield)
+            ^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:170: in pytest_runtest_setup
+    item.session._setupstate.setup(item)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:536: in setup
+    col.setup()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/python.py:1710: in setup
+    self._request._fillfixtures()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:806: in _fillfixtures
+    item.funcargs[argname] = self.getfixturevalue(argname)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:630: in getfixturevalue
+    fixturedef = self._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:1221: in execute
+    assert not self._finalizers
+           ^^^^^^^^^^^^^^^^^^^^
+E   AssertionError
+_ ERROR at setup of test_get_screenshot_path_traversal_blocked[bad name with spaces.png] _
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:361: in from_call
+    result: TResult | None = func()
+                             ^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:250: in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/logging.py:858: in pytest_runtest_setup
+    yield
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/capture.py:895: in pytest_runtest_setup
+    return (yield)
+            ^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:170: in pytest_runtest_setup
+    item.session._setupstate.setup(item)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:536: in setup
+    col.setup()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/python.py:1710: in setup
+    self._request._fillfixtures()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:806: in _fillfixtures
+    item.funcargs[argname] = self.getfixturevalue(argname)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:630: in getfixturevalue
+    fixturedef = self._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:1221: in execute
+    assert not self._finalizers
+           ^^^^^^^^^^^^^^^^^^^^
+E   AssertionError
+______________ ERROR at setup of test_get_run_perception_success _______________
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:361: in from_call
+    result: TResult | None = func()
+                             ^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:250: in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/logging.py:858: in pytest_runtest_setup
+    yield
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/capture.py:895: in pytest_runtest_setup
+    return (yield)
+            ^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:170: in pytest_runtest_setup
+    item.session._setupstate.setup(item)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:536: in setup
+    col.setup()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/python.py:1710: in setup
+    self._request._fillfixtures()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:806: in _fillfixtures
+    item.funcargs[argname] = self.getfixturevalue(argname)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:630: in getfixturevalue
+    fixturedef = self._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:1221: in execute
+    assert not self._finalizers
+           ^^^^^^^^^^^^^^^^^^^^
+E   AssertionError
+__________ ERROR at setup of test_get_run_perception_tenant_isolation __________
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:361: in from_call
+    result: TResult | None = func()
+                             ^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:250: in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/logging.py:858: in pytest_runtest_setup
+    yield
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/capture.py:895: in pytest_runtest_setup
+    return (yield)
+            ^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:170: in pytest_runtest_setup
+    item.session._setupstate.setup(item)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:536: in setup
+    col.setup()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/python.py:1710: in setup
+    self._request._fillfixtures()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:806: in _fillfixtures
+    item.funcargs[argname] = self.getfixturevalue(argname)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:630: in getfixturevalue
+    fixturedef = self._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:1221: in execute
+    assert not self._finalizers
+           ^^^^^^^^^^^^^^^^^^^^
+E   AssertionError
+_ ERROR at setup of test_build_perception_evidence_filters_nonexistent_screenshots _
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:361: in from_call
+    result: TResult | None = func()
+                             ^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:250: in <lambda>
+    lambda: runtest_hook(item=item, **kwds),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/pluggy/_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/logging.py:858: in pytest_runtest_setup
+    yield
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/capture.py:895: in pytest_runtest_setup
+    return (yield)
+            ^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:170: in pytest_runtest_setup
+    item.session._setupstate.setup(item)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/runner.py:536: in setup
+    col.setup()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/python.py:1710: in setup
+    self._request._fillfixtures()
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:806: in _fillfixtures
+    item.funcargs[argname] = self.getfixturevalue(argname)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:630: in getfixturevalue
+    fixturedef = self._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+/usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/fixtures.py:1221: in execute
+    assert not self._finalizers
+           ^^^^^^^^^^^^^^^^^^^^
+E   AssertionError
+=================================== FAILURES ===================================
+__________________________ test_formulate_hypotheses ___________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_______________________ test_run_cognitive_loop_success ________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+________________ test_run_cognitive_loop_mismatch_investigation ________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+______________ test_run_cognitive_loop_app_mismatch_investigation ______________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+________________ test_run_cognitive_loop_no_hypotheses_failure _________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+________ test_inconclusive_mismatch_reproduced_becomes_verified_defect _________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_________ test_inconclusive_mismatch_not_reproduced_stays_inconclusive _________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+____________ test_attempt_reproduction_detects_persistent_mismatch _____________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+__________ test_attempt_reproduction_agent_error_is_not_reproduction ___________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+________________________ test_decision_engine_heuristic ________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+___________________________ test_decision_engine_llm ___________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+________________ test_playwright_protocol_error_is_not_a_defect ________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+__________ test_behavioral_verification_inconclusive_is_not_a_defect ___________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+__________ test_selector_not_found_with_failed_checks_is_not_a_defect __________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+__________ test_platform_noise_js_and_network_errors_are_not_defects ___________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+__________________ test_genuine_application_defect_is_counted __________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_______________ test_investigation_cleared_mismatch_not_counted ________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+________ test_agent_runtime_failure_recorded_as_agent_issue_not_defect _________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+________________ test_mixed_run_counts_only_application_defects ________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_________________________ test_discover_table_metadata _________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+___________________________ test_discovery_http_401 ____________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+___________________________ test_discovery_http_403 ____________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_________________________ test_discovery_empty_result __________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+______________________________ test_execute_click ______________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+______________________________ test_execute_fill _______________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+____________________________ test_execute_navigate _____________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+____________________ test_execute_with_failure_and_recovery ____________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+____________________ test_execute_with_failure_no_recovery _____________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_________________________ test_execute_unknown_action __________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_______________________ test_execute_screenshot_capture ________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_________________________ test_data_factory_lifecycle __________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+___________ test_browser_manager_passes_headed_params_to_playwright ____________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+____________ test_browser_manager_persistent_context_headed_params _____________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_____________ test_browser_manager_display_error_on_headless_linux _____________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+______________ test_browser_manager_take_screenshot_hides_cursor _______________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_______________ test_page_interactor_moves_mouse_before_actions ________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+________________ test_orchestrator_browser_persistence_behavior ________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+___________________________ test_cors_headers_on_api ___________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+________________________ test_incident_skill_can_handle ________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_______________________ test_incident_skill_dynamic_plan _______________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+___________________ test_intent_manager_parse_rule_fallback ____________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+________________________ test_intent_manager_parse_llm _________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_____________________ test_intent_manager_parse_general_ui _____________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_______________ test_embedding_circuit_breaker_trips_on_http_410 _______________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_____ test_reporting_engine_captures_canonical_steps_and_browser_telemetry _____
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+___________________ test_canonical_event_publisher_protocol ____________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_____________ test_run_control_receiver_fail_closed_and_lowercase ______________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+____________ test_clarification_and_approval_request_specific_keys _____________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_______________ test_investigation_false_positive_customization ________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+___________ test_investigation_verified_defect_requires_reproduction ___________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+___________________ test_investigation_learned_customization ___________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+______________ TestDecisionProviderAbstraction.test_pass_response ______________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+______________ TestDecisionProviderAbstraction.test_fail_response ______________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_____________ TestDecisionProviderAbstraction.test_error_response ______________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+______________ TestDecisionProviderAbstraction.test_decide_alias _______________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+__________________ TestJEVVerificationLogic.test_verify_pass ___________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+__________________ TestJEVVerificationLogic.test_verify_fail ___________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+________ TestJEVVerificationLogic.test_verify_unavailable_when_disabled ________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_________________ TestJEVVerificationLogic.test_verify_timeout _________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+___________ TestJEVVerificationLogic.test_verify_malformed_response ____________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+__________ TestJEVVerificationLogic.test_multiple_assertions_all_pass __________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_________ TestJEVVerificationLogic.test_multiple_assertions_one_fails __________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_ TestJEVAdapterIntegration.test_jev_disabled_mode_preserves_existing_behavior _
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_______ TestJEVAdapterIntegration.test_jev_integration_with_orchestrator _______
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+____________________ test_strategy_selector_prioritization _____________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+____________________ test_scenario_generator_prioritization ____________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_______________________ test_get_valid_recovery_success ________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_______________________ test_get_valid_recovery_expired ________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+____________________ test_get_valid_recovery_untrustworthy _____________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+____________________ test_record_strategy_execution_success ____________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_____________ TestCompleteJsonRetry.test_valid_json_first_attempt ______________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+__ TestCompleteJsonRetry.test_malformed_then_valid_json_retries_and_succeeds ___
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_ TestCompleteJsonRetry.test_persistently_malformed_json_raises_after_max_attempts _
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_____________ TestCompleteJsonRetry.test_fenced_json_is_unwrapped ______________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+__ TestCompleteJsonRetry.test_empty_content_treated_as_json_error_and_retried __
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_________ TestCompleteJsonRetry.test_retry_count_configurable_constant _________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+____________________________ test_detect_form_page _____________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+____________________________ test_detect_list_page _____________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+____________________________ test_detect_login_page ____________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+______________________ test_extract_interactive_elements _______________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+______________________ test_observation_basic_properties _______________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_____________________________ test_compact_summary _____________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_________________________ test_extract_password_fields _________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+___ TestVerifyPersistenceStatuses.test_no_servicenow_config_is_not_attempted ___
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_ TestVerifyPersistenceStatuses.test_disabled_flag_reports_disabled_not_verified _
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_______ TestVerifyPersistenceStatuses.test_record_not_found_fails_closed _______
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+__________ TestVerifyPersistenceStatuses.test_api_error_fails_closed ___________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_______ TestVerifyPersistenceStatuses.test_mismatch_surfaces_mismatches ________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+__ TestVerifyPersistenceStatuses.test_verified_when_all_checked_fields_match ___
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_ TestVerifyPersistenceStatuses.test_non_verifiable_fields_report_partial_not_verified _
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_______ TestVerifyPersistenceStatuses.test_no_assertions_reports_partial _______
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+___________________ test_disambiguate_locator_fill_password ____________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+___________________ test_disambiguate_locator_fill_ambiguous ___________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+__________________ test_disambiguate_locator_click_unaffected __________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_____________________ test_resolve_locator_semantic_string _____________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+______________________ test_resolve_locator_nth_chaining _______________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+____________________ test_resolve_locator_explicit_prefixes ____________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+__________________ test_resolve_candidates_catches_exception ___________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+__________________________ test_puter_backend_success __________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_________________________ test_puter_backend_no_point __________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+__________________________ test_puter_backend_failure __________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+___________________ test_perception_engine_single_dom_match ____________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_____________ test_perception_engine_zero_matches_visual_fallback ______________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+___________________ test_perception_engine_grounding_failure ___________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+____________ test_perception_engine_dom_failure_escalates_to_vision ____________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+________________________ test_in_memory_recovery_store _________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+__________________________ test_recovery_store_expiry __________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_____________________ test_llm_behavioral_verifier_success _____________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_____________________ test_llm_behavioral_verifier_failure _____________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_______________ test_visual_finding_unavailable_without_evidence _______________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+___________________ test_visual_finding_with_actual_evidence ___________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_______________________________ test_create_plan _______________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+___________________________ test_decide_next_action ____________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+____________________________ test_is_goal_complete _____________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_______________________ test_planner_sends_system_prompt _______________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_______________________ test_plan_with_knowledge_context _______________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+______________ test_precondition_initial_state_mismatch_detected _______________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+______________ test_precondition_failure_not_classified_as_defect ______________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+____________ test_reporting_engine_marks_precondition_failed_status ____________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+____________________ test_story_to_test_case_decomposition _____________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_______________ test_partial_validations_never_marked_completed ________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+________ test_story_preserves_acceptance_criteria_and_persists_in_store ________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_______________ test_idempotent_target_state_is_valid_pass_noop ________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+________________________ test_diagnostic_paths_endpoint ________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_________________________ test_readiness_probe_healthy _________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_________________ test_readiness_probe_unhealthy_when_db_down __________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_____________________ test_recovery_wait_and_retry_success _____________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_____________________ test_recovery_dismiss_dialog_success _____________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+___________________________ test_recovery_exhausted ____________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+__________________________ test_recovery_refresh_page __________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+________________________ test_recovery_tracks_attempts _________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+______________________ test_reflection_heuristic_fallback ______________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_____________________________ test_reflection_llm ______________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_____________________________ test_generate_report _____________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+___________________________ test_report_with_summary ___________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_____________________________ test_render_markdown _____________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+__________________________ test_save_report_markdown ___________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+____________________________ test_save_report_json _____________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+__________________________ test_defect_identification __________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_________________ test_defect_identification_application_scope _________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+________________ test_defect_withdrawn_by_investigation_verdict ________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_______________________ test_report_status_determination _______________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_______________________ test_sse_endpoint_requires_auth ________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+________________ test_cross_tenant_control_endpoints_return_404 ________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+______________ test_test_case_store_and_execute_tenant_isolation _______________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_________________________ test_save_and_load_in_memory _________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_________________ test_load_nonexistent_returns_none_in_memory _________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+____________________________ test_delete_in_memory _____________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+__________________ test_delete_nonexistent_is_noop_in_memory ___________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+____________________________ test_exists_in_memory _____________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+___________________________ test_overwrite_in_memory ___________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_______________________ test_save_complex_data_in_memory _______________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+____________________ test_skill_registration_and_resolution ____________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_________________________ test_incident_skill_planning _________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_________________ test_same_action_repeated_default_threshold __________________
+tests/unit/test_stuck_detector.py:21: in test_same_action_repeated_default_threshold
+    assert result.is_stuck
+E   AssertionError: assert False
+E    +  where False = StuckResult(is_stuck=False, reason='', repeated_action=None, repetition_count=0, recommendation='').is_stuck
+__________________________ test_reset_clears_history ___________________________
+tests/unit/test_stuck_detector.py:37: in test_reset_clears_history
+    assert detector.check().is_stuck
+E   AssertionError: assert False
+E    +  where False = StuckResult(is_stuck=False, reason='', repeated_action=None, repetition_count=0, recommendation='').is_stuck
+E    +    where StuckResult(is_stuck=False, reason='', repeated_action=None, repetition_count=0, recommendation='') = check()
+E    +      where check = <agent.cognition.stuck_detector.StuckDetector object at 0x7ca3ea4e62d0>.check
+_______________________ test_case_insensitive_comparison _______________________
+tests/unit/test_stuck_detector.py:55: in test_case_insensitive_comparison
+    assert detector.check().is_stuck
+E   AssertionError: assert False
+E    +  where False = StuckResult(is_stuck=False, reason='', repeated_action=None, repetition_count=0, recommendation='').is_stuck
+E    +    where StuckResult(is_stuck=False, reason='', repeated_action=None, repetition_count=0, recommendation='') = check()
+E    +      where check = <agent.cognition.stuck_detector.StuckDetector object at 0x7ca3ea70d110>.check
+___________________________ test_generate_scenarios ____________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+________________ test_generate_scenarios_with_domain_knowledge _________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+____________________ test_generate_scenarios_malformed_llm _____________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+___________________ test_generate_scenarios_safety_rejection ___________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_______________________ test_save_finding_with_evidence ________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+______________________ test_strategy_selector_composition ______________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+________________________ test_validate_successful_fill _________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_________________________ test_validate_failed_action __________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_______________________ test_validate_detects_new_errors _______________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+___________________________ test_validate_js_errors ____________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+__________________ test_validate_baseline_js_errors_tolerated __________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+________________________ test_validation_result_summary ________________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+______________________ test_check_page_changed_field_type ______________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+_________________ test_platform_noise_network_errors_filtered __________________
+async def functions are not natively supported.
+You need to install a suitable plugin for your async framework, for example:
+  - anyio
+  - pytest-asyncio
+  - pytest-tornasync
+  - pytest-trio
+  - pytest-twisted
+=============================== warnings summary ===============================
+../../usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/config/__init__.py:1464
+  /usr/local/py-utils/venvs/pytest/lib/python3.11/site-packages/_pytest/config/__init__.py:1464: PytestConfigWarning: Unknown config option: asyncio_mode
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+tests/unit/test_cognitive_orchestrator.py:110
+  /workspaces/UAT_poc/tests/unit/test_cognitive_orchestrator.py:110: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_cognitive_orchestrator.py:118
+  /workspaces/UAT_poc/tests/unit/test_cognitive_orchestrator.py:118: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_cognitive_orchestrator.py:136
+  /workspaces/UAT_poc/tests/unit/test_cognitive_orchestrator.py:136: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_cognitive_orchestrator.py:168
+  /workspaces/UAT_poc/tests/unit/test_cognitive_orchestrator.py:168: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_cognitive_orchestrator.py:225
+  /workspaces/UAT_poc/tests/unit/test_cognitive_orchestrator.py:225: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_cognitive_orchestrator.py:302
+  /workspaces/UAT_poc/tests/unit/test_cognitive_orchestrator.py:302: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_cognitive_orchestrator.py:334
+  /workspaces/UAT_poc/tests/unit/test_cognitive_orchestrator.py:334: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_cognitive_orchestrator.py:361
+  /workspaces/UAT_poc/tests/unit/test_cognitive_orchestrator.py:361: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_cognitive_orchestrator.py:391
+  /workspaces/UAT_poc/tests/unit/test_cognitive_orchestrator.py:391: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_decision_engine.py:15
+  /workspaces/UAT_poc/tests/unit/test_decision_engine.py:15: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_decision_engine.py:33
+  /workspaces/UAT_poc/tests/unit/test_decision_engine.py:33: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_defect_accounting.py:42
+  /workspaces/UAT_poc/tests/unit/test_defect_accounting.py:42: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_defect_accounting.py:65
+  /workspaces/UAT_poc/tests/unit/test_defect_accounting.py:65: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_defect_accounting.py:91
+  /workspaces/UAT_poc/tests/unit/test_defect_accounting.py:91: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_defect_accounting.py:116
+  /workspaces/UAT_poc/tests/unit/test_defect_accounting.py:116: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_defect_accounting.py:157
+  /workspaces/UAT_poc/tests/unit/test_defect_accounting.py:157: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_defect_accounting.py:186
+  /workspaces/UAT_poc/tests/unit/test_defect_accounting.py:186: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_defect_accounting.py:211
+  /workspaces/UAT_poc/tests/unit/test_defect_accounting.py:211: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_defect_accounting.py:229
+  /workspaces/UAT_poc/tests/unit/test_defect_accounting.py:229: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_domain_discovery.py:19
+  /workspaces/UAT_poc/tests/unit/test_domain_discovery.py:19: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_domain_discovery.py:59
+  /workspaces/UAT_poc/tests/unit/test_domain_discovery.py:59: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_domain_discovery.py:79
+  /workspaces/UAT_poc/tests/unit/test_domain_discovery.py:79: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_domain_discovery.py:99
+  /workspaces/UAT_poc/tests/unit/test_domain_discovery.py:99: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_execution_controller.py:74
+  /workspaces/UAT_poc/tests/unit/test_execution_controller.py:74: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_execution_controller.py:93
+  /workspaces/UAT_poc/tests/unit/test_execution_controller.py:93: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_execution_controller.py:113
+  /workspaces/UAT_poc/tests/unit/test_execution_controller.py:113: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_execution_controller.py:133
+  /workspaces/UAT_poc/tests/unit/test_execution_controller.py:133: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_execution_controller.py:160
+  /workspaces/UAT_poc/tests/unit/test_execution_controller.py:160: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_execution_controller.py:183
+  /workspaces/UAT_poc/tests/unit/test_execution_controller.py:183: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_execution_controller.py:200
+  /workspaces/UAT_poc/tests/unit/test_execution_controller.py:200: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_ground_truth_and_factory.py:33
+  /workspaces/UAT_poc/tests/unit/test_ground_truth_and_factory.py:33: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+../../usr/local/python/3.11.17/lib/python3.11/site-packages/passlib/utils/__init__.py:854
+  /usr/local/python/3.11.17/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+tests/unit/test_headed_browser.py:44
+  /workspaces/UAT_poc/tests/unit/test_headed_browser.py:44: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_headed_browser.py:89
+  /workspaces/UAT_poc/tests/unit/test_headed_browser.py:89: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_headed_browser.py:127
+  /workspaces/UAT_poc/tests/unit/test_headed_browser.py:127: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_headed_browser.py:144
+  /workspaces/UAT_poc/tests/unit/test_headed_browser.py:144: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_headed_browser.py:168
+  /workspaces/UAT_poc/tests/unit/test_headed_browser.py:168: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_headed_browser.py:228
+  /workspaces/UAT_poc/tests/unit/test_headed_browser.py:228: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_headed_browser.py:290
+  /workspaces/UAT_poc/tests/unit/test_headed_browser.py:290: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_incident_skill.py:11
+  /workspaces/UAT_poc/tests/unit/test_incident_skill.py:11: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_incident_skill.py:38
+  /workspaces/UAT_poc/tests/unit/test_incident_skill.py:38: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_intent_manager.py:12
+  /workspaces/UAT_poc/tests/unit/test_intent_manager.py:12: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_intent_manager.py:23
+  /workspaces/UAT_poc/tests/unit/test_intent_manager.py:23: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_intent_manager.py:47
+  /workspaces/UAT_poc/tests/unit/test_intent_manager.py:47: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_interactive_agent_and_breaker.py:18
+  /workspaces/UAT_poc/tests/unit/test_interactive_agent_and_breaker.py:18: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_interactive_agent_and_breaker.py:104
+  /workspaces/UAT_poc/tests/unit/test_interactive_agent_and_breaker.py:104: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_interactive_agent_and_breaker.py:153
+  /workspaces/UAT_poc/tests/unit/test_interactive_agent_and_breaker.py:153: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_interactive_agent_and_breaker.py:184
+  /workspaces/UAT_poc/tests/unit/test_interactive_agent_and_breaker.py:184: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_interactive_agent_and_breaker.py:206
+  /workspaces/UAT_poc/tests/unit/test_interactive_agent_and_breaker.py:206: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_investigation.py:32
+  /workspaces/UAT_poc/tests/unit/test_investigation.py:32: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_investigation.py:49
+  /workspaces/UAT_poc/tests/unit/test_investigation.py:49: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_investigation.py:80
+  /workspaces/UAT_poc/tests/unit/test_investigation.py:80: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_jev_adapter.py:131
+  /workspaces/UAT_poc/tests/unit/test_jev_adapter.py:131: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_jev_adapter.py:144
+  /workspaces/UAT_poc/tests/unit/test_jev_adapter.py:144: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_jev_adapter.py:156
+  /workspaces/UAT_poc/tests/unit/test_jev_adapter.py:156: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_jev_adapter.py:168
+  /workspaces/UAT_poc/tests/unit/test_jev_adapter.py:168: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_jev_adapter.py:239
+  /workspaces/UAT_poc/tests/unit/test_jev_adapter.py:239: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_jev_adapter.py:264
+  /workspaces/UAT_poc/tests/unit/test_jev_adapter.py:264: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_jev_adapter.py:290
+  /workspaces/UAT_poc/tests/unit/test_jev_adapter.py:290: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_jev_adapter.py:302
+  /workspaces/UAT_poc/tests/unit/test_jev_adapter.py:302: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_jev_adapter.py:329
+  /workspaces/UAT_poc/tests/unit/test_jev_adapter.py:329: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_jev_adapter.py:354
+  /workspaces/UAT_poc/tests/unit/test_jev_adapter.py:354: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_jev_adapter.py:400
+  /workspaces/UAT_poc/tests/unit/test_jev_adapter.py:400: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_jev_adapter.py:449
+  /workspaces/UAT_poc/tests/unit/test_jev_adapter.py:449: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_jev_adapter.py:465
+  /workspaces/UAT_poc/tests/unit/test_jev_adapter.py:465: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_learning_integration.py:26
+  /workspaces/UAT_poc/tests/unit/test_learning_integration.py:26: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_learning_integration.py:60
+  /workspaces/UAT_poc/tests/unit/test_learning_integration.py:60: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_learning_service.py:36
+  /workspaces/UAT_poc/tests/unit/test_learning_service.py:36: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_learning_service.py:56
+  /workspaces/UAT_poc/tests/unit/test_learning_service.py:56: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_learning_service.py:74
+  /workspaces/UAT_poc/tests/unit/test_learning_service.py:74: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_learning_service.py:92
+  /workspaces/UAT_poc/tests/unit/test_learning_service.py:92: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_observation_engine.py:49
+  /workspaces/UAT_poc/tests/unit/test_observation_engine.py:49: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_observation_engine.py:58
+  /workspaces/UAT_poc/tests/unit/test_observation_engine.py:58: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_observation_engine.py:70
+  /workspaces/UAT_poc/tests/unit/test_observation_engine.py:70: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_observation_engine.py:82
+  /workspaces/UAT_poc/tests/unit/test_observation_engine.py:82: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_observation_engine.py:94
+  /workspaces/UAT_poc/tests/unit/test_observation_engine.py:94: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_observation_engine.py:105
+  /workspaces/UAT_poc/tests/unit/test_observation_engine.py:105: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_observation_engine.py:118
+  /workspaces/UAT_poc/tests/unit/test_observation_engine.py:118: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_orchestrator_api_oracle.py:90
+  /workspaces/UAT_poc/tests/unit/test_orchestrator_api_oracle.py:90: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_orchestrator_api_oracle.py:97
+  /workspaces/UAT_poc/tests/unit/test_orchestrator_api_oracle.py:97: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_orchestrator_api_oracle.py:104
+  /workspaces/UAT_poc/tests/unit/test_orchestrator_api_oracle.py:104: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_orchestrator_api_oracle.py:116
+  /workspaces/UAT_poc/tests/unit/test_orchestrator_api_oracle.py:116: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_orchestrator_api_oracle.py:131
+  /workspaces/UAT_poc/tests/unit/test_orchestrator_api_oracle.py:131: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_orchestrator_api_oracle.py:149
+  /workspaces/UAT_poc/tests/unit/test_orchestrator_api_oracle.py:149: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_orchestrator_api_oracle.py:170
+  /workspaces/UAT_poc/tests/unit/test_orchestrator_api_oracle.py:170: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_orchestrator_api_oracle.py:187
+  /workspaces/UAT_poc/tests/unit/test_orchestrator_api_oracle.py:187: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_page_interactor.py:18
+  /workspaces/UAT_poc/tests/unit/test_page_interactor.py:18: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_page_interactor.py:47
+  /workspaces/UAT_poc/tests/unit/test_page_interactor.py:47: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_page_interactor.py:73
+  /workspaces/UAT_poc/tests/unit/test_page_interactor.py:73: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_page_interactor.py:89
+  /workspaces/UAT_poc/tests/unit/test_page_interactor.py:89: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_page_interactor.py:117
+  /workspaces/UAT_poc/tests/unit/test_page_interactor.py:117: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_page_interactor.py:136
+  /workspaces/UAT_poc/tests/unit/test_page_interactor.py:136: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_page_interactor.py:157
+  /workspaces/UAT_poc/tests/unit/test_page_interactor.py:157: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_perception_backend.py:9
+  /workspaces/UAT_poc/tests/unit/test_perception_backend.py:9: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_perception_backend.py:36
+  /workspaces/UAT_poc/tests/unit/test_perception_backend.py:36: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_perception_backend.py:59
+  /workspaces/UAT_poc/tests/unit/test_perception_backend.py:59: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_perception_engine.py:12
+  /workspaces/UAT_poc/tests/unit/test_perception_engine.py:12: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_perception_engine.py:68
+  /workspaces/UAT_poc/tests/unit/test_perception_engine.py:68: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_perception_engine.py:129
+  /workspaces/UAT_poc/tests/unit/test_perception_engine.py:129: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_perception_engine.py:170
+  /workspaces/UAT_poc/tests/unit/test_perception_engine.py:170: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_perception_store.py:9
+  /workspaces/UAT_poc/tests/unit/test_perception_store.py:9: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_perception_store.py:37
+  /workspaces/UAT_poc/tests/unit/test_perception_store.py:37: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_perception_verifier.py:9
+  /workspaces/UAT_poc/tests/unit/test_perception_verifier.py:9: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_perception_verifier.py:32
+  /workspaces/UAT_poc/tests/unit/test_perception_verifier.py:32: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_perception_verifier.py:54
+  /workspaces/UAT_poc/tests/unit/test_perception_verifier.py:54: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_perception_verifier.py:80
+  /workspaces/UAT_poc/tests/unit/test_perception_verifier.py:80: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_planner.py:73
+  /workspaces/UAT_poc/tests/unit/test_planner.py:73: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_planner.py:86
+  /workspaces/UAT_poc/tests/unit/test_planner.py:86: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_planner.py:104
+  /workspaces/UAT_poc/tests/unit/test_planner.py:104: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_planner.py:114
+  /workspaces/UAT_poc/tests/unit/test_planner.py:114: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_planner.py:131
+  /workspaces/UAT_poc/tests/unit/test_planner.py:131: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_preconditions_and_story_pipeline.py:42
+  /workspaces/UAT_poc/tests/unit/test_preconditions_and_story_pipeline.py:42: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_preconditions_and_story_pipeline.py:67
+  /workspaces/UAT_poc/tests/unit/test_preconditions_and_story_pipeline.py:67: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_preconditions_and_story_pipeline.py:109
+  /workspaces/UAT_poc/tests/unit/test_preconditions_and_story_pipeline.py:109: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_preconditions_and_story_pipeline.py:143
+  /workspaces/UAT_poc/tests/unit/test_preconditions_and_story_pipeline.py:143: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_preconditions_and_story_pipeline.py:164
+  /workspaces/UAT_poc/tests/unit/test_preconditions_and_story_pipeline.py:164: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_preconditions_and_story_pipeline.py:206
+  /workspaces/UAT_poc/tests/unit/test_preconditions_and_story_pipeline.py:206: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_preconditions_and_story_pipeline.py:249
+  /workspaces/UAT_poc/tests/unit/test_preconditions_and_story_pipeline.py:249: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_readiness_and_diagnostics.py:11
+  /workspaces/UAT_poc/tests/unit/test_readiness_and_diagnostics.py:11: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_readiness_and_diagnostics.py:40
+  /workspaces/UAT_poc/tests/unit/test_readiness_and_diagnostics.py:40: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_readiness_and_diagnostics.py:84
+  /workspaces/UAT_poc/tests/unit/test_readiness_and_diagnostics.py:84: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_recovery_engine.py:63
+  /workspaces/UAT_poc/tests/unit/test_recovery_engine.py:63: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_recovery_engine.py:85
+  /workspaces/UAT_poc/tests/unit/test_recovery_engine.py:85: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_recovery_engine.py:118
+  /workspaces/UAT_poc/tests/unit/test_recovery_engine.py:118: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_recovery_engine.py:135
+  /workspaces/UAT_poc/tests/unit/test_recovery_engine.py:135: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_recovery_engine.py:171
+  /workspaces/UAT_poc/tests/unit/test_recovery_engine.py:171: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_reflection_engine.py:15
+  /workspaces/UAT_poc/tests/unit/test_reflection_engine.py:15: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_reflection_engine.py:43
+  /workspaces/UAT_poc/tests/unit/test_reflection_engine.py:43: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_reporting_engine.py:64
+  /workspaces/UAT_poc/tests/unit/test_reporting_engine.py:64: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_reporting_engine.py:78
+  /workspaces/UAT_poc/tests/unit/test_reporting_engine.py:78: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_reporting_engine.py:96
+  /workspaces/UAT_poc/tests/unit/test_reporting_engine.py:96: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_reporting_engine.py:111
+  /workspaces/UAT_poc/tests/unit/test_reporting_engine.py:111: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_reporting_engine.py:124
+  /workspaces/UAT_poc/tests/unit/test_reporting_engine.py:124: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_reporting_engine.py:137
+  /workspaces/UAT_poc/tests/unit/test_reporting_engine.py:137: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_reporting_engine.py:167
+  /workspaces/UAT_poc/tests/unit/test_reporting_engine.py:167: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_reporting_engine.py:205
+  /workspaces/UAT_poc/tests/unit/test_reporting_engine.py:205: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_reporting_engine.py:245
+  /workspaces/UAT_poc/tests/unit/test_reporting_engine.py:245: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_screenshot_api.py:74
+  /workspaces/UAT_poc/tests/unit/test_screenshot_api.py:74: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_screenshot_api.py:91
+  /workspaces/UAT_poc/tests/unit/test_screenshot_api.py:91: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_screenshot_api.py:104
+  /workspaces/UAT_poc/tests/unit/test_screenshot_api.py:104: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_screenshot_api.py:114
+  /workspaces/UAT_poc/tests/unit/test_screenshot_api.py:114: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_screenshot_api.py:136
+  /workspaces/UAT_poc/tests/unit/test_screenshot_api.py:136: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_screenshot_api.py:179
+  /workspaces/UAT_poc/tests/unit/test_screenshot_api.py:179: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_security_tenant_isolation.py:44
+  /workspaces/UAT_poc/tests/unit/test_security_tenant_isolation.py:44: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_security_tenant_isolation.py:53
+  /workspaces/UAT_poc/tests/unit/test_security_tenant_isolation.py:53: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_security_tenant_isolation.py:143
+  /workspaces/UAT_poc/tests/unit/test_security_tenant_isolation.py:143: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_session_store.py:67
+  /workspaces/UAT_poc/tests/unit/test_session_store.py:67: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_session_store.py:77
+  /workspaces/UAT_poc/tests/unit/test_session_store.py:77: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_session_store.py:83
+  /workspaces/UAT_poc/tests/unit/test_session_store.py:83: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_session_store.py:94
+  /workspaces/UAT_poc/tests/unit/test_session_store.py:94: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_session_store.py:100
+  /workspaces/UAT_poc/tests/unit/test_session_store.py:100: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_session_store.py:112
+  /workspaces/UAT_poc/tests/unit/test_session_store.py:112: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_session_store.py:122
+  /workspaces/UAT_poc/tests/unit/test_session_store.py:122: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_session_store.py:147
+  /workspaces/UAT_poc/tests/unit/test_session_store.py:147: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_session_store.py:158
+  /workspaces/UAT_poc/tests/unit/test_session_store.py:158: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_session_store.py:165
+  /workspaces/UAT_poc/tests/unit/test_session_store.py:165: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_session_store.py:177
+  /workspaces/UAT_poc/tests/unit/test_session_store.py:177: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_session_store.py:184
+  /workspaces/UAT_poc/tests/unit/test_session_store.py:184: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_session_store.py:197
+  /workspaces/UAT_poc/tests/unit/test_session_store.py:197: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_session_store.py:208
+  /workspaces/UAT_poc/tests/unit/test_session_store.py:208: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_skill_registry.py:12
+  /workspaces/UAT_poc/tests/unit/test_skill_registry.py:12: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_skill_registry.py:32
+  /workspaces/UAT_poc/tests/unit/test_skill_registry.py:32: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_testing_generator.py:13
+  /workspaces/UAT_poc/tests/unit/test_testing_generator.py:13: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_testing_generator.py:60
+  /workspaces/UAT_poc/tests/unit/test_testing_generator.py:60: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_testing_generator.py:104
+  /workspaces/UAT_poc/tests/unit/test_testing_generator.py:104: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_testing_generator.py:120
+  /workspaces/UAT_poc/tests/unit/test_testing_generator.py:120: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_testing_store.py:10
+  /workspaces/UAT_poc/tests/unit/test_testing_store.py:10: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_testing_strategies.py:12
+  /workspaces/UAT_poc/tests/unit/test_testing_strategies.py:12: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_validation_engine.py:66
+  /workspaces/UAT_poc/tests/unit/test_validation_engine.py:66: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_validation_engine.py:93
+  /workspaces/UAT_poc/tests/unit/test_validation_engine.py:93: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_validation_engine.py:123
+  /workspaces/UAT_poc/tests/unit/test_validation_engine.py:123: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_validation_engine.py:152
+  /workspaces/UAT_poc/tests/unit/test_validation_engine.py:152: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_validation_engine.py:182
+  /workspaces/UAT_poc/tests/unit/test_validation_engine.py:182: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_validation_engine.py:218
+  /workspaces/UAT_poc/tests/unit/test_validation_engine.py:218: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_validation_engine.py:240
+  /workspaces/UAT_poc/tests/unit/test_validation_engine.py:240: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+tests/unit/test_validation_engine.py:265
+  /workspaces/UAT_poc/tests/unit/test_validation_engine.py:265: PytestUnknownMarkWarning: Unknown pytest.mark.asyncio - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.asyncio
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/unit/test_cognitive_orchestrator.py::test_formulate_hypotheses
+FAILED tests/unit/test_cognitive_orchestrator.py::test_run_cognitive_loop_success
+FAILED tests/unit/test_cognitive_orchestrator.py::test_run_cognitive_loop_mismatch_investigation
+FAILED tests/unit/test_cognitive_orchestrator.py::test_run_cognitive_loop_app_mismatch_investigation
+FAILED tests/unit/test_cognitive_orchestrator.py::test_run_cognitive_loop_no_hypotheses_failure
+FAILED tests/unit/test_cognitive_orchestrator.py::test_inconclusive_mismatch_reproduced_becomes_verified_defect
+FAILED tests/unit/test_cognitive_orchestrator.py::test_inconclusive_mismatch_not_reproduced_stays_inconclusive
+FAILED tests/unit/test_cognitive_orchestrator.py::test_attempt_reproduction_detects_persistent_mismatch
+FAILED tests/unit/test_cognitive_orchestrator.py::test_attempt_reproduction_agent_error_is_not_reproduction
+FAILED tests/unit/test_decision_engine.py::test_decision_engine_heuristic - F...
+FAILED tests/unit/test_decision_engine.py::test_decision_engine_llm - Failed:...
+FAILED tests/unit/test_defect_accounting.py::test_playwright_protocol_error_is_not_a_defect
+FAILED tests/unit/test_defect_accounting.py::test_behavioral_verification_inconclusive_is_not_a_defect
+FAILED tests/unit/test_defect_accounting.py::test_selector_not_found_with_failed_checks_is_not_a_defect
+FAILED tests/unit/test_defect_accounting.py::test_platform_noise_js_and_network_errors_are_not_defects
+FAILED tests/unit/test_defect_accounting.py::test_genuine_application_defect_is_counted
+FAILED tests/unit/test_defect_accounting.py::test_investigation_cleared_mismatch_not_counted
+FAILED tests/unit/test_defect_accounting.py::test_agent_runtime_failure_recorded_as_agent_issue_not_defect
+FAILED tests/unit/test_defect_accounting.py::test_mixed_run_counts_only_application_defects
+FAILED tests/unit/test_domain_discovery.py::test_discover_table_metadata - Fa...
+FAILED tests/unit/test_domain_discovery.py::test_discovery_http_401 - Failed:...
+FAILED tests/unit/test_domain_discovery.py::test_discovery_http_403 - Failed:...
+FAILED tests/unit/test_domain_discovery.py::test_discovery_empty_result - Fai...
+FAILED tests/unit/test_execution_controller.py::test_execute_click - Failed: ...
+FAILED tests/unit/test_execution_controller.py::test_execute_fill - Failed: a...
+FAILED tests/unit/test_execution_controller.py::test_execute_navigate - Faile...
+FAILED tests/unit/test_execution_controller.py::test_execute_with_failure_and_recovery
+FAILED tests/unit/test_execution_controller.py::test_execute_with_failure_no_recovery
+FAILED tests/unit/test_execution_controller.py::test_execute_unknown_action
+FAILED tests/unit/test_execution_controller.py::test_execute_screenshot_capture
+FAILED tests/unit/test_ground_truth_and_factory.py::test_data_factory_lifecycle
+FAILED tests/unit/test_headed_browser.py::test_browser_manager_passes_headed_params_to_playwright
+FAILED tests/unit/test_headed_browser.py::test_browser_manager_persistent_context_headed_params
+FAILED tests/unit/test_headed_browser.py::test_browser_manager_display_error_on_headless_linux
+FAILED tests/unit/test_headed_browser.py::test_browser_manager_take_screenshot_hides_cursor
+FAILED tests/unit/test_headed_browser.py::test_page_interactor_moves_mouse_before_actions
+FAILED tests/unit/test_headed_browser.py::test_orchestrator_browser_persistence_behavior
+FAILED tests/unit/test_headed_browser.py::test_cors_headers_on_api - Failed: ...
+FAILED tests/unit/test_incident_skill.py::test_incident_skill_can_handle - Fa...
+FAILED tests/unit/test_incident_skill.py::test_incident_skill_dynamic_plan - ...
+FAILED tests/unit/test_intent_manager.py::test_intent_manager_parse_rule_fallback
+FAILED tests/unit/test_intent_manager.py::test_intent_manager_parse_llm - Fai...
+FAILED tests/unit/test_intent_manager.py::test_intent_manager_parse_general_ui
+FAILED tests/unit/test_interactive_agent_and_breaker.py::test_embedding_circuit_breaker_trips_on_http_410
+FAILED tests/unit/test_interactive_agent_and_breaker.py::test_reporting_engine_captures_canonical_steps_and_browser_telemetry
+FAILED tests/unit/test_interactive_agent_and_breaker.py::test_canonical_event_publisher_protocol
+FAILED tests/unit/test_interactive_agent_and_breaker.py::test_run_control_receiver_fail_closed_and_lowercase
+FAILED tests/unit/test_interactive_agent_and_breaker.py::test_clarification_and_approval_request_specific_keys
+FAILED tests/unit/test_investigation.py::test_investigation_false_positive_customization
+FAILED tests/unit/test_investigation.py::test_investigation_verified_defect_requires_reproduction
+FAILED tests/unit/test_investigation.py::test_investigation_learned_customization
+FAILED tests/unit/test_jev_adapter.py::TestDecisionProviderAbstraction::test_pass_response
+FAILED tests/unit/test_jev_adapter.py::TestDecisionProviderAbstraction::test_fail_response
+FAILED tests/unit/test_jev_adapter.py::TestDecisionProviderAbstraction::test_error_response
+FAILED tests/unit/test_jev_adapter.py::TestDecisionProviderAbstraction::test_decide_alias
+FAILED tests/unit/test_jev_adapter.py::TestJEVVerificationLogic::test_verify_pass
+FAILED tests/unit/test_jev_adapter.py::TestJEVVerificationLogic::test_verify_fail
+FAILED tests/unit/test_jev_adapter.py::TestJEVVerificationLogic::test_verify_unavailable_when_disabled
+FAILED tests/unit/test_jev_adapter.py::TestJEVVerificationLogic::test_verify_timeout
+FAILED tests/unit/test_jev_adapter.py::TestJEVVerificationLogic::test_verify_malformed_response
+FAILED tests/unit/test_jev_adapter.py::TestJEVVerificationLogic::test_multiple_assertions_all_pass
+FAILED tests/unit/test_jev_adapter.py::TestJEVVerificationLogic::test_multiple_assertions_one_fails
+FAILED tests/unit/test_jev_adapter.py::TestJEVAdapterIntegration::test_jev_disabled_mode_preserves_existing_behavior
+FAILED tests/unit/test_jev_adapter.py::TestJEVAdapterIntegration::test_jev_integration_with_orchestrator
+FAILED tests/unit/test_learning_integration.py::test_strategy_selector_prioritization
+FAILED tests/unit/test_learning_integration.py::test_scenario_generator_prioritization
+FAILED tests/unit/test_learning_service.py::test_get_valid_recovery_success
+FAILED tests/unit/test_learning_service.py::test_get_valid_recovery_expired
+FAILED tests/unit/test_learning_service.py::test_get_valid_recovery_untrustworthy
+FAILED tests/unit/test_learning_service.py::test_record_strategy_execution_success
+FAILED tests/unit/test_llm_json_retry.py::TestCompleteJsonRetry::test_valid_json_first_attempt
+FAILED tests/unit/test_llm_json_retry.py::TestCompleteJsonRetry::test_malformed_then_valid_json_retries_and_succeeds
+FAILED tests/unit/test_llm_json_retry.py::TestCompleteJsonRetry::test_persistently_malformed_json_raises_after_max_attempts
+FAILED tests/unit/test_llm_json_retry.py::TestCompleteJsonRetry::test_fenced_json_is_unwrapped
+FAILED tests/unit/test_llm_json_retry.py::TestCompleteJsonRetry::test_empty_content_treated_as_json_error_and_retried
+FAILED tests/unit/test_llm_json_retry.py::TestCompleteJsonRetry::test_retry_count_configurable_constant
+FAILED tests/unit/test_observation_engine.py::test_detect_form_page - Failed:...
+FAILED tests/unit/test_observation_engine.py::test_detect_list_page - Failed:...
+FAILED tests/unit/test_observation_engine.py::test_detect_login_page - Failed...
+FAILED tests/unit/test_observation_engine.py::test_extract_interactive_elements
+FAILED tests/unit/test_observation_engine.py::test_observation_basic_properties
+FAILED tests/unit/test_observation_engine.py::test_compact_summary - Failed: ...
+FAILED tests/unit/test_observation_engine.py::test_extract_password_fields - ...
+FAILED tests/unit/test_orchestrator_api_oracle.py::TestVerifyPersistenceStatuses::test_no_servicenow_config_is_not_attempted
+FAILED tests/unit/test_orchestrator_api_oracle.py::TestVerifyPersistenceStatuses::test_disabled_flag_reports_disabled_not_verified
+FAILED tests/unit/test_orchestrator_api_oracle.py::TestVerifyPersistenceStatuses::test_record_not_found_fails_closed
+FAILED tests/unit/test_orchestrator_api_oracle.py::TestVerifyPersistenceStatuses::test_api_error_fails_closed
+FAILED tests/unit/test_orchestrator_api_oracle.py::TestVerifyPersistenceStatuses::test_mismatch_surfaces_mismatches
+FAILED tests/unit/test_orchestrator_api_oracle.py::TestVerifyPersistenceStatuses::test_verified_when_all_checked_fields_match
+FAILED tests/unit/test_orchestrator_api_oracle.py::TestVerifyPersistenceStatuses::test_non_verifiable_fields_report_partial_not_verified
+FAILED tests/unit/test_orchestrator_api_oracle.py::TestVerifyPersistenceStatuses::test_no_assertions_reports_partial
+FAILED tests/unit/test_page_interactor.py::test_disambiguate_locator_fill_password
+FAILED tests/unit/test_page_interactor.py::test_disambiguate_locator_fill_ambiguous
+FAILED tests/unit/test_page_interactor.py::test_disambiguate_locator_click_unaffected
+FAILED tests/unit/test_page_interactor.py::test_resolve_locator_semantic_string
+FAILED tests/unit/test_page_interactor.py::test_resolve_locator_nth_chaining
+FAILED tests/unit/test_page_interactor.py::test_resolve_locator_explicit_prefixes
+FAILED tests/unit/test_page_interactor.py::test_resolve_candidates_catches_exception
+FAILED tests/unit/test_perception_backend.py::test_puter_backend_success - Fa...
+FAILED tests/unit/test_perception_backend.py::test_puter_backend_no_point - F...
+FAILED tests/unit/test_perception_backend.py::test_puter_backend_failure - Fa...
+FAILED tests/unit/test_perception_engine.py::test_perception_engine_single_dom_match
+FAILED tests/unit/test_perception_engine.py::test_perception_engine_zero_matches_visual_fallback
+FAILED tests/unit/test_perception_engine.py::test_perception_engine_grounding_failure
+FAILED tests/unit/test_perception_engine.py::test_perception_engine_dom_failure_escalates_to_vision
+FAILED tests/unit/test_perception_store.py::test_in_memory_recovery_store - F...
+FAILED tests/unit/test_perception_store.py::test_recovery_store_expiry - Fail...
+FAILED tests/unit/test_perception_verifier.py::test_llm_behavioral_verifier_success
+FAILED tests/unit/test_perception_verifier.py::test_llm_behavioral_verifier_failure
+FAILED tests/unit/test_perception_verifier.py::test_visual_finding_unavailable_without_evidence
+FAILED tests/unit/test_perception_verifier.py::test_visual_finding_with_actual_evidence
+FAILED tests/unit/test_planner.py::test_create_plan - Failed: async def funct...
+FAILED tests/unit/test_planner.py::test_decide_next_action - Failed: async de...
+FAILED tests/unit/test_planner.py::test_is_goal_complete - Failed: async def ...
+FAILED tests/unit/test_planner.py::test_planner_sends_system_prompt - Failed:...
+FAILED tests/unit/test_planner.py::test_plan_with_knowledge_context - Failed:...
+FAILED tests/unit/test_preconditions_and_story_pipeline.py::test_precondition_initial_state_mismatch_detected
+FAILED tests/unit/test_preconditions_and_story_pipeline.py::test_precondition_failure_not_classified_as_defect
+FAILED tests/unit/test_preconditions_and_story_pipeline.py::test_reporting_engine_marks_precondition_failed_status
+FAILED tests/unit/test_preconditions_and_story_pipeline.py::test_story_to_test_case_decomposition
+FAILED tests/unit/test_preconditions_and_story_pipeline.py::test_partial_validations_never_marked_completed
+FAILED tests/unit/test_preconditions_and_story_pipeline.py::test_story_preserves_acceptance_criteria_and_persists_in_store
+FAILED tests/unit/test_preconditions_and_story_pipeline.py::test_idempotent_target_state_is_valid_pass_noop
+FAILED tests/unit/test_readiness_and_diagnostics.py::test_diagnostic_paths_endpoint
+FAILED tests/unit/test_readiness_and_diagnostics.py::test_readiness_probe_healthy
+FAILED tests/unit/test_readiness_and_diagnostics.py::test_readiness_probe_unhealthy_when_db_down
+FAILED tests/unit/test_recovery_engine.py::test_recovery_wait_and_retry_success
+FAILED tests/unit/test_recovery_engine.py::test_recovery_dismiss_dialog_success
+FAILED tests/unit/test_recovery_engine.py::test_recovery_exhausted - Failed: ...
+FAILED tests/unit/test_recovery_engine.py::test_recovery_refresh_page - Faile...
+FAILED tests/unit/test_recovery_engine.py::test_recovery_tracks_attempts - Fa...
+FAILED tests/unit/test_reflection_engine.py::test_reflection_heuristic_fallback
+FAILED tests/unit/test_reflection_engine.py::test_reflection_llm - Failed: as...
+FAILED tests/unit/test_reporting_engine.py::test_generate_report - Failed: as...
+FAILED tests/unit/test_reporting_engine.py::test_report_with_summary - Failed...
+FAILED tests/unit/test_reporting_engine.py::test_render_markdown - Failed: as...
+FAILED tests/unit/test_reporting_engine.py::test_save_report_markdown - Faile...
+FAILED tests/unit/test_reporting_engine.py::test_save_report_json - Failed: a...
+FAILED tests/unit/test_reporting_engine.py::test_defect_identification - Fail...
+FAILED tests/unit/test_reporting_engine.py::test_defect_identification_application_scope
+FAILED tests/unit/test_reporting_engine.py::test_defect_withdrawn_by_investigation_verdict
+FAILED tests/unit/test_reporting_engine.py::test_report_status_determination
+FAILED tests/unit/test_security_tenant_isolation.py::test_sse_endpoint_requires_auth
+FAILED tests/unit/test_security_tenant_isolation.py::test_cross_tenant_control_endpoints_return_404
+FAILED tests/unit/test_security_tenant_isolation.py::test_test_case_store_and_execute_tenant_isolation
+FAILED tests/unit/test_session_store.py::test_save_and_load_in_memory - Faile...
+FAILED tests/unit/test_session_store.py::test_load_nonexistent_returns_none_in_memory
+FAILED tests/unit/test_session_store.py::test_delete_in_memory - Failed: asyn...
+FAILED tests/unit/test_session_store.py::test_delete_nonexistent_is_noop_in_memory
+FAILED tests/unit/test_session_store.py::test_exists_in_memory - Failed: asyn...
+FAILED tests/unit/test_session_store.py::test_overwrite_in_memory - Failed: a...
+FAILED tests/unit/test_session_store.py::test_save_complex_data_in_memory - F...
+FAILED tests/unit/test_skill_registry.py::test_skill_registration_and_resolution
+FAILED tests/unit/test_skill_registry.py::test_incident_skill_planning - Fail...
+FAILED tests/unit/test_stuck_detector.py::test_same_action_repeated_default_threshold
+FAILED tests/unit/test_stuck_detector.py::test_reset_clears_history - Asserti...
+FAILED tests/unit/test_stuck_detector.py::test_case_insensitive_comparison - ...
+FAILED tests/unit/test_testing_generator.py::test_generate_scenarios - Failed...
+FAILED tests/unit/test_testing_generator.py::test_generate_scenarios_with_domain_knowledge
+FAILED tests/unit/test_testing_generator.py::test_generate_scenarios_malformed_llm
+FAILED tests/unit/test_testing_generator.py::test_generate_scenarios_safety_rejection
+FAILED tests/unit/test_testing_store.py::test_save_finding_with_evidence - Fa...
+FAILED tests/unit/test_testing_strategies.py::test_strategy_selector_composition
+FAILED tests/unit/test_validation_engine.py::test_validate_successful_fill - ...
+FAILED tests/unit/test_validation_engine.py::test_validate_failed_action - Fa...
+FAILED tests/unit/test_validation_engine.py::test_validate_detects_new_errors
+FAILED tests/unit/test_validation_engine.py::test_validate_js_errors - Failed...
+FAILED tests/unit/test_validation_engine.py::test_validate_baseline_js_errors_tolerated
+FAILED tests/unit/test_validation_engine.py::test_validation_result_summary
+FAILED tests/unit/test_validation_engine.py::test_check_page_changed_field_type
+FAILED tests/unit/test_validation_engine.py::test_platform_noise_network_errors_filtered
+ERROR tests/unit/test_screenshot_api.py::test_get_screenshot_authenticated_success
+ERROR tests/unit/test_screenshot_api.py::test_get_screenshot_unauthorized_fails
+ERROR tests/unit/test_screenshot_api.py::test_get_screenshot_not_found_returns_404
+ERROR tests/unit/test_screenshot_api.py::test_get_screenshot_path_traversal_blocked[../etc/passwd]
+ERROR tests/unit/test_screenshot_api.py::test_get_screenshot_path_traversal_blocked[..%2F..%2Fsecret.txt]
+ERROR tests/unit/test_screenshot_api.py::test_get_screenshot_path_traversal_blocked[..\\windows\\win.ini]
+ERROR tests/unit/test_screenshot_api.py::test_get_screenshot_path_traversal_blocked[.hidden.png]
+ERROR tests/unit/test_screenshot_api.py::test_get_screenshot_path_traversal_blocked[sub/dir/img.png]
+ERROR tests/unit/test_screenshot_api.py::test_get_screenshot_path_traversal_blocked[../../screenshots/test.png]
+ERROR tests/unit/test_screenshot_api.py::test_get_screenshot_path_traversal_blocked[evil;cmd.png]
+ERROR tests/unit/test_screenshot_api.py::test_get_screenshot_path_traversal_blocked[bad name with spaces.png]
+ERROR tests/unit/test_screenshot_api.py::test_get_run_perception_success - As...
+ERROR tests/unit/test_screenshot_api.py::test_get_run_perception_tenant_isolation
+ERROR tests/unit/test_screenshot_api.py::test_build_perception_evidence_filters_nonexistent_screenshots
+===== 171 failed, 160 passed, 7 skipped, 177 warnings, 14 errors in 12.30s =====
