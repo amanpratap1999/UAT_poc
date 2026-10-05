@@ -1,0 +1,28 @@
+ 
+ -------------- celery@codespaces-e27d0b v5.6.3 (recovery)
+--- ***** ----- 
+-- ******* ---- Linux-6.8.0-1064-azure-x86_64-with-glibc2.35 2026-10-05 08:08:18
+- *** --- * --- 
+- ** ---------- [config]
+- ** ---------- .> app:         agent_worker:0x77a23f57a390
+- ** ---------- .> transport:   redis://127.0.0.1:6379/0
+- ** ---------- .> results:     redis://127.0.0.1:6379/1
+- *** --- * --- .> concurrency: 2 (solo)
+-- ******* ---- .> task events: OFF (enable -E to monitor tasks in this worker)
+--- ***** ----- 
+ -------------- [queues]
+                .> celery           exchange=celery(direct) key=celery
+                
+
+[tasks]
+  . agent.worker.tasks.execute_run
+
+[2026-10-05 08:08:18,565: ERROR/MainProcess] consumer: Cannot connect to redis://127.0.0.1:6379/0: Error 111 connecting to 127.0.0.1:6379. Connection refused..
+Trying again in 2.00 seconds... (1/100)
+
+[2026-10-05 08:08:20,568: ERROR/MainProcess] consumer: Cannot connect to redis://127.0.0.1:6379/0: Error 111 connecting to 127.0.0.1:6379. Connection refused..
+Trying again in 4.00 seconds... (2/100)
+
+[2026-10-05 08:08:24,570: ERROR/MainProcess] consumer: Cannot connect to redis://127.0.0.1:6379/0: Error 111 connecting to 127.0.0.1:6379. Connection refused..
+Trying again in 6.00 seconds... (3/100)
+
