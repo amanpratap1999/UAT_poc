@@ -1,0 +1,11 @@
+{
+  "recall_pct": null,
+  "precision_pct": null,
+  "consistency_pct": null,
+  "true_positives": null,
+  "false_negatives": null,
+  "false_positives": null,
+  "laya_mode": "primary",
+  "benchmark_run": false,
+  "error": "Benchmark failed due to missing Redis / Unauthorized persona"
+}

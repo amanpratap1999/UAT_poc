@@ -1,0 +1,47 @@
+ 
+ -------------- celery@LAPTOP-FKE1L5S1 v5.6.3 (recovery)
+--- ***** ----- 
+-- ******* ---- Windows-10-10.0.26200-SP0 2026-10-06 00:51:05
+- *** --- * --- 
+- ** ---------- [config]
+- ** ---------- .> app:         agent_worker:0x199d946add0
+- ** ---------- .> transport:   redis://127.0.0.1:6379/0
+- ** ---------- .> results:     redis://127.0.0.1:6379/1
+- *** --- * --- .> concurrency: 1 (prefork)
+-- ******* ---- .> task events: OFF (enable -E to monitor tasks in this worker)
+--- ***** ----- 
+ -------------- [queues]
+                .> celery           exchange=celery(direct) key=celery
+                
+
+[tasks]
+  . agent.worker.tasks.execute_run
+
+[2026-10-06 00:51:08,881: ERROR/MainProcess] consumer: Cannot connect to redis://127.0.0.1:6379/0: Error 10061 connecting to 127.0.0.1:6379. No connection could be made because the target machine actively refused it..
+Trying again in 2.00 seconds... (1/100)
+
+[2026-10-06 00:51:09,988: INFO/SpawnPoolWorker-1] child process 29904 calling self.run()
+[2026-10-06 00:51:12,939: ERROR/MainProcess] consumer: Cannot connect to redis://127.0.0.1:6379/0: Error 10061 connecting to 127.0.0.1:6379. No connection could be made because the target machine actively refused it..
+Trying again in 4.00 seconds... (2/100)
+
+[2026-10-06 00:51:19,021: ERROR/MainProcess] consumer: Cannot connect to redis://127.0.0.1:6379/0: Error 10061 connecting to 127.0.0.1:6379. No connection could be made because the target machine actively refused it..
+Trying again in 6.00 seconds... (3/100)
+
+[2026-10-06 00:51:27,103: ERROR/MainProcess] consumer: Cannot connect to redis://127.0.0.1:6379/0: Error 10061 connecting to 127.0.0.1:6379. No connection could be made because the target machine actively refused it..
+Trying again in 8.00 seconds... (4/100)
+
+[2026-10-06 00:51:37,169: ERROR/MainProcess] consumer: Cannot connect to redis://127.0.0.1:6379/0: Error 10061 connecting to 127.0.0.1:6379. No connection could be made because the target machine actively refused it..
+Trying again in 10.00 seconds... (5/100)
+
+[2026-10-06 00:51:49,203: ERROR/MainProcess] consumer: Cannot connect to redis://127.0.0.1:6379/0: Error 10061 connecting to 127.0.0.1:6379. No connection could be made because the target machine actively refused it..
+Trying again in 12.00 seconds... (6/100)
+
+[2026-10-06 00:52:03,410: ERROR/MainProcess] consumer: Cannot connect to redis://127.0.0.1:6379/0: Error 10061 connecting to 127.0.0.1:6379. No connection could be made because the target machine actively refused it..
+Trying again in 14.00 seconds... (7/100)
+
+[2026-10-06 00:52:19,447: ERROR/MainProcess] consumer: Cannot connect to redis://127.0.0.1:6379/0: Error 10061 connecting to 127.0.0.1:6379. No connection could be made because the target machine actively refused it..
+Trying again in 16.00 seconds... (8/100)
+
+[2026-10-06 00:52:37,503: ERROR/MainProcess] consumer: Cannot connect to redis://127.0.0.1:6379/0: Error 10061 connecting to 127.0.0.1:6379. No connection could be made because the target machine actively refused it..
+Trying again in 18.00 seconds... (9/100)
+
