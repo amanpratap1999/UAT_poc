@@ -521,6 +521,10 @@ class ReportingEngine:
         moondream_calls = getattr(memory, "moondream_calls", 0) or 0
         gemini_vision_calls = getattr(memory, "gemini_calls", 0) or 0
         verification_calls = getattr(memory, "verification_calls", 0) or 0
+        timeline_duration_ms = sum(
+            max(0.0, float(getattr(entry, "duration_ms", 0.0) or 0.0))
+            for entry in memory.timeline
+        )
 
         return {
             "per_action": per_action,
@@ -541,8 +545,15 @@ class ReportingEngine:
                     "gemini_vision": gemini_vision_calls,
                     "verification": verification_calls,
                 },
-                "total_duration_seconds": getattr(memory, "total_actions_executed", 0)
-                and 0.0,  # filled by caller if available
+                "total_duration_seconds": round(timeline_duration_ms / 1000.0, 3),
+                # Provider pricing/token usage is not consistently exposed
+                # by all configured clients. Report call counts and measured
+                # LAYA time, but do not invent a currency amount.
+                "estimated_cost_usd": None,
+                "cost_estimate_note": (
+                    "Unavailable: provider token usage and pricing were not "
+                    "captured for every model call."
+                ),
             },
         }
 

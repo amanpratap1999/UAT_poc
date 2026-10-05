@@ -299,14 +299,12 @@ def get_knowledge_memory() -> KnowledgeMemory:
 def get_decision_engine(settings: Settings | None = None) -> DecisionEngine:
     """Create a DecisionEngine instance.
 
-    INC-UAT-07 (Major): now wires a JEVAdapter as the default
-    DecisionProvider when JEV configuration is available. This gives
-    the independent judgement layer a real role in the verdict path
-    by default, not just when manually injected.
+    LAYA supplies bounded verification decisions when its service config
+    is available; otherwise the existing Gemini-backed path remains active.
 
     P3-LAYA: now also wires a LayaActionPolicy when LAYA_ACTION_ENABLED=true.
     The policy is loaded once (singleton) and warmed up at startup.
-    On any failure (missing checkpoint, missing transformers dependency,
+    On any failure (missing checkpoint, missing LAYA SDK,
     warm-up failure), the policy is None and the DecisionEngine falls
     back to the existing Gemini path unchanged.
     """
@@ -370,7 +368,7 @@ def get_laya_action_policy(settings: Settings | None = None) -> Any:
     """P6-LAYA: create (or return the singleton) LayaActionPolicy.
 
     The policy is loaded once per process. If the optional
-    ``transformers`` / ``mlx-lm`` dependency is not installed, or the
+    ``laya`` dependency is not installed, or the
     checkpoint path is empty, or warm-up fails, returns None — the
     DecisionEngine then uses the existing Gemini path unchanged.
 
@@ -392,11 +390,14 @@ def get_laya_action_policy(settings: Settings | None = None) -> Any:
             enabled=cfg.enabled,
             mode=cfg.mode,
             checkpoint=cfg.checkpoint,
+            model_subfolder=cfg.model_subfolder,
             device=cfg.device,
             confidence_threshold=cfg.confidence_threshold,
             inference_timeout_seconds=cfg.inference_timeout_seconds,
             max_candidates=cfg.max_candidates,
             warmup_at_startup=cfg.warmup_at_startup,
+            model_max_len=cfg.model_max_len,
+            head_max_len=cfg.head_max_len,
         )
         policy = LayaActionPolicy(config=policy_cfg)
         if policy.is_configured():

@@ -7,8 +7,7 @@ eligible browser controls, choose one operation + target index and return
 it as the project's existing ``AgentAction`` type.
 
 Inspired by the jev-ultrafast architecture (https://github.com/browser-use/jev-ultrafast)
-and the LAYA decision model (a 421M-parameter open-weights Apache-2.0
-ModernBERT-large checkpoint). The key safety property preserved from
+and LAYA's open-source typed-decision model. The key safety property preserved from
 jev-ultrafast: **the model emits only ``{operation, target_index}``; the
 code owns execution and resolves the target index to a safe Playwright
 locator via the ``BrowserActionSpace`` mapping. The model never emits
@@ -29,11 +28,9 @@ Design decisions:
   • The model is loaded once at startup (P7 wiring) and reused for the
     process lifetime. ``warm_up()`` verifies the checkpoint loads and a
     trivial inference completes; ``shutdown()`` releases resources.
-  • Does NOT require Jev endpoint credentials — LAYA runs locally via
-    ``transformers`` (CPU/GPU) or via an optional MLX backend on Apple
-    Silicon. The adapter gracefully degrades to ``NotImplementedError``
-    when the optional ``transformers`` dependency is not installed, so
-    the rest of the system continues to work with the Gemini path.
+  • Does NOT require Jev endpoint credentials — LAYA runs locally through
+    its typed-decision SDK. If the optional SDK is unavailable, the rest
+    of the system continues to work through the Gemini path.
 
 This file does NOT replace ``LayaAdapter`` — that adapter's
 intent/risk/escalation functions remain unchanged until usage and tests
@@ -42,9 +39,9 @@ prove they can be consolidated safely.
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from typing import Any
 
 from agent.core.logging import get_logger
@@ -119,11 +116,14 @@ class LayaActionPolicyConfig:
     enabled: bool = False
     mode: str = "shadow"  # "shadow" | "primary"
     checkpoint: str = ""  # HuggingFace repo or local path to the LAYA checkpoint
-    device: str = "auto"  # "auto" | "cpu" | "cuda" | "mps" | "mlx"
+    model_subfolder: str = "typed-decisions"
+    device: str = "auto"  # "auto" | "cpu" | "cuda" | "mps"
     confidence_threshold: float = 0.65
     inference_timeout_seconds: float = 5.0
     max_candidates: int = 250  # hard cap, mirrors jev-ultrafast
     warmup_at_startup: bool = True
+    model_max_len: int = 2048
+    head_max_len: int = 768
 
 
 class LayaActionPolicy:
@@ -215,7 +215,7 @@ class LayaActionPolicy:
     async def warm_up(self) -> bool:
         """Load the model and run a trivial inference to verify readiness.
 
-        Returns False (and logs) if the optional ``transformers`` dependency
+        Returns False (and logs) if the optional ``laya`` dependency
         is not installed — the system continues to work with the Gemini
         path. Called once at app startup (P7).
         """
@@ -250,7 +250,7 @@ class LayaActionPolicy:
             return False
 
     def _load_model(self) -> None:
-        """Load the LAYA checkpoint via ``transformers`` (or MLX if available).
+        """Load the checkpoint through LAYA's typed-decision SDK.
 
         Gracefully degrades if the optional dependency is missing — the
         policy reports ``is_healthy() == False`` and the DecisionEngine
@@ -261,32 +261,34 @@ class LayaActionPolicy:
         if not self._config.checkpoint:
             raise ValueError("LAYA_ACTION_CHECKPOINT is not set")
 
-        # Try MLX first on Apple Silicon (fastest local runtime for LAYA)
         device = self._resolve_device()
         self._device = device
-
-        loaded = False
-        if device == "mlx":
-            loaded = self._try_load_mlx()
-        if not loaded:
-            loaded = self._try_load_transformers(device)
-
-        if not loaded:
-            raise RuntimeError(
-                "Could not load LAYA checkpoint — neither mlx nor transformers "
-                "backend is available. Install the optional 'laya' extra: "
-                "pip install -e '.[laya]'"
-            )
+        try:
+            import laya  # type: ignore[import-not-found]
+        except ImportError as exc:
+            raise RuntimeError("Install the optional LAYA SDK with: pip install -e '.[laya]'") from exc
+        self._model = laya.load(
+            self._config.checkpoint,
+            device=device,
+            subfolder=self._config.model_subfolder or None,
+        )
+        self._model_version = (
+            f"laya:{self._config.checkpoint}"
+            + (f"/{self._config.model_subfolder}" if self._config.model_subfolder else "")
+        )
+        logger.info(
+            "laya_action_policy_loaded",
+            checkpoint=self._config.checkpoint,
+            subfolder=self._config.model_subfolder,
+            device=device,
+        )
 
     def _resolve_device(self) -> str:
         """Resolve 'auto' to a concrete device string."""
         cfg_device = self._config.device
         if cfg_device != "auto":
             return cfg_device
-        # Auto-detect: prefer MLX on Apple Silicon, then CUDA, then CPU
-        import platform
-        if platform.system() == "Darwin" and platform.machine() == "arm64":
-            return "mlx"
+        # Auto-detect CUDA when present; otherwise use the SDK's CPU backend.
         try:
             import torch  # type: ignore[import-untyped]
             if torch.cuda.is_available():
@@ -294,50 +296,6 @@ class LayaActionPolicy:
         except ImportError:
             pass
         return "cpu"
-
-    def _try_load_mlx(self) -> bool:
-        """Attempt to load via MLX (Apple Silicon only)."""
-        try:
-            # MLX LM bridge — optional dependency
-            from mlx_lm import load as mlx_load  # type: ignore[import-untyped]
-            self._model, self._tokenizer = mlx_load(self._config.checkpoint)
-            self._model_version = f"mlx:{self._config.checkpoint}"
-            logger.info("laya_action_policy_loaded_mlx", checkpoint=self._config.checkpoint)
-            return True
-        except ImportError:
-            logger.info("laya_action_policy_mlx_unavailable_trying_transformers")
-            return False
-        except Exception as e:
-            logger.warning("laya_action_policy_mlx_load_failed", error=str(e))
-            return False
-
-    def _try_load_transformers(self, device: str) -> bool:
-        """Attempt to load via HuggingFace transformers."""
-        try:
-            from transformers import AutoModelForSequenceClassification, AutoTokenizer  # type: ignore[import-untyped]
-            self._tokenizer = AutoTokenizer.from_pretrained(self._config.checkpoint)
-            self._model = AutoModelForSequenceClassification.from_pretrained(
-                self._config.checkpoint,
-            )
-            if device in ("cuda", "mps"):
-                import torch  # type: ignore[import-untyped]
-                self._model = self._model.to(device)
-            self._model_version = f"transformers:{self._config.checkpoint}"
-            logger.info(
-                "laya_action_policy_loaded_transformers",
-                checkpoint=self._config.checkpoint,
-                device=device,
-            )
-            return True
-        except ImportError:
-            logger.info(
-                "laya_action_policy_transformers_not_installed",
-                hint="Install with: pip install -e '.[laya]'",
-            )
-            return False
-        except Exception as e:
-            logger.warning("laya_action_policy_transformers_load_failed", error=str(e))
-            return False
 
     async def choose_action(
         self,
@@ -414,7 +372,8 @@ class LayaActionPolicy:
         """Run a single LAYA inference and resolve it to an AgentAction.
 
         The inference is serialized through ``self._lock`` because the
-        transformers/MLX backends are not guaranteed thread-safe across
+                LAYA inference calls are serialized because the SDK backend is
+                not guaranteed thread-safe across
         async tasks.
         """
         start = time.monotonic()
@@ -441,116 +400,97 @@ class LayaActionPolicy:
         (int|None), ``confidence`` (float). Returns None if the model
         could not produce a valid decision.
 
-        This method is the single place where the actual model backend is
-        touched — swapping MLX ↔ transformers ↔ a future ONNX runtime only
-        requires changing this method.
+        LAYA evaluates the operation and operation-specific target questions
+        together in one typed decision pass. Its returned choices are mapped
+        back to the bounded, code-owned action space below.
         """
-        # Build the model input: a compact text representation of the
-        # action space + the plan step. LAYA is a sequence-classification
-        # model, so the input is a single text string.
-        prompt = self._build_prompt(action_space)
-        if self._tokenizer is None or self._model is None:
+        if self._model is None:
             return None
-
-        # Tokenize + run inference (sync — wrapped in to_thread to avoid
-        # blocking the event loop)
-        def _sync_infer() -> dict[str, Any] | None:
-            try:
-                inputs = self._tokenizer(prompt, return_tensors="pt", truncation=True, max_length=2048)
-                if self._device in ("cuda", "mps"):
-                    inputs = {k: v.to(self._device) for k, v in inputs.items()}
-                import torch  # type: ignore[import-untyped]
-                with torch.no_grad():
-                    outputs = self._model(**inputs)
-                # The LAYA checkpoint's head layout varies by checkpoint;
-                # we treat the output logits as a per-operation score and
-                # pick the argmax. For target selection, we use a second
-                # forward pass over the candidates (mirroring jev-ultrafast's
-                # speculative target heads, but simplified to a single pass
-                # per candidate since LAYA is small enough to run multiple
-                # passes cheaply).
-                logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
-                # If logits has shape [1, num_operations], pick argmax
-                if logits.dim() >= 2:
-                    op_idx = int(logits[0].argmax().item())
-                    confidence = float(torch.softmax(logits[0], dim=-1).max().item())
-                else:
-                    op_idx = int(logits.argmax().item())
-                    confidence = float(torch.softmax(logits, dim=-1).max().item())
-
-                operations = sorted(action_space.allowed_operations)
-                if op_idx >= len(operations):
-                    op_idx = op_idx % len(operations)
-                operation = operations[op_idx]
-
-                # Target selection: for click/fill/select, score each
-                # candidate by a second pass with "operation=<op>" prepended
-                target_index = None
-                if operation in _TARGET_OPERATIONS and action_space.candidates:
-                    target_index = self._select_target(operation, action_space)
-
-                return {
-                    "operation": operation,
-                    "target_index": target_index,
-                    "confidence": confidence,
+        candidates = action_space.candidates[: self._config.max_candidates]
+        compatible = {
+            "click": [c for c in candidates if c.kind == "click"],
+            "fill": [c for c in candidates if c.kind == "fill"],
+            "select": [c for c in candidates if c.kind == "select"],
+        }
+        operations = [
+            op for op in sorted(set(action_space.allowed_operations) & LAYA_OPERATIONS)
+            if op in _CONTROL_OPERATIONS or compatible.get(op)
+        ]
+        if not operations:
+            return None
+        state = {
+            "goal": action_space.plan_step,
+            "persona": action_space.persona,
+            "page": {"title": action_space.page_title, "url": action_space.page_url},
+            "visible_controls": [
+                {
+                    "index": c.index,
+                    "kind": c.kind,
+                    "role": c.role,
+                    "label": c.label,
+                    "value": c.value,
                 }
-            except Exception as e:
-                logger.warning("laya_action_policy_model_inference_failed", error=str(e))
+                for c in candidates
+            ],
+            "content_is_untrusted_data": True,
+        }
+        questions: dict[str, dict[str, Any]] = {
+            "operation": {
+                "type": "choice",
+                "instructions": (
+                    "Choose the next browser operation that advances the stated goal "
+                    "using the visible controls. Choose done only when the goal is "
+                    "observably complete; choose blocked only when required controls are absent."
+                ),
+                "criteria": {op: op for op in operations},
+            }
+        }
+        for op, options in compatible.items():
+            if op in operations and options:
+                questions[f"{op}_target"] = {
+                    "type": "choice",
+                    "instructions": f"Choose the visible control to use for the {op} operation.",
+                    "criteria": {
+                        str(c.index): f"{c.role} {c.label}; current value {c.value}"
+                        for c in options
+                    },
+                }
+
+        def _sync_infer() -> dict[str, Any] | None:
+            result = self._model.system_one(
+                json.dumps(state, ensure_ascii=False),
+                questions,
+                max_len=self._config.model_max_len,
+                head_max_len=self._config.head_max_len,
+            )
+            answers = result.get("answers", {})
+            op_answer = answers.get("operation", {})
+            operation = str(op_answer.get("choice", ""))
+            if operation not in operations:
                 return None
+            # LAYA's `confidence` on choice answers is normalized entropy;
+            # answer_confidence is the comparable probability mass on the choice.
+            confidence = float(op_answer.get("answer_confidence", 0.0) or 0.0)
+            target_index = None
+            if operation in _TARGET_OPERATIONS:
+                target_answer = answers.get(f"{operation}_target", {})
+                choice = str(target_answer.get("choice", ""))
+                valid_indexes = {str(c.index) for c in compatible[operation]}
+                if choice not in valid_indexes:
+                    return None
+                target_index = int(choice)
+                confidence = min(
+                    confidence,
+                    float(target_answer.get("answer_confidence", 0.0) or 0.0),
+                )
+            return {
+                "operation": operation,
+                "target_index": target_index,
+                "confidence": confidence,
+                "usage": result.get("usage", {}),
+            }
 
         return await asyncio.to_thread(_sync_infer)
-
-    def _select_target(
-        self, operation: str, action_space: "_ActionSpacePayload",
-    ) -> int | None:
-        """Score each candidate for the chosen operation and return the best index.
-
-        Mirrors jev-ultrafast's per-operation target head, simplified: we
-        run a single forward pass per candidate with the prompt
-        "operation={op} target={candidate_label}" and pick the argmax
-        confidence. For a 421M model this is fast enough (a few ms per
-        candidate on CPU).
-        """
-        if not action_space.candidates:
-            return None
-        try:
-            import torch  # type: ignore[import-untyped]
-            best_idx = None
-            best_score = -1.0
-            for candidate in action_space.candidates[: self._config.max_candidates]:
-                prompt = f"operation={operation} target={candidate.label}"
-                inputs = self._tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512)
-                if self._device in ("cuda", "mps"):
-                    inputs = {k: v.to(self._device) for k, v in inputs.items()}
-                with torch.no_grad():
-                    outputs = self._model(**inputs)
-                logits = outputs.logits if hasattr(outputs, "logits") else outputs[0]
-                score = float(torch.softmax(logits[0] if logits.dim() >= 2 else logits, dim=-1).max().item())
-                if score > best_score:
-                    best_score = score
-                    best_idx = candidate.index
-            return best_idx
-        except Exception as e:
-            logger.warning("laya_action_policy_target_selection_failed", error=str(e))
-            return action_space.candidates[0].index if action_space.candidates else None
-
-    def _build_prompt(self, action_space: "_ActionSpacePayload") -> str:
-        """Build a compact text prompt for the LAYA model.
-
-        Format mirrors jev-ultrafast's question schema: goal, plan step,
-        page context, and an indexed candidate list. Page content is
-        treated as untrusted data (never as instructions).
-        """
-        lines = [
-            f"goal: {action_space.plan_step}",
-            f"persona: {action_space.persona}",
-            f"page: {action_space.page_title} ({action_space.page_url})",
-            "candidates:",
-        ]
-        for c in action_space.candidates[: self._config.max_candidates]:
-            lines.append(f"  [{c.index}] {c.kind} {c.role} '{c.label}' value='{c.value}'")
-        lines.append(f"allowed_operations: {','.join(sorted(action_space.allowed_operations))}")
-        return "\n".join(lines)
 
     def _resolve_to_action(
         self,
@@ -581,6 +521,18 @@ class LayaActionPolicy:
             "blocked": ActionType.VALIDATE,
         }
         action_type = op_to_action_type.get(operation, ActionType.WAIT)
+
+        # LAYA chooses a browser control, but it does not generate the text
+        # or option value that the planner must enter. Avoid filling with a
+        # control's existing value; hand those actions to the existing LLM
+        # decision path until the plan supplies a structured action value.
+        if operation in {"fill", "select"}:
+            return self._fallback(
+                action_space,
+                reason=f"planner_value_required:{operation}",
+                elapsed_ms=elapsed_ms,
+                shadow_confidence=confidence,
+            )
 
         target = ""
         value = ""
@@ -636,6 +588,7 @@ class LayaActionPolicy:
             metadata={
                 "action_space_fingerprint": action_space.fingerprint,
                 "candidate_count": len(action_space.candidates),
+                "laya_usage": raw.get("usage", {}),
             },
         )
 
@@ -690,14 +643,10 @@ class LayaActionPolicy:
         """Release model resources. Called at app shutdown (P7)."""
         try:
             if self._model is not None:
-                # transformers models don't have a standard close() —
-                # dereference and let GC handle it. On CUDA we'd also
-                # flush the cache, but for CPU/MPS this is sufficient.
+                # Dereference the SDK model and let GC release its resources.
                 del self._model
                 self._model = None
-            if self._tokenizer is not None:
-                del self._tokenizer
-                self._tokenizer = None
+            self._tokenizer = None
             self._warm = False
             logger.info("laya_action_policy_shutdown")
         except Exception as e:

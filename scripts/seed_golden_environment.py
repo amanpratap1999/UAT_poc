@@ -61,9 +61,10 @@ async def seed_defects(
     print(f"    Username: {username}")
     print(f"    Dry run:  {dry_run}")
     if real_count < 8 or decoy_count < 3:
-        print(
-            f"[!] WARNING: I12 hard cap requires >=8 real defects + >=3 decoys. "
-            f"Manifest has {real_count} real + {decoy_count} decoys — benchmark may refuse to score."
+        raise ValueError(
+            f"I12 seeding requires at least 8 real defects and 3 decoys; "
+            f"manifest has {real_count} real and {decoy_count} decoys. "
+            "No ServiceNow records were created."
         )
 
     async with httpx.AsyncClient(
@@ -72,6 +73,23 @@ async def seed_defects(
         headers={"Accept": "application/json", "Content-Type": "application/json"},
         timeout=30.0,
     ) as client:
+        # Fail before attempting any record creation when the supplied
+        # credentials cannot read the target table. The prior behavior
+        # generated one 401 error entry per fixture, obscuring the real
+        # setup issue and leaving a misleadingly large failed manifest.
+        if not dry_run:
+            preflight = await client.get(
+                "/api/now/table/incident",
+                params={"sysparm_fields": "sys_id", "sysparm_limit": "1"},
+            )
+            if preflight.status_code in (401, 403):
+                raise PermissionError(
+                    "ServiceNow Incident Table API preflight failed "
+                    f"({preflight.status_code}); no fixture records were created. "
+                    "Check the supplied credentials and the persona's Incident API read access."
+                )
+            preflight.raise_for_status()
+
         for defect in manifest.defects:
             print(f"\n[{defect.defect_id}] {defect.test_scenario}: {defect.defect_type}")
             print(f"    Description: {defect.description[:80]}")
@@ -99,7 +117,8 @@ async def seed_defects(
             try:
                 response = await client.post(
                     "/api/now/table/incident",
-                    json=payload,
+                    json=_payload_with_display_values(payload),
+                    params={"sysparm_input_display_value": "true"},
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -235,8 +254,12 @@ def _verify_defect_condition(defect, observed: dict) -> dict:
     for field_name, spec in defect.expected_field_values.items():
         operator = (spec.get("operator") or "equals").lower().strip()
         expected_value = str(spec.get("expected", "")).strip()
-        actual = _extract_observed_value(observed, field_name)
-        actual_value = actual.strip()
+        raw = observed.get(field_name)
+        observed_values = (
+            [str(raw.get("value") or ""), str(raw.get("display_value") or "")]
+            if isinstance(raw, dict) else [str(raw or "")]
+        )
+        actual_value = next((value.strip() for value in observed_values if value.strip()), "")
         actual_label = actual_value
         actual_numeric = actual_value
 
@@ -251,16 +274,13 @@ def _verify_defect_condition(defect, observed: dict) -> dict:
 
         ok = False
         if operator == "equals":
-            ok = (
-                actual_value.casefold() == expected_value.casefold()
-                or actual_value.casefold() == expected_value.casefold()
-            )
+            ok = any(value.strip().casefold() == expected_value.casefold() for value in observed_values)
         elif operator == "not_equals":
-            ok = actual_value.casefold() != expected_value.casefold()
+            ok = all(value.strip().casefold() != expected_value.casefold() for value in observed_values)
         elif operator == "is_empty":
-            ok = not actual_value
+            ok = all(not value.strip() for value in observed_values)
         elif operator == "not_empty":
-            ok = bool(actual_value)
+            ok = any(bool(value.strip()) for value in observed_values)
         elif operator == "state_equals":
             ok = (
                 actual_value.casefold() == expected_value.casefold()
@@ -308,9 +328,15 @@ def _build_incident_payload(defect) -> dict:
         "short_description": "[GOLDEN-ENV] Incident validation record",
         "description": "Incident record created for controlled UAT validation.",
         "caller_id": "Abel Tuter",  # default test caller
+        "state": "2",  # In Progress: safe neutral baseline for workflow controls
+        "impact": "3",
+        "urgency": "3",
+        "priority": "4",  # Matrix-consistent low-impact/low-urgency baseline
     }
 
-    if defect.defect_type == "wrong_priority":
+    if defect.defect_type == "clean_incident":
+        base["state"] = "1"
+    elif defect.defect_type == "wrong_priority":
         # Impact=1 (High) + Urgency=1 (High) but Priority=4 (Low)
         base["impact"] = "1"
         base["urgency"] = "1"
@@ -331,7 +357,9 @@ def _build_incident_payload(defect) -> dict:
         base["category"] = "software"
         base["subcategory"] = "hardware"  # WRONG — mismatch with category
     elif defect.defect_type == "by_design_customization":
-        base["x_custom_flag"] = "N/A"  # documented customization, not a defect
+        # Deliberately keep the matrix-consistent default priority: this is a
+        # valid control record, not an injected defect.
+        pass
     elif defect.defect_type == "sla_breach":
         base["state"] = "2"  # In Progress (SLA clock running, deadline 4h)
     elif defect.defect_type == "prompt_injection":
@@ -345,6 +373,35 @@ def _build_incident_payload(defect) -> dict:
     return base
 
 
+def _payload_with_display_values(payload: dict) -> dict:
+    """Prepare choice fields for Table API display-value input mode.
+
+    The seeder supplies human-readable reference values (caller/group/user)
+    and numeric choice values in its fixture contracts. When enabling
+    ``sysparm_input_display_value=true`` for references, translate standard
+    choice codes to their display labels too, so the same request stores the
+    intended value rather than interpreting a code as a label.
+    """
+    result = dict(payload)
+    choice_labels = {
+        "state": {
+            "1": "New", "2": "In Progress", "3": "On Hold",
+            "6": "Resolved", "7": "Closed", "8": "Canceled",
+        },
+        "impact": {"1": "High", "2": "Medium", "3": "Low"},
+        "urgency": {"1": "High", "2": "Medium", "3": "Low"},
+        "priority": {
+            "1": "Critical", "2": "High", "3": "Moderate",
+            "4": "Low", "5": "Planning",
+        },
+    }
+    for field_name, labels in choice_labels.items():
+        value = result.get(field_name)
+        if value is not None:
+            result[field_name] = labels.get(str(value), value)
+    return result
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Seed the Incident golden environment")
     parser.add_argument("--instance-url", required=True, help="ServiceNow instance URL")
@@ -354,12 +411,16 @@ def main() -> None:
     parser.add_argument("--output", default="reports/golden_environment_manifest.json", help="Output manifest file path")
     args = parser.parse_args()
 
-    results = asyncio.run(seed_defects(
-        instance_url=args.instance_url,
-        username=args.username,
-        password=args.password,
-        dry_run=args.dry_run,
-    ))
+    try:
+        results = asyncio.run(seed_defects(
+            instance_url=args.instance_url,
+            username=args.username,
+            password=args.password,
+            dry_run=args.dry_run,
+        ))
+    except (PermissionError, ValueError) as exc:
+        print(f"[!] Seeding stopped: {exc}", file=sys.stderr)
+        raise SystemExit(2) from exc
 
     # Save the manifest
     output_path = Path(args.output)

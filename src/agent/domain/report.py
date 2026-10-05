@@ -164,9 +164,9 @@ class TestReport(BaseModel):
     )
 
     # Metadata
-    environment: dict[str, str] = Field(
+    environment: dict[str, Any] = Field(
         default_factory=dict,
-        description="Test environment details (URL, browser, etc.)",
+        description="Test environment details and structured run telemetry (URL, browser, metrics, etc.)",
     )
     screenshots: list[str] = Field(
         default_factory=list,

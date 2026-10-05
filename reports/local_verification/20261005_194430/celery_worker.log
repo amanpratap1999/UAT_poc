@@ -1,0 +1,223 @@
+ 
+ -------------- celery@LAPTOP-FKE1L5S1 v5.6.3 (recovery)
+--- ***** ----- 
+-- ******* ---- Windows-10-10.0.26200-SP0 2026-10-05 19:39:51
+- *** --- * --- 
+- ** ---------- [config]
+- ** ---------- .> app:         agent_worker:0x25bc2320a50
+- ** ---------- .> transport:   redis://127.0.0.1:6379/0
+- ** ---------- .> results:     redis://127.0.0.1:6379/1
+- *** --- * --- .> concurrency: 8 (solo)
+-- ******* ---- .> task events: OFF (enable -E to monitor tasks in this worker)
+--- ***** ----- 
+ -------------- [queues]
+                .> celery           exchange=celery(direct) key=celery
+                
+
+[tasks]
+  . agent.worker.tasks.execute_run
+
+[2026-10-05 19:39:51,931: INFO/MainProcess] Connected to redis://127.0.0.1:6379/0
+[2026-10-05 19:39:51,955: INFO/MainProcess] mingle: searching for neighbors
+[2026-10-05 19:39:53,091: INFO/MainProcess] mingle: all alone
+[2026-10-05 19:39:53,230: INFO/MainProcess] celery@LAPTOP-FKE1L5S1 ready.
+[2026-10-05 19:43:00,364: INFO/MainProcess] Task agent.worker.tasks.execute_run[c6c4548d-03c3-4e6e-99c0-427c3ca3f7e8] received
+[2026-10-05 19:43:00,494: INFO/MainProcess] agent.worker.tasks.execute_run[c6c4548d-03c3-4e6e-99c0-427c3ca3f7e8]: Starting execution for run_id=5f8f274f-02af-41fe-9731-de54a60b1e54 tenant=tenant-0 test_case_id=None
+[2026-10-05 19:43:00,890: ERROR/MainProcess] Task agent.worker.tasks.execute_run[c6c4548d-03c3-4e6e-99c0-427c3ca3f7e8] raised unexpected: ValueError("INC-UAT-01 (Blocker): active persona 'prakhar.s1' is not in the configured personas dict.")
+Traceback (most recent call last):
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\celery\app\trace.py", line 585, in trace_task
+    R = retval = fun(*args, **kwargs)
+                 ^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\celery\app\trace.py", line 858, in __protected_call__
+    return self.run(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\src\agent\worker\tasks.py", line 796, in execute_run
+    asyncio.run(_run_agent_async(run_id, goal, tenant_id, test_case_id=test_case_id, persona=persona, tc_data=tc_data))
+  File "C:\Users\Prakhar Singh\AppData\Local\Programs\Python\Python311\Lib\asyncio\runners.py", line 190, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\Prakhar Singh\AppData\Local\Programs\Python\Python311\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Prakhar Singh\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 654, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\src\agent\worker\tasks.py", line 456, in _run_agent_async
+    settings.servicenow.verify_persona_for_benchmark()
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\src\agent\core\config.py", line 250, in verify_persona_for_benchmark
+    raise ValueError(
+ValueError: INC-UAT-01 (Blocker): active persona 'prakhar.s1' is not in the configured personas dict.
+[2026-10-05 19:43:44,607: INFO/MainProcess] Task agent.worker.tasks.execute_run[01087b4e-7820-4a7c-ac9f-ac1e4427f742] received
+[2026-10-05 19:43:44,625: INFO/MainProcess] agent.worker.tasks.execute_run[01087b4e-7820-4a7c-ac9f-ac1e4427f742]: Starting execution for run_id=4095cccb-a590-468f-b42f-e327a6871527 tenant=tenant-0 test_case_id=None
+[2026-10-05 19:43:44,848: ERROR/MainProcess] Task agent.worker.tasks.execute_run[01087b4e-7820-4a7c-ac9f-ac1e4427f742] raised unexpected: ValueError("INC-UAT-01 (Blocker): active persona 'prakhar.s1' is not in the configured personas dict.")
+Traceback (most recent call last):
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\celery\app\trace.py", line 585, in trace_task
+    R = retval = fun(*args, **kwargs)
+                 ^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\celery\app\trace.py", line 858, in __protected_call__
+    return self.run(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\src\agent\worker\tasks.py", line 796, in execute_run
+    asyncio.run(_run_agent_async(run_id, goal, tenant_id, test_case_id=test_case_id, persona=persona, tc_data=tc_data))
+  File "C:\Users\Prakhar Singh\AppData\Local\Programs\Python\Python311\Lib\asyncio\runners.py", line 190, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\Prakhar Singh\AppData\Local\Programs\Python\Python311\Lib\asyncio\runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Prakhar Singh\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 654, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\src\agent\worker\tasks.py", line 456, in _run_agent_async
+    settings.servicenow.verify_persona_for_benchmark()
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\src\agent\core\config.py", line 250, in verify_persona_for_benchmark
+    raise ValueError(
+ValueError: INC-UAT-01 (Blocker): active persona 'prakhar.s1' is not in the configured personas dict.
+[2026-10-05 19:44:31,559: INFO/MainProcess] Task agent.worker.tasks.execute_run[c792e008-78ea-40e8-9e78-cb709b8b9771] received
+[2026-10-05 19:44:31,575: INFO/MainProcess] agent.worker.tasks.execute_run[c792e008-78ea-40e8-9e78-cb709b8b9771]: Starting execution for run_id=3c15e180-f353-479e-b612-0b2db3f80a3b tenant=tenant-0 test_case_id=None
+[2026-10-05 19:44:35,463: WARNING/MainProcess] 2026-10-05 19:44:35 [info     ] llm_client_initialized         model=gemini-3.8-flash provider=google
+[2026-10-05 19:44:37,108: WARNING/MainProcess] 2026-10-05 19:44:37 [info     ] llm_client_initialized         model=gemini-3.8-flash provider=google
+[2026-10-05 19:44:37,846: WARNING/MainProcess] 2026-10-05 19:44:37 [info     ] registered_tool                category=browser tool_name=click
+[2026-10-05 19:44:37,846: WARNING/MainProcess] 2026-10-05 19:44:37 [info     ] registered_tool                category=browser tool_name=fill
+[2026-10-05 19:44:37,846: WARNING/MainProcess] 2026-10-05 19:44:37 [info     ] registered_tool                category=browser tool_name=select
+[2026-10-05 19:44:37,846: WARNING/MainProcess] 2026-10-05 19:44:37 [info     ] registered_tool                category=browser tool_name=navigate
+[2026-10-05 19:44:37,847: WARNING/MainProcess] 2026-10-05 19:44:37 [info     ] registered_tool                category=browser tool_name=wait
+[2026-10-05 19:44:37,847: WARNING/MainProcess] 2026-10-05 19:44:37 [info     ] registered_tool                category=browser tool_name=scroll
+[2026-10-05 19:44:37,847: WARNING/MainProcess] 2026-10-05 19:44:37 [info     ] registered_tool                category=browser tool_name=screenshot
+[2026-10-05 19:44:37,848: WARNING/MainProcess] 2026-10-05 19:44:37 [info     ] registered_tool                category=browser tool_name=observe
+[2026-10-05 19:44:37,848: WARNING/MainProcess] 2026-10-05 19:44:37 [info     ] registered_tool                category=validation tool_name=validate_state
+[2026-10-05 19:44:37,849: WARNING/MainProcess] 2026-10-05 19:44:37 [info     ] registered_tool                category=validation tool_name=validate_field
+[2026-10-05 19:44:37,851: WARNING/MainProcess] 2026-10-05 19:44:37 [info     ] registered_tool                category=validation tool_name=validate_errors
+[2026-10-05 19:44:37,851: WARNING/MainProcess] 2026-10-05 19:44:37 [info     ] registered_tool                category=knowledge tool_name=search_documentation
+[2026-10-05 19:44:37,851: WARNING/MainProcess] 2026-10-05 19:44:37 [info     ] registered_tool                category=reporting tool_name=generate_report
+[2026-10-05 19:44:38,764: WARNING/MainProcess] 2026-10-05 19:44:38 [info     ] llm_client_initialized         model=gemini-3.8-flash provider=google
+[2026-10-05 19:44:39,592: WARNING/MainProcess] 2026-10-05 19:44:39 [info     ] llm_client_initialized         model=gemini-3.8-flash provider=google
+[2026-10-05 19:44:39,607: WARNING/MainProcess] 2026-10-05 19:44:39 [info     ] laya_disabled_by_config
+[2026-10-05 19:44:39,608: WARNING/MainProcess] 2026-10-05 19:44:39 [info     ] laya_not_configured_using_llm_fallback
+[2026-10-05 19:44:40,330: WARNING/MainProcess] 2026-10-05 19:44:40 [info     ] llm_client_initialized         model=gemini-3.8-flash provider=google
+[2026-10-05 19:44:40,336: WARNING/MainProcess] 2026-10-05 19:44:40 [info     ] registered_tool                category=browser tool_name=click
+[2026-10-05 19:44:40,336: WARNING/MainProcess] 2026-10-05 19:44:40 [info     ] registered_tool                category=browser tool_name=fill
+[2026-10-05 19:44:40,337: WARNING/MainProcess] 2026-10-05 19:44:40 [info     ] registered_tool                category=browser tool_name=select
+[2026-10-05 19:44:40,337: WARNING/MainProcess] 2026-10-05 19:44:40 [info     ] registered_tool                category=browser tool_name=navigate
+[2026-10-05 19:44:40,337: WARNING/MainProcess] 2026-10-05 19:44:40 [info     ] registered_tool                category=browser tool_name=wait
+[2026-10-05 19:44:40,337: WARNING/MainProcess] 2026-10-05 19:44:40 [info     ] registered_tool                category=browser tool_name=scroll
+[2026-10-05 19:44:40,338: WARNING/MainProcess] 2026-10-05 19:44:40 [info     ] registered_tool                category=browser tool_name=screenshot
+[2026-10-05 19:44:40,339: WARNING/MainProcess] 2026-10-05 19:44:40 [info     ] registered_tool                category=browser tool_name=observe
+[2026-10-05 19:44:40,339: WARNING/MainProcess] 2026-10-05 19:44:40 [info     ] registered_tool                category=validation tool_name=validate_state
+[2026-10-05 19:44:40,339: WARNING/MainProcess] 2026-10-05 19:44:40 [info     ] registered_tool                category=validation tool_name=validate_field
+[2026-10-05 19:44:40,340: WARNING/MainProcess] 2026-10-05 19:44:40 [info     ] registered_tool                category=validation tool_name=validate_errors
+[2026-10-05 19:44:40,340: WARNING/MainProcess] 2026-10-05 19:44:40 [info     ] registered_tool                category=knowledge tool_name=search_documentation
+[2026-10-05 19:44:40,340: WARNING/MainProcess] 2026-10-05 19:44:40 [info     ] registered_tool                category=reporting tool_name=generate_report
+[2026-10-05 19:44:46,667: WARNING/MainProcess] C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\src\agent\perception\backends.py:334: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  import google.generativeai as genai  # type: ignore[import-untyped]
+
+[2026-10-05 19:44:47,456: WARNING/MainProcess] 2026-10-05 19:44:47 [info     ] llm_client_initialized         model=gemini-3.8-flash provider=google
+[2026-10-05 19:44:48,171: WARNING/MainProcess] 2026-10-05 19:44:48 [info     ] llm_client_initialized         model=gemini-3.8-flash provider=google
+[2026-10-05 19:44:48,544: INFO/MainProcess] agent.worker.tasks.execute_run[c792e008-78ea-40e8-9e78-cb709b8b9771]: agent_browser_configuration run_id=3c15e180-f353-479e-b612-0b2db3f80a3b headless=False slow_mo=0 show_mouse_cursor=True keep_browser_open=False
+[2026-10-05 19:44:48,552: WARNING/MainProcess] 2026-10-05 19:44:48 [info     ] agent_run_started              goal='Create a new incident with mandatory fields and verify correct creation' persona=itil_uat session_id=3c15e180-f353-479e-b612-0b2db3f80a3b
+[2026-10-05 19:44:48,576: WARNING/MainProcess] 2026-10-05 19:44:48 [debug    ] session_saved_redis            session_id=3c15e180-f353-479e-b612-0b2db3f80a3b
+[2026-10-05 19:44:48,578: WARNING/MainProcess] 2026-10-05 19:44:48 [info     ] state_transition               from_state=idle reason='Parsing user prompt into structured intent' to_state=intent_analysis
+[2026-10-05 19:44:48,579: WARNING/MainProcess] 2026-10-05 19:44:48 [info     ] parsing_user_intent            prompt='Create a new incident with mandatory fields and verify correct creation'
+[2026-10-05 19:44:57,544: INFO/MainProcess] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/openai/chat/completions "HTTP/1.1 503 Service Unavailable"
+[2026-10-05 19:44:57,549: WARNING/MainProcess] 2026-10-05 19:44:57 [warning  ] llm_server_overload_retrying   attempt=1 error="Error code: 503 - [{'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}]" reason='APIStatusError 503' wait_seconds=2.0
+[2026-10-05 19:45:00,037: INFO/MainProcess] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/openai/chat/completions "HTTP/1.1 429 Too Many Requests"
+[2026-10-05 19:45:00,039: WARNING/MainProcess] 2026-10-05 19:45:00 [warning  ] llm_rate_limit_hit             attempt=2 wait_seconds=4.0
+[2026-10-05 19:45:04,541: INFO/MainProcess] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/openai/chat/completions "HTTP/1.1 429 Too Many Requests"
+[2026-10-05 19:45:04,544: WARNING/MainProcess] 2026-10-05 19:45:04 [warning  ] llm_intent_parsing_failed_fallback_to_rules error="LLM JSON request failed: Error code: 429 - [{'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash\\nPlease retry in 9h44m56.432220129s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.8-flash'}, 'quotaValue': '20'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '35096s'}]}}]"
+[2026-10-05 19:45:04,544: WARNING/MainProcess] 2026-10-05 19:45:04 [info     ] skill_resolved_for_intent      skill=IncidentSkill
+[2026-10-05 19:45:04,545: WARNING/MainProcess] 2026-10-05 19:45:04 [info     ] launching_browser              headless=False
+[2026-10-05 19:45:18,372: WARNING/MainProcess] 2026-10-05 19:45:18 [info     ] browser_launched
+[2026-10-05 19:45:19,091: WARNING/MainProcess] 2026-10-05 19:45:19 [info     ] navigating                     url=https://aelumconsultingpvtltddemo3.service-now.com
+[2026-10-05 19:45:21,570: WARNING/MainProcess] 2026-10-05 19:45:21 [warning  ] js_page_error                  error="Cannot read properties of null (reading 'appendChild')"
+[2026-10-05 19:45:30,173: WARNING/MainProcess] 2026-10-05 19:45:30 [info     ] authenticating_servicenow_session
+[2026-10-05 19:45:32,042: WARNING/MainProcess] 2026-10-05 19:45:32 [warning  ] js_page_error                  error="Cannot read properties of null (reading 'appendChild')"
+[2026-10-05 19:45:44,047: WARNING/MainProcess] 2026-10-05 19:45:44 [info     ] servicenow_session_authenticated
+[2026-10-05 19:45:44,057: WARNING/MainProcess] 2026-10-05 19:45:44 [info     ] state_transition               from_state=intent_analysis reason='Creating execution plan' to_state=planning
+[2026-10-05 19:45:44,819: WARNING/MainProcess] 2026-10-05 19:45:44 [warning  ] pgvector_retrieve_failed_fallback_to_in_memory error='extension "vector" is not available\nHINT:  The extension must first be installed on the system where PostgreSQL is running.'
+[2026-10-05 19:45:44,860: WARNING/MainProcess] 2026-10-05 19:45:44 [info     ] docs_loaded                    module=incident_management sections=17
+[2026-10-05 19:45:44,864: WARNING/MainProcess] 2026-10-05 19:45:44 [info     ] knowledge_retrieved            query='Create a new incident with mandatory fields and ve' sections_matched=5
+[2026-10-05 19:45:44,867: WARNING/MainProcess] 2026-10-05 19:45:44 [info     ] building_incident_execution_plan goal='Create a new incident with mandatory fields and verify correct creation' intent_type=IncidentMandatoryFieldsCheck
+[2026-10-05 19:45:44,871: WARNING/MainProcess] 2026-10-05 19:45:44 [info     ] executing_canonical_plan       goal='Create a new incident with mandatory fields and verify correct creation' step_count=4
+[2026-10-05 19:45:45,200: WARNING/MainProcess] 2026-10-05 19:45:45 [info     ] executing_plan_step            description='Open New Incident Form' step_index=0
+[2026-10-05 19:45:45,210: WARNING/MainProcess] 2026-10-05 19:45:45 [info     ] state_transition               from_state=planning reason='Observing before: Open New Incident Form' to_state=observing
+[2026-10-05 19:45:45,211: WARNING/MainProcess] 2026-10-05 19:45:45 [debug    ] observing_page
+[2026-10-05 19:45:48,067: WARNING/MainProcess] 2026-10-05 19:45:48 [info     ] observation_complete           buttons=8 console_errors=0 dom_fingerprint=77e5094a fields=2 network_errors=0 page_type=homepage validations=0
+[2026-10-05 19:45:48,074: WARNING/MainProcess] 2026-10-05 19:45:48 [debug    ] building_semantic_world_state  page_type=homepage
+[2026-10-05 19:45:48,076: WARNING/MainProcess] 2026-10-05 19:45:48 [info     ] world_state_built              available_actions=8 blocked_actions=0 page_semantic='ServiceNow Workspace' record_state=None
+[2026-10-05 19:45:48,080: WARNING/MainProcess] 2026-10-05 19:45:48 [info     ] state_transition               from_state=observing reason='Deciding action for: Open New Incident Form' to_state=decision
+[2026-10-05 19:45:48,083: WARNING/MainProcess] 2026-10-05 19:45:48 [info     ] making_immediate_decision      step=0
+[2026-10-05 19:45:48,796: INFO/MainProcess] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/openai/chat/completions "HTTP/1.1 429 Too Many Requests"
+[2026-10-05 19:45:48,806: WARNING/MainProcess] 2026-10-05 19:45:48 [warning  ] llm_rate_limit_hit             attempt=1 wait_seconds=2.0
+[2026-10-05 19:45:51,346: INFO/MainProcess] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/openai/chat/completions "HTTP/1.1 429 Too Many Requests"
+[2026-10-05 19:45:51,349: WARNING/MainProcess] 2026-10-05 19:45:51 [warning  ] llm_rate_limit_hit             attempt=2 wait_seconds=4.0
+[2026-10-05 19:45:55,893: INFO/MainProcess] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/openai/chat/completions "HTTP/1.1 429 Too Many Requests"
+[2026-10-05 19:45:55,901: WARNING/MainProcess] 2026-10-05 19:45:55 [warning  ] llm_decision_failed_fallback_to_heuristic error="LLM JSON request failed: Error code: 429 - [{'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash\\nPlease retry in 9h44m5.086810995s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', 'quotaDimensions': {'model': 'gemini-3.8-flash', 'location': 'global'}, 'quotaValue': '20'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '35045s'}]}}]"
+[2026-10-05 19:45:55,903: WARNING/MainProcess] 2026-10-05 19:45:55 [info     ] evaluated_confidence           action=click is_above=False score=0.20 target='text:My ServiceNow landing page' threshold=0.7
+[2026-10-05 19:45:55,928: WARNING/MainProcess] 2026-10-05 19:45:55 [info     ] state_transition               from_state=decision reason='Executing: click on text:My ServiceNow landing page' to_state=executing
+[2026-10-05 19:45:57,868: WARNING/MainProcess] 2026-10-05 19:45:57 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\before_perception_637174.png'
+[2026-10-05 19:45:57,868: WARNING/MainProcess] 2026-10-05 19:45:57 [debug    ] observing_page
+[2026-10-05 19:46:22,726: WARNING/MainProcess] 2026-10-05 19:46:22 [info     ] observation_complete           buttons=8 console_errors=0 dom_fingerprint=ad51aa5f fields=2 network_errors=0 page_type=homepage validations=0
+[2026-10-05 19:46:23,396: WARNING/MainProcess] 2026-10-05 19:46:23 [info     ] learning_store_initialized
+[2026-10-05 19:46:23,426: WARNING/MainProcess] 2026-10-05 19:46:23 [info     ] perception_started             provider=moondream reason=dom_empty target='text:My ServiceNow landing page'
+[2026-10-05 19:46:23,827: WARNING/MainProcess] 2026-10-05 19:46:23 [info     ] perception_started             provider=moondream target='text:My ServiceNow landing page' task=ground_element
+[2026-10-05 19:46:23,856: WARNING/MainProcess] 2026-10-05 19:46:23 [info     ] moondream_inference_started    target='text:My ServiceNow landing page' task=detect
+[2026-10-05 19:46:27,727: WARNING/MainProcess] 2026-10-05 19:46:27 [info     ] moondream_detect_success       center_x=959 center_y=24 confidence=1.0 target='text:My ServiceNow landing page'
+[2026-10-05 19:46:27,731: WARNING/MainProcess] 2026-10-05 19:46:27 [info     ] perception_completed           method=detect provider=moondream success=True target='text:My ServiceNow landing page'
+[2026-10-05 19:46:27,734: WARNING/MainProcess] 2026-10-05 19:46:27 [info     ] perception_completed           confidence=1.0 provider=moondream success=True target='text:My ServiceNow landing page'
+[2026-10-05 19:46:27,734: WARNING/MainProcess] 2026-10-05 19:46:27 [info     ] perception_route               confidence=1.0 decision=high_confidence_execute route=MOONDREAM target='text:My ServiceNow landing page'
+[2026-10-05 19:46:27,734: WARNING/MainProcess] 2026-10-05 19:46:27 [info     ] perception_routing_complete    confidence=1.0 route=MOONDREAM target='text:My ServiceNow landing page' verified=True
+[2026-10-05 19:46:28,200: WARNING/MainProcess] 2026-10-05 19:46:28 [debug    ] policy_check_passed            action_type=click target='text:My ServiceNow landing page'
+[2026-10-05 19:46:28,207: WARNING/MainProcess] 2026-10-05 19:46:28 [info     ] executing_action               action_type=click target='text:My ServiceNow landing page' value=
+[2026-10-05 19:46:28,401: WARNING/MainProcess] 2026-10-05 19:46:28 [debug    ] clicked_coordinate             x=959 y=24
+[2026-10-05 19:46:29,412: WARNING/MainProcess] 2026-10-05 19:46:29 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\action_click_637207.png'
+[2026-10-05 19:46:29,415: WARNING/MainProcess] 2026-10-05 19:46:29 [info     ] action_succeeded               action_type=click duration_ms=741
+[2026-10-05 19:46:29,708: WARNING/MainProcess] 2026-10-05 19:46:29 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\after_perception_637207.png'
+[2026-10-05 19:46:29,708: WARNING/MainProcess] 2026-10-05 19:46:29 [debug    ] observing_page
+[2026-10-05 19:46:38,538: WARNING/MainProcess] 2026-10-05 19:46:38 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=f57ad33b fields=2 network_errors=0 page_type=homepage validations=0
+[2026-10-05 19:46:38,544: WARNING/MainProcess] 2026-10-05 19:46:38 [debug    ] verifying_action_with_llm      action="click on 'text:My ServiceNow landing page'" console_errors=0 has_dom_diff=True has_visuals=True
+[2026-10-05 19:46:39,161: INFO/MainProcess] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/openai/chat/completions "HTTP/1.1 429 Too Many Requests"
+[2026-10-05 19:46:39,167: WARNING/MainProcess] 2026-10-05 19:46:39 [warning  ] llm_rate_limit_hit             attempt=1 wait_seconds=2.0
+[2026-10-05 19:46:41,629: INFO/MainProcess] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/openai/chat/completions "HTTP/1.1 429 Too Many Requests"
+[2026-10-05 19:46:41,631: WARNING/MainProcess] 2026-10-05 19:46:41 [warning  ] llm_rate_limit_hit             attempt=2 wait_seconds=4.0
+[2026-10-05 19:46:46,170: INFO/MainProcess] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/openai/chat/completions "HTTP/1.1 429 Too Many Requests"
+[2026-10-05 19:46:46,173: WARNING/MainProcess] 2026-10-05 19:46:46 [warning  ] llm_verification_unavailable_using_dom_evidence error="LLM JSON request failed: Error code: 429 - [{'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash\\nPlease retry in 9h43m14.811465164s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-3.8-flash'}, 'quotaValue': '20'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '34994s'}]}}]"
+[2026-10-05 19:46:46,175: WARNING/MainProcess] 2026-10-05 19:46:46 [info     ] behavioral_verification_passed dom_diff='Buttons appeared: Add, Add a link, Add quick link, Change dashboard, Close, Dashboard, Home, List, M' perception_route=MOONDREAM target='text:My ServiceNow landing page'
+[2026-10-05 19:46:46,220: WARNING/MainProcess] 2026-10-05 19:46:46 [info     ] state_transition               from_state=executing reason='Observing after: Open New Incident Form' to_state=observing
+[2026-10-05 19:46:46,225: WARNING/MainProcess] 2026-10-05 19:46:46 [debug    ] observing_page
+[2026-10-05 19:46:55,279: WARNING/MainProcess] 2026-10-05 19:46:55 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=f57ad33b fields=2 network_errors=0 page_type=homepage validations=0
+[2026-10-05 19:46:55,281: WARNING/MainProcess] 2026-10-05 19:46:55 [debug    ] building_semantic_world_state  page_type=homepage
+[2026-10-05 19:46:55,283: WARNING/MainProcess] 2026-10-05 19:46:55 [info     ] world_state_built              available_actions=27 blocked_actions=3 page_semantic='ServiceNow Workspace' record_state=None
+[2026-10-05 19:46:55,284: WARNING/MainProcess] 2026-10-05 19:46:55 [info     ] state_transition               from_state=observing reason='Validating: Open New Incident Form' to_state=validating
+[2026-10-05 19:46:55,286: WARNING/MainProcess] 2026-10-05 19:46:55 [info     ] validating_action              action_type=click
+[2026-10-05 19:46:55,303: WARNING/MainProcess] 2026-10-05 19:46:55 [error    ] agent_run_error                error="'StructuredIntent' object has no attribute 'target_record'" error_type=AttributeError
+[2026-10-05 19:46:55,303: WARNING/MainProcess] 2026-10-05 19:46:55 [info     ] state_transition               from_state=validating reason="Error: 'StructuredIntent' object has no attribute 'target_record'" to_state=failed
+[2026-10-05 19:46:55,306: WARNING/MainProcess] 2026-10-05 19:46:55 [info     ] generating_final_report
+[2026-10-05 19:46:55,315: WARNING/MainProcess] 2026-10-05 19:46:55 [info     ] generating_report_summary
+[2026-10-05 19:46:56,116: INFO/MainProcess] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/openai/chat/completions "HTTP/1.1 429 Too Many Requests"
+[2026-10-05 19:46:56,122: WARNING/MainProcess] 2026-10-05 19:46:56 [warning  ] llm_rate_limit_hit             attempt=1 wait_seconds=2.0
+[2026-10-05 19:46:58,702: INFO/MainProcess] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/openai/chat/completions "HTTP/1.1 429 Too Many Requests"
+[2026-10-05 19:46:58,705: WARNING/MainProcess] 2026-10-05 19:46:58 [warning  ] llm_rate_limit_hit             attempt=2 wait_seconds=4.0
+[2026-10-05 19:47:03,343: INFO/MainProcess] HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/openai/chat/completions "HTTP/1.1 429 Too Many Requests"
+[2026-10-05 19:47:03,345: WARNING/MainProcess] 2026-10-05 19:47:03 [warning  ] report_summary_generation_failed error="LLM JSON request failed: Error code: 429 - [{'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash\\nPlease retry in 9h42m57.770514234s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', 'quotaDimensions': {'model': 'gemini-3.8-flash', 'location': 'global'}, 'quotaValue': '20'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '34977s'}]}}]"
+[2026-10-05 19:47:03,347: WARNING/MainProcess] 2026-10-05 19:47:03 [info     ] generating_report              session_id=3c15e180-f353-479e-b612-0b2db3f80a3b
+[2026-10-05 19:47:03,388: WARNING/MainProcess] 2026-10-05 19:47:03 [info     ] exit_criteria_pass             coverage=0.0 requirements_covered=3 requirements_total=0
+[2026-10-05 19:47:03,389: WARNING/MainProcess] 2026-10-05 19:47:03 [info     ] exit_criteria_evaluated        reason='All requirements covered; no open defects; all retests passed.' verdict=PASS
+[2026-10-05 19:47:03,796: WARNING/MainProcess] 2026-10-05 19:47:03 [info     ] report_generated               defects=0 report_id=RPT-B5F67071 status=error
+[2026-10-05 19:47:03,855: WARNING/MainProcess] 2026-10-05 19:47:03 [info     ] report_saved                   format=markdown path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\reports\\RPT-B5F67071_20261005_141448.md'
+[2026-10-05 19:47:03,895: WARNING/MainProcess] 2026-10-05 19:47:03 [info     ] report_saved                   format=json path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\reports\\RPT-B5F67071_20261005_141448.json'
+[2026-10-05 19:47:04,128: WARNING/MainProcess] 2026-10-05 19:47:04 [info     ] xlsx_results_exported          path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\reports\\RPT-B5F67071_20261005_141703.xlsx' rows=1
+[2026-10-05 19:47:04,148: WARNING/MainProcess] 2026-10-05 19:47:04 [debug    ] session_saved_redis            session_id=3c15e180-f353-479e-b612-0b2db3f80a3b
+[2026-10-05 19:47:04,153: WARNING/MainProcess] 2026-10-05 19:47:04 [info     ] closing_browser_after_run      headless=False keep_browser_open=False session_id=3c15e180-f353-479e-b612-0b2db3f80a3b
+[2026-10-05 19:47:04,156: WARNING/MainProcess] 2026-10-05 19:47:04 [info     ] closing_browser_context
+[2026-10-05 19:47:04,924: WARNING/MainProcess] 2026-10-05 19:47:04 [info     ] agent_run_completed            actions=0 session_id=3c15e180-f353-479e-b612-0b2db3f80a3b state=failed
+[2026-10-05 19:47:05,788: INFO/MainProcess] agent.worker.tasks.execute_run[c792e008-78ea-40e8-9e78-cb709b8b9771]: perception_evidence_saved: C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\reports\3c15e180-f353-479e-b612-0b2db3f80a3b_perception.json
+[2026-10-05 19:47:06,114: INFO/MainProcess] agent.worker.tasks.execute_run[c792e008-78ea-40e8-9e78-cb709b8b9771]: result_snapshot_saved: C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\reports\3c15e180-f353-479e-b612-0b2db3f80a3b_result.json
+[2026-10-05 19:47:08,967: WARNING/MainProcess] 2026-10-05 19:47:08 [debug    ] session_deleted_redis          session_id=session:3c15e180-f353-479e-b612-0b2db3f80a3b
+[2026-10-05 19:47:09,064: INFO/MainProcess] Task agent.worker.tasks.execute_run[c792e008-78ea-40e8-9e78-cb709b8b9771] succeeded in 157.5s: 'done'

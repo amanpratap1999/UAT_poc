@@ -567,8 +567,7 @@ class LayaActionPolicyConfig(BaseSubConfig):
     (which visible control to click/fill/select). This is SEPARATE from
     ``LayaConfig`` above, which configures the remote LAYA verifier
     adapter (``LayaAdapter``). The action policy does NOT require Jev
-    endpoint credentials — it runs locally via ``transformers`` (CPU/GPU)
-    or MLX (Apple Silicon).
+    endpoint credentials — it runs locally through the open-source LAYA SDK.
 
     Defaults are conservative: the policy is OFF by default so existing
     flows are unaffected until an operator explicitly enables it.
@@ -594,12 +593,12 @@ class LayaActionPolicyConfig(BaseSubConfig):
         default="",
         description=(
             "HuggingFace repo or local path to the LAYA checkpoint "
-            "(e.g., 'cklxx/laya-browser' or '/models/laya')"
+            "(e.g., 'convaiinnovations/laya' or '/models/laya')"
         ),
     )
-    device: Literal["auto", "cpu", "cuda", "mps", "mlx"] = Field(
+    device: Literal["auto", "cpu", "cuda", "mps"] = Field(
         default="auto",
-        description="Device/runtime for LAYA inference (auto-detects mlx on Apple Silicon, then cuda, then cpu)",
+        description="Device for LAYA inference (auto-detects CUDA, then CPU)",
     )
     confidence_threshold: float = Field(
         default=0.65,
@@ -613,6 +612,12 @@ class LayaActionPolicyConfig(BaseSubConfig):
         default=250,
         description="Hard cap on action-space candidates (mirrors jev-ultrafast)",
     )
+    model_subfolder: str = Field(
+        default="typed-decisions",
+        description="Optional checkpoint subfolder within the LAYA model repository",
+    )
+    model_max_len: int = Field(default=2048, ge=128, le=8192)
+    head_max_len: int = Field(default=768, ge=64, le=4096)
     warmup_at_startup: bool = Field(
         default=True,
         description="Warm up the model at app startup (P7) so the first decision isn't slow",
@@ -652,7 +657,7 @@ class Settings(BaseSubConfig):
     laya: LayaConfig = Field(default_factory=LayaConfig)
     # P6-LAYA: local action-policy config (separate from the remote LAYA
     # verifier config above). The action policy does NOT require Jev
-    # endpoint credentials — it runs locally via transformers/MLX.
+    # endpoint credentials — it runs locally through the LAYA SDK.
     laya_action: LayaActionPolicyConfig = Field(default_factory=LayaActionPolicyConfig)
 
     # Logging

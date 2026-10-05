@@ -65,6 +65,46 @@ class RetestChainManager:
     def __init__(self) -> None:
         self._packages: dict[str, RetestPackage] = {}
 
+    def restore_packages(self, serialized_packages: list[dict[str, Any]]) -> None:
+        """Restore packages from a persisted SessionMemory snapshot.
+
+        A resumed worker gets a new manager instance. Rehydrating its
+        packages keeps retest IDs usable after resume instead of retaining
+        only report-shaped dictionaries that cannot accept new outcomes.
+        Invalid snapshots are skipped and logged; they must not abort a run.
+        """
+        for data in serialized_packages:
+            if not isinstance(data, dict):
+                continue
+            retest_id = str(data.get("retest_id") or "").strip()
+            if not retest_id:
+                continue
+            try:
+                created_at = datetime.fromisoformat(str(data["created_at"]))
+                completed_raw = data.get("completed_at")
+                completed_at = (
+                    datetime.fromisoformat(str(completed_raw))
+                    if completed_raw else None
+                )
+                package = RetestPackage(
+                    retest_id=retest_id,
+                    original_finding_id=str(data.get("original_finding_id") or ""),
+                    fix_reference=str(data.get("fix_reference") or ""),
+                    failed_scenario=str(data.get("failed_scenario") or ""),
+                    regression_scenarios=list(data.get("regression_scenarios") or []),
+                    status=str(data.get("status") or "PENDING"),
+                    retest_results=list(data.get("retest_results") or []),
+                    created_at=created_at,
+                    completed_at=completed_at,
+                )
+                self._packages[retest_id] = package
+            except (KeyError, TypeError, ValueError) as exc:
+                logger.warning(
+                    "retest_package_restore_skipped",
+                    retest_id=retest_id,
+                    error=str(exc),
+                )
+
     def create_retest_package(
         self,
         finding_id: str,

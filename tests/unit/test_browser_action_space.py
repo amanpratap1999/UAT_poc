@@ -86,7 +86,7 @@ def sample_observation() -> PageObservation:
         interactive_elements=[
             ElementInfo(
                 role="link",
-                label="Open related record",
+                name="Open related record",
                 text="Open related record",
                 is_visible=True,
                 is_enabled=True,

@@ -416,6 +416,9 @@ async def _restore_session_snapshot(orchestrator: Any) -> bool:
             persisted = payload.get(counter_name)
             if isinstance(persisted, int):
                 setattr(memory, counter_name, persisted)
+        retest_manager = getattr(orchestrator, "_retest_chain_manager", None)
+        if retest_manager is not None:
+            retest_manager.restore_packages(memory.retest_packages)
         return True
     except Exception as e:
         logger.warning("session_snapshot_restore_failed: %s", e)

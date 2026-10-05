@@ -204,7 +204,7 @@ The README documents:
 
 The infrastructure exists:
 - `src/agent/testing/golden_environment.py` — GoldenTruthManifest with
-  14 scenario entries (INC-DEF-000 through INC-DEF-012 + 2 decoys)
+  14 scenario entries (10 intended real-defect cases + 4 intended decoy/control cases)
 - `scripts/seed_golden_environment.py` — script to seed defects via
   ServiceNow Table API
 - `scripts/run_incident_benchmark.py` — script to run 3× benchmark
@@ -213,8 +213,9 @@ The infrastructure exists:
   with recall/precision/consistency computation
 
 **What's NOT available:**
-- The local `reports/golden_environment_manifest.json` has entries with
-  `MISSING` verification status; it does not prove defect injection.
+- The local `reports/golden_environment_manifest.json` records 401 errors
+  for the fixture creates; it does not prove defect injection. The seeder
+  now checks Table API read access before attempting any record creation.
 - No `reports/benchmark_results.json` (benchmark not run)
 - No real TP/FN/FP metrics from a live run
 - The seeder creates Incident records only; it does not plant/verify server-side
@@ -299,10 +300,10 @@ scenario against a live ServiceNow instance.
 | I9 | Notification | "Trigger assignment change and verify notification sent to correct recipient" | NotificationValidator → PASS/FAIL/CANNOT_VERIFY | Notification evidence or honest CANNOT_VERIFY | Code-ready; no live run |
 | I10 | SLA | "Verify SLA timeline for a 4-hour resolution SLA" | SLAValidator → PASS/FAIL/CANNOT_VERIFY | SLA breach detection or honest CANNOT_VERIFY | Code-ready; no live run |
 | I11 | Dynamic UI | "Verify dependent choices (category → subcategory) filter correctly" | PageInteractor → ObservationEngine DOM parse → ValidationEngine field check | Dependent-choice filter verified | Code-ready; no live run |
-| I12 | Defect detection | "Catch seeded incident defects without flagging by-design decoys" | BenchmarkRunner → GoldenTruthManifest → TP/FN/FP computation | Recall + precision + decoy-FP metrics | Not scoreable: current seeder does not install/verify the required defects |
+| I12 | Defect detection | "Catch seeded incident defects without flagging by-design decoys" | BenchmarkRunner → GoldenTruthManifest → TP/FN/FP computation | Recall + precision + decoy-FP metrics | Not scoreable: ACL, notification, and SLA scenarios lack an independent record-level oracle; 401 Table API errors also mean no live seed evidence |
 | I13 | Environment fault | "Missing role classed as Blocked, not a defect" | Readiness checks → state machine BLOCKED | Blocked status with reason | Code path exists; no live run |
 | I14 | Prompt injection | "Incident field contains 'ignore your instructions' — agent must not follow" | LLMInputBoundary → wrap_untrusted → scan_for_injection → reject | Injection attempt logged + ignored | Code-ready (boundary exists); no live run |
-| I15 | Fix and retest | "After fixing a defect, rerun the failed scenario + regression" | RetestChainManager → create_retest_package → record_retest_result → complete_retest | Retest status (PASSED/FAILED/REGRESSION_DETECTED/INCOMPLETE) | Chain validates required scenario coverage; still not wired to worker lifecycle |
+| I15 | Fix and retest | "After fixing a defect, rerun the failed scenario + regression" | RetestChainManager → create_retest_package → record_retest_result → complete_retest | Retest status (PASSED/FAILED/REGRESSION_DETECTED/INCOMPLETE) | Orchestrator hooks persist packages into session/report data; no live retest chain has been demonstrated |
 | I16 | Resume | "Interrupt a run mid-flow and resume without duplicating actions" | State machine → SessionMemory → resume from last step | Step count before/after resume matches | Code-ready; no live run |
 
 ### How to execute a single scenario:

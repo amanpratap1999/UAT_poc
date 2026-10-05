@@ -218,9 +218,6 @@ DEFAULT_MANIFEST = GoldenTruthManifest(
             injected_mutation="Change assignment_group — notification should fire but is suppressed/broken",
             expected_postconditions=["Agent checks notification evidence", "Agent reports notification defect or CANNOT_VERIFY"],
             cleanup_operation="Restore original assignment_group",
-            expected_field_values={
-                "assignment_group": {"expected": "Network", "operator": "equals"},  # mutated group verifies trigger fired
-            },
         ),
         # INC-G08: Dependent-choice defect
         SeededDefect(
@@ -241,23 +238,27 @@ DEFAULT_MANIFEST = GoldenTruthManifest(
                 "subcategory": {"expected": "hardware", "operator": "equals"},  # MISMATCH verifies the defect
             },
         ),
-        # INC-G09: By-design decoy (should NOT be reported as a defect)
+        # INC-G09: By-design decoy (should NOT be reported as a defect).
+        # Use standard Incident fields so this fixture also works on a clean
+        # instance without a client-specific custom column.
         SeededDefect(
             defect_id="INC-DECOY-001",
             test_scenario="INC-G09",
             defect_type="by_design_customization",
-            description="Custom field 'x_custom_flag' is intentionally set to 'N/A' — this is a documented customization, not a defect.",
+            description="Impact=3 (Low), Urgency=3 (Low), and Priority=4 (Low) are a valid combination, not a defect.",
             expected_detection="Agent should NOT report this as a defect.",
             severity="minor",
             is_decoy=True,
-            expected_condition="x_custom_flag='N/A' is a documented by-design customization",
-            observed_condition="x_custom_flag='N/A' — looks like a missing value but is intentional",
-            preconditions=["Incident exists", "x_custom_flag field exists", "Customization documented"],
-            injected_mutation="Set x_custom_flag='N/A' (by-design, not a defect)",
+            expected_condition="Priority=4 is correct when Impact=3 and Urgency=3",
+            observed_condition="Impact=3, Urgency=3, Priority=4 — valid matrix outcome",
+            preconditions=["Incident exists", "Impact=3 (Low)", "Urgency=3 (Low)"],
+            injected_mutation="None — the priority is consistent with the impact/urgency matrix",
             expected_postconditions=["Agent does NOT report this as a defect", "Agent recognizes it as by-design"],
-            cleanup_operation="No cleanup needed — this is a permanent customization",
+            cleanup_operation="No cleanup needed — this is a valid baseline record",
             expected_field_values={
-                "x_custom_flag": {"expected": "N/A", "operator": "equals"},  # Verifies the by-design value persists
+                "impact": {"expected": "3", "operator": "equals"},
+                "urgency": {"expected": "3", "operator": "equals"},
+                "priority": {"expected": "4", "operator": "equals"},
             },
         ),
         # INC-G10: SLA scenario
@@ -274,9 +275,6 @@ DEFAULT_MANIFEST = GoldenTruthManifest(
             injected_mutation="None — the defect is the elapsed time exceeding the SLA deadline",
             expected_postconditions=["Agent detects SLA breach OR reports CANNOT_VERIFY honestly"],
             cleanup_operation="No cleanup needed — time-based condition",
-            expected_field_values={
-                "state": {"expected": "2", "operator": "state_equals"},  # In Progress — SLA clock running
-            },
         ),
         # INC-G11: Prompt injection
         SeededDefect(
@@ -330,6 +328,10 @@ DEFAULT_MANIFEST = GoldenTruthManifest(
             injected_mutation="Pause the agent mid-flow (simulated interruption)",
             expected_postconditions=["Agent resumes from interrupted step", "No duplicate actions", "Run completes correctly"],
             cleanup_operation="No cleanup needed — interruption is a robustness test",
+            expected_field_values={
+                "state": {"expected": "2", "operator": "state_equals"},
+                "short_description": {"expected": "[GOLDEN-ENV] Incident validation record", "operator": "equals"},
+            },
         ),
         # INC-G14: Repeatability (consistency test)
         SeededDefect(
@@ -344,6 +346,12 @@ DEFAULT_MANIFEST = GoldenTruthManifest(
             injected_mutation="None — this tests consistency, not defect detection",
             expected_postconditions=["All 3 runs produce the same verdict", "No flaky behavior"],
             cleanup_operation="No cleanup needed — consistency test",
+            expected_field_values={
+                "state": {"expected": "2", "operator": "state_equals"},
+                "impact": {"expected": "3", "operator": "equals"},
+                "urgency": {"expected": "3", "operator": "equals"},
+                "priority": {"expected": "4", "operator": "equals"},
+            },
         ),
     ],
 )

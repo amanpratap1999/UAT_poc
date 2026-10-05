@@ -280,6 +280,12 @@ async def run_benchmark(
     seeded_records = seed_data.get("defects", {})
 
     manifest = get_default_manifest()
+    if len(manifest.real_defects) < 8 or len(manifest.decoys) < 3:
+        raise ValueError(
+            "The scored I12 benchmark requires at least 8 real defects and "
+            f"3 decoys; the current manifest has {len(manifest.real_defects)} "
+            f"real defects and {len(manifest.decoys)} decoys."
+        )
     missing_targets = [
         d.defect_id for d in manifest.defects
         if not str(seeded_records.get(d.defect_id, {}).get("incident_number", "")).strip()

@@ -163,7 +163,14 @@ class BrowserActionSpace:
                 break
             # Skip if this element is already covered by a button candidate
             # (dedup by label — simple heuristic, not perfect)
-            label = element.label or element.text or ""
+            # ElementInfo is the canonical observation model: its accessible
+            # name is stored in `name` (not `label` or `text`). Keep the
+            # getattr fallbacks for older observation-shaped test doubles.
+            label = (
+                getattr(element, "name", "")
+                or getattr(element, "label", "")
+                or getattr(element, "text", "")
+            )
             if not label:
                 continue
             if any(c.label == label for c in candidates):
@@ -312,7 +319,11 @@ class BrowserActionSpace:
     def _locator_for_element(cls, element: Any) -> str:
         """Build a safe Playwright locator for a generic interactive element."""
         role = getattr(element, "role", "")
-        label = getattr(element, "label", "") or getattr(element, "text", "")
+        label = (
+            getattr(element, "name", "")
+            or getattr(element, "label", "")
+            or getattr(element, "text", "")
+        )
         if role and label:
             return f"role:{role}:{label}"
         if label:

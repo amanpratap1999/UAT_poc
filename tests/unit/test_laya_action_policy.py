@@ -235,8 +235,6 @@ def test_operation_to_action_type_mapping(primary_policy, sample_action_space):
     """Verify LAYA operations map correctly to the project's ActionType enum."""
     test_cases = [
         ("click", ActionType.CLICK),
-        ("fill", ActionType.FILL),
-        ("select", ActionType.SELECT),
         ("wait", ActionType.WAIT),
         ("scroll_down", ActionType.SCROLL),
         ("scroll_up", ActionType.SCROLL),
@@ -254,8 +252,8 @@ def test_operation_to_action_type_mapping(primary_policy, sample_action_space):
         # Target operations need a valid target_index — tested separately
 
 
-def test_target_operations_require_valid_index(primary_policy, sample_action_space):
-    """click/fill/select operations must resolve to a valid candidate."""
+def test_click_operation_requires_valid_index(primary_policy, sample_action_space):
+    """A click resolves only to a code-owned candidate locator."""
     # Valid index 1 (the "Update" button)
     raw = {"operation": "click", "target_index": 1, "confidence": 0.9}
     decision = primary_policy._resolve_to_action(raw, sample_action_space, elapsed_ms=5.0)
@@ -263,13 +261,13 @@ def test_target_operations_require_valid_index(primary_policy, sample_action_spa
     assert decision.action.target == "role:button:Update"
 
 
-def test_fill_operation_resolves_value(primary_policy, sample_action_space):
-    """fill operation resolves the candidate's value field."""
-    raw = {"operation": "fill", "target_index": 2, "confidence": 0.85}
-    decision = primary_policy._resolve_to_action(raw, sample_action_space, elapsed_ms=5.0)
-    assert decision.fallback_reason == ""
-    assert decision.action.target == "label:Short description"
-    assert decision.action.value == "test"
+def test_fill_and_select_fall_back_without_planner_value(primary_policy, sample_action_space):
+    """Never reuse a field's existing value as the requested new value."""
+    for operation, index in (("fill", 2), ("select", 3)):
+        raw = {"operation": operation, "target_index": index, "confidence": 0.85}
+        decision = primary_policy._resolve_to_action(raw, sample_action_space, elapsed_ms=5.0)
+        assert decision.fallback_reason == f"planner_value_required:{operation}"
+        assert decision.action.action_type == ActionType.WAIT
 
 
 # ── Tests: safety — model never emits selectors ──
