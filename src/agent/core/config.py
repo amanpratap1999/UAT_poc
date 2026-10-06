@@ -64,6 +64,10 @@ def get_active_env_file() -> Path | None:
 
 def load_active_env() -> Path | None:
     """Load active env file into os.environ with override=False (process env takes precedence)."""
+    # VS Code exposes a global `BROWSER` variable for launching the default browser.
+    # That collides with the app's nested `browser` settings model because the
+    # nested Pydantic model attempts to interpret `BROWSER` as a JSON payload.
+    os.environ.pop("BROWSER", None)
     active = get_active_env_file()
     if active and active.is_file():
         load_dotenv(dotenv_path=active, override=False)
@@ -96,7 +100,7 @@ class LLMConfig(BaseSubConfig):
     provider: Literal["openai", "groq", "anthropic", "nvidia", "google"] = "openai"
     api_key: str = Field(
         default="",
-        validation_alias=AliasChoices("GEMINI_API_KEY", "OPENAI_API_KEY"),
+        validation_alias=AliasChoices("NVIDIA_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY"),
         description="API key for the LLM provider",
     )
     base_url: str | None = Field(default=None, description="Base URL for the LLM API endpoint")
@@ -275,6 +279,7 @@ class BrowserConfig(BaseSubConfig):
         env_file_encoding="utf-8",
         env_prefix="BROWSER_",
         extra="ignore",
+        env_ignore={"BROWSER"},
     )
 
     headless: bool = Field(
@@ -635,6 +640,7 @@ class Settings(BaseSubConfig):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
+        env_ignore={"BROWSER"},
     )
 
     # Runtime mode

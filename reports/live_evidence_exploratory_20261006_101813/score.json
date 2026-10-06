@@ -1,0 +1,20 @@
+{
+  "score": 34.0,
+  "max_score": 10,
+  "normalized_score": 3.4,
+  "mode": "exploratory_discovery",
+  "total_runs": 5,
+  "completed_runs": 0,
+  "failed_runs": 3,
+  "blocked_runs": 0,
+  "completion_rate_pct": 0.0,
+  "total_findings": 0,
+  "total_defects": 0,
+  "avg_duration_seconds": 77.6,
+  "exit_criteria_evaluated_pct": 80.0,
+  "telemetry_recorded_pct": 80.0,
+  "laya_mode": "disabled",
+  "table_api_used": false,
+  "playwright_used": true,
+  "note": "Exploratory mode \u2014 agent inspects real ServiceNow incidents via Playwright UI. No seeded defects. Score based on completion + findings + telemetry quality."
+}

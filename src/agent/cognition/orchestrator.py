@@ -340,17 +340,9 @@ class CognitiveOrchestrator:
         This helper is intentionally side-effect-free (it only observes).
         """
         if not self._observation_engine or not self._browser_manager:
-            # Nothing we can do — return whatever the page currently shows.
-            # Caller will handle the missing-record case as before.
-            page = self._browser_manager.page if self._browser_manager else None
-            if page:
-                try:
-                    return await self._observation_engine.observe(page)
-                except Exception:
-                    return None
             return None
 
-        page = self._browser_manager.page
+        page = self._browser_manager.get_page()
         last_obs = None
         prior_field_set: set[str] = set()
         stabilized = False

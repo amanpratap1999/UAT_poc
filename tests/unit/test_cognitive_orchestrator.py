@@ -116,6 +116,20 @@ async def test_formulate_hypotheses(orchestrator):
 
 
 @pytest.mark.asyncio
+async def test_observe_with_retries_uses_browser_manager_get_page(orchestrator):
+    page = Mock()
+    browser_manager = Mock(spec=["get_page"])
+    browser_manager.get_page.return_value = page
+    orchestrator._browser_manager = browser_manager
+
+    observation = await orchestrator._observe_with_retries(expected_record="INC001")
+
+    assert observation.record_number == "INC001"
+    browser_manager.get_page.assert_called_once_with()
+    orchestrator._observation_engine.observe.assert_awaited_once_with(page)
+
+
+@pytest.mark.asyncio
 async def test_run_cognitive_loop_success(orchestrator):
     memory = SessionMemory(observation_window=5)
     memory.total_actions_executed = 0
