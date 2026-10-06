@@ -403,20 +403,8 @@ def get_laya_action_policy(settings: Settings | None = None) -> Any:
         )
         policy = LayaActionPolicy(config=policy_cfg)
         if policy.is_configured():
-            # P7-LAYA: warm up eagerly if configured to do so. The warm-up
-            # is async but get_decision_engine is sync — schedule it on
-            # the running event loop if one exists, otherwise skip
-            # (the policy will warm up lazily on first use).
-            if cfg.warmup_at_startup:
-                import asyncio
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        loop.create_task(policy.warm_up())
-                    else:
-                        loop.run_until_complete(policy.warm_up())
-                except Exception as e:
-                    logger.warning("laya_action_policy_warmup_skipped", error=str(e))
+            # The FastAPI lifespan owns startup warmup; do not schedule a
+            # second concurrent warmup while constructing dependencies.
             _laya_action_policy_singleton = policy
             logger.info(
                 "laya_action_policy_attached",

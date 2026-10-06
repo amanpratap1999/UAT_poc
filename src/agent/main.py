@@ -999,7 +999,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         from agent.api.v1.dependencies import get_laya_action_policy
         policy = get_laya_action_policy(settings)
         if policy is not None and policy.is_configured():
-            warm_ok = await asyncio.wait_for(policy.warm_up(), timeout=30.0)
+            startup_warmup_timeout = max(
+                150.0,
+                settings.laya_action.inference_timeout_seconds + 30.0,
+            )
+            warm_ok = await asyncio.wait_for(
+                policy.warm_up(),
+                timeout=startup_warmup_timeout,
+            )
             logger.info(
                 "laya_action_policy_startup_probe",
                 healthy=warm_ok,

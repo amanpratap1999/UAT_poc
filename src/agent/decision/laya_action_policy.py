@@ -262,7 +262,10 @@ class LayaActionPolicy:
                 persona="itil",
                 allowed_operations=list(LAYA_OPERATIONS),
             )
-            decision = await self._infer(warmup_space)
+            decision = await self._infer(
+                warmup_space,
+                timeout_seconds=max(120.0, self._config.inference_timeout_seconds),
+            )
             # Accept any non-None decision as proof the model is callable.
             # Even a fallback decision (e.g., low_confidence) proves the
             # model loaded and ran inference — the policy is "warm".
@@ -451,7 +454,12 @@ class LayaActionPolicy:
             logger.warning("laya_action_policy_inference_failed", error=str(e))
             return self._fallback(action_space, reason=f"inference_error:{type(e).__name__}")
 
-    async def _infer(self, action_space: "_ActionSpacePayload") -> LayaActionDecision | None:
+    async def _infer(
+        self,
+        action_space: "_ActionSpacePayload",
+        *,
+        timeout_seconds: float | None = None,
+    ) -> LayaActionDecision | None:
         """Run a single LAYA inference and resolve it to an AgentAction.
 
         The inference is serialized through ``self._lock`` because the
@@ -460,11 +468,16 @@ class LayaActionPolicy:
         async tasks.
         """
         start = time.monotonic()
+        inference_timeout = (
+            self._config.inference_timeout_seconds
+            if timeout_seconds is None
+            else timeout_seconds
+        )
         async with self._lock:
             try:
                 raw = await asyncio.wait_for(
                     self._run_model(action_space),
-                    timeout=self._config.inference_timeout_seconds,
+                    timeout=inference_timeout,
                 )
             except asyncio.TimeoutError:
                 self._fallback_count += 1

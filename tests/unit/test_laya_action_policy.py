@@ -345,6 +345,25 @@ def test_load_model_uses_router_without_checkpoint(monkeypatch):
     assert policy.model_version == "laya:router"
 
 
+@pytest.mark.asyncio
+async def test_warmup_uses_dummy_candidate_and_extended_timeout():
+    policy = LayaActionPolicy(config=LayaActionPolicyConfig(
+        enabled=True,
+        mode="primary",
+        inference_timeout_seconds=5.0,
+    ))
+    policy._model = MagicMock()
+    policy._load_model = MagicMock()
+    policy._infer = AsyncMock(return_value=MagicMock())
+
+    assert await policy.warm_up()
+
+    action_space = policy._infer.await_args.args[0]
+    assert len(action_space.candidates) == 1
+    assert action_space.candidates[0].kind == "click"
+    assert policy._infer.await_args.kwargs["timeout_seconds"] == 120.0
+
+
 # ── Tests: stats / telemetry ──
 
 
