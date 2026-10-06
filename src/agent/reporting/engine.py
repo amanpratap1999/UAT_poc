@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from agent.core.logging import get_logger
-from agent.core.redaction import redact_html, redact_string
+from agent.core.redaction import redact_string
 from agent.core.types import Severity
 from agent.domain.defect_scope import (
     VERIFIED_DEFECT_ERROR_TYPE,

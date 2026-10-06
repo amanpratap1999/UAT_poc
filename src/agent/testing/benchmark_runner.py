@@ -14,13 +14,12 @@ consistency across runs.
 """
 from __future__ import annotations
 
-import asyncio
 import time
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from agent.core.logging import get_logger
-from agent.testing.golden_environment import GoldenTruthManifest, SeededDefect, get_default_manifest
+from agent.testing.golden_environment import GoldenTruthManifest, get_default_manifest
 
 logger = get_logger(__name__)
 

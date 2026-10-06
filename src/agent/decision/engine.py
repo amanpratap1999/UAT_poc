@@ -254,7 +254,6 @@ class DecisionEngine:
         laya_decision_metadata: dict[str, Any] | None = None
         if not chosen_action and self.has_laya_action_policy:
             try:
-                from agent.decision.laya_action_policy import LayaActionDecision, _ActionSpacePayload  # type: ignore[attr-defined]
                 # The action space is built by the orchestrator (P8) and
                 # stashed on the memory's current observation. If the
                 # caller didn't build one, we skip the LAYA path.

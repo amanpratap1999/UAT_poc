@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from agent.core.logging import get_logger
 from agent.domain.observation import PageObservation

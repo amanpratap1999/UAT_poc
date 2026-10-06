@@ -487,26 +487,6 @@ class ValidationEngine:
             ),
         )
 
-    def _check_state_change(
-        self,
-        before: PageObservation,
-        after: PageObservation,
-        expected_state: str,
-    ) -> ValidationCheck:
-        """Verify a record state transition occurred."""
-        return ValidationCheck(
-            check_name="state_change",
-            description=f"Record state changed to '{expected_state}'",
-            passed=after.current_state == expected_state,
-            expected=expected_state,
-            actual=after.current_state or "unknown",
-            error_message=(
-                f"State is '{after.current_state}' not '{expected_state}'"
-                if after.current_state != expected_state
-                else None
-            ),
-        )
-
     def validate_precondition(
         self,
         expected_initial_state: str | None = None,

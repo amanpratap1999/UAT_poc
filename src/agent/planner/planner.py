@@ -27,7 +27,6 @@ from typing import Any
 
 from agent.core.exceptions import LLMResponseParseError, PlannerError
 from agent.core.logging import get_logger
-from agent.core.untrusted import UNTRUSTED_DATA_POLICY, wrap_untrusted
 from agent.domain.actions import AgentAction
 from agent.domain.knowledge_model import CustomerKnowledgeModel
 from agent.domain.observation import PageObservation

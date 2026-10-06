@@ -181,8 +181,6 @@ class SessionMemory(BaseModel):
 
     def add_observation(self, observation: PageObservation) -> None:
         """Add a page observation, maintaining the rolling window."""
-        from agent.core.redaction import redact_dict
-        
         # Redact sensitive field values in visible_fields
         from agent.core.redaction import redact_string
         for f in observation.visible_fields:
