@@ -78,6 +78,14 @@ _GLOBAL_BROWSER: Browser | None = None
 _GLOBAL_CONTEXT: BrowserContext | None = None
 
 
+def _is_browser_target_crash(error: BaseException) -> bool:
+    error_text = str(error).lower()
+    return any(
+        marker in error_text
+        for marker in ("page crashed", "target closed", "target page, context or browser has been closed")
+    )
+
+
 def reset_browser_globals() -> None:
     """Reset global browser instances (useful for testing)."""
     global _GLOBAL_PLAYWRIGHT, _GLOBAL_BROWSER, _GLOBAL_CONTEXT
@@ -458,9 +466,7 @@ class BrowserManager:
                     self._bring_to_foreground()
                 return
             except PlaywrightError as exc:
-                error_text = str(exc).lower()
-                page_crashed = "page crashed" in error_text or "target closed" in error_text
-                if attempt > 0 or not page_crashed:
+                if attempt > 0 or not _is_browser_target_crash(exc):
                     raise
                 logger.warning(
                     "navigation_page_crashed_relaunching",
@@ -597,6 +603,8 @@ class BrowserManager:
                 pass
 
         except Exception as e:
+            if _is_browser_target_crash(e):
+                raise
             # Don't raise — a load timeout is a recoverable condition.
             # The agent will observe whatever state the page is in and
             # the decision engine will choose the next action.

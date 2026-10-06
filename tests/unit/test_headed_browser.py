@@ -166,6 +166,20 @@ async def test_browser_manager_relaunches_once_after_page_crash() -> None:
 
 
 @pytest.mark.asyncio
+async def test_browser_manager_wait_for_load_propagates_target_crash() -> None:
+    manager = BrowserManager(
+        browser_config=BrowserConfig.model_construct(headless=True),
+        servicenow_config=ServiceNowConfig.model_construct(),
+    )
+    page = MagicMock()
+    page.wait_for_load_state = AsyncMock(side_effect=PlaywrightError("Page crashed"))
+    manager._page = page
+
+    with pytest.raises(PlaywrightError, match="Page crashed"):
+        await manager.wait_for_load()
+
+
+@pytest.mark.asyncio
 async def test_browser_manager_take_screenshot_hides_cursor(tmp_path: Path) -> None:
     """Test that take_screenshot temporarily hides the visual cursor."""
     browser_cfg = BrowserConfig.model_construct(headless=True, show_mouse_cursor=True)
