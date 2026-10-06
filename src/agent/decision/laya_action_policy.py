@@ -226,23 +226,46 @@ class LayaActionPolicy:
         Returns False (and logs) if the optional ``laya`` dependency
         is not installed — the system continues to work with the Gemini
         path. Called once at app startup (P7).
+
+        The warmup uses a minimal action space with ONE dummy candidate
+        so the model has something to choose from. We don't care whether
+        the model picks the right operation — we just need to confirm
+        the model loaded and can produce a response. If the Router
+        responds with click/fill/select on the dummy candidate, that's
+        proof it's working; the warmup marks the policy as healthy.
         """
         if not self.is_configured():
             logger.info("laya_action_policy_not_configured")
             return False
         try:
             self._load_model()
-            # Trivial warm-up inference: a single empty action space
+            # Warmup with a single dummy candidate so the model has
+            # something to choose from. We accept ANY response (including
+            # a fallback) as proof the model loaded successfully — the
+            # goal is to verify the model is callable, not that it makes
+            # the right decision on a dummy input.
             warmup_space = _ActionSpacePayload(
                 fingerprint="warmup",
-                page_url="",
-                page_title="",
-                candidates=[],
+                page_url="https://warmup.example.com",
+                page_title="Warmup",
+                candidates=[
+                    ActionSpaceCandidate(
+                        index=1,
+                        kind="click",
+                        role="button",
+                        label="warmup_button",
+                        value="",
+                        locator="role:button:warmup_button",
+                    )
+                ],
                 plan_step="warmup",
                 persona="itil",
                 allowed_operations=list(LAYA_OPERATIONS),
             )
             decision = await self._infer(warmup_space)
+            # Accept any non-None decision as proof the model is callable.
+            # Even a fallback decision (e.g., low_confidence) proves the
+            # model loaded and ran inference — the policy is "warm".
             self._warm = decision is not None
             if self._warm:
                 logger.info(
