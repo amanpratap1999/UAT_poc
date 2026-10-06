@@ -265,22 +265,28 @@ async def readiness_check() -> JSONResponse:
             "error": safe_err or "Database connection failed",
         }
 
-    # 2. Redis check
-    try:
-        redis_client = aioredis.from_url(settings.session.redis_url, decode_responses=True)  # type: ignore[no-untyped-call]
-        try:
-            await redis_client.ping()
-            checks["redis"] = {"status": "ok"}
-        finally:
-            await redis_client.aclose()
-    except Exception as exc:
-        is_ready = False
-        import re
-        safe_err = re.sub(r"://[^@]+@", "://***:***@", str(exc))
+    # 2. Redis check — skip if SESSION_STORE_TYPE=memory (Windows native, no Redis)
+    if settings.session.store_type == "memory":
         checks["redis"] = {
-            "status": "unhealthy",
-            "error": safe_err or "Redis connection failed",
+            "status": "skipped",
+            "reason": "SESSION_STORE_TYPE=memory (in-memory mode, no Redis required)",
         }
+    else:
+        try:
+            redis_client = aioredis.from_url(settings.session.redis_url, decode_responses=True)  # type: ignore[no-untyped-call]
+            try:
+                await redis_client.ping()
+                checks["redis"] = {"status": "ok"}
+            finally:
+                await redis_client.aclose()
+        except Exception as exc:
+            is_ready = False
+            import re
+            safe_err = re.sub(r"://[^@]+@", "://***:***@", str(exc))
+            checks["redis"] = {
+                "status": "unhealthy",
+                "error": safe_err or "Redis connection failed",
+            }
 
     # 3. Output directories check
     try:

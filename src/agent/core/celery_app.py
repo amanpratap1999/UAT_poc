@@ -9,6 +9,9 @@ from typing import Any
 from celery import Celery  # type: ignore
 
 from agent.core.config import get_settings
+from agent.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 _settings = get_settings()
 
@@ -59,6 +62,7 @@ def _apply_redis_resp2_default() -> None:
             "CELERY_BROKER_URL",
             _settings.session.celery_broker_url or _settings.session.redis_url,
         )
+        # Skip if using in-memory broker (no Redis involved)
         if not url or not url.startswith("redis://"):
             return
         parsed = urlparse(url)
@@ -94,6 +98,20 @@ backend_url = os.getenv(
     "CELERY_RESULT_BACKEND",
     _settings.session.celery_result_backend or _settings.session.redis_url,
 )
+
+# Windows-native fallback: if no Redis URL is configured, use Celery's
+# in-memory transport so the worker can start without Redis/Memurai.
+# This is for local development only — production must use Redis.
+if not broker_url or broker_url == "":
+    broker_url = "memory://"
+    backend_url = "cache+memory://"
+    logger.info("celery_using_in_memory_broker_no_redis_configured")
+elif broker_url.startswith("redis://") and _settings.session.store_type == "memory":
+    # SESSION_STORE_TYPE=memory means the operator doesn't want Redis.
+    # Use in-memory Celery transport to match.
+    broker_url = "memory://"
+    backend_url = "cache+memory://"
+    logger.info("celery_using_in_memory_broker_session_store_is_memory")
 
 celery_app = Celery(
     "agent_worker",
