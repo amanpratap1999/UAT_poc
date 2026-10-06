@@ -1,27 +1,0 @@
-INFO:     Will watch for changes in these directories: ['C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc']
-INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process [2856] using WatchFiles
-INFO:     Started server process [30416]
-INFO:     Waiting for application startup.
-2026-10-05T19:20:57.829027Z [info     ] application_started                      version=1.0.0
-HTTP Request: POST https://integrate.api.nvidia.com/v1/embeddings "HTTP/1.1 404 Not Found"
-2026-10-05T19:21:01.095703Z [warning  ] embedding_model_health_check_failed      action=circuit_breaker_opened_fallback_to_in_memory error='404 page not found' model=nvidia/nemotron-3-embed-1b-8k
-2026-10-05T19:21:01.096835Z [info     ] embedding_startup_probe_result           healthy=False model=nvidia/nemotron-3-embed-1b-8k
-2026-10-05T19:21:01.106411Z [info     ] laya_action_policy_attached              checkpoint=cklxx/laya-browser device=auto mode=primary
-HTTP Request: GET https://huggingface.co/api/models/cklxx/laya-browser/revision/main "HTTP/1.1 200 OK"
-Fetching 0 files: 0it [00:00, ?it/s]Fetching 0 files: 0it [00:00, ?it/s]
-2026-10-05T19:21:12.344002Z [warning  ] laya_action_policy_warmup_failed         error="Subfolder 'typed-decisions' not found in 'cklxx/laya-browser'."
-HTTP Request: GET https://huggingface.co/api/models/cklxx/laya-browser/revision/main "HTTP/1.1 200 OK"
-Fetching 0 files: 0it [00:00, ?it/s]Fetching 0 files: 0it [00:00, ?it/s]
-2026-10-05T19:21:12.602500Z [warning  ] laya_action_policy_warmup_failed         error="Subfolder 'typed-decisions' not found in 'cklxx/laya-browser'."
-2026-10-05T19:21:12.602500Z [info     ] laya_action_policy_startup_probe         checkpoint=cklxx/laya-browser device=cpu healthy=False mode=primary
-INFO:     Application startup complete.
-2026-10-05T19:21:17.110984Z [warning  ] redis_auth_lock_fallback                 error="Error 10061 connecting to 127.0.0.1:6379. Connect call failed ('127.0.0.1', 6379)."
-2026-10-05T19:21:19.588837Z [warning  ] redis_auth_lock_fallback                 error="Error 10061 connecting to 127.0.0.1:6379. Connect call failed ('127.0.0.1', 6379)."
-2026-10-05T19:21:22.753636Z [warning  ] redis_auth_clear_fallback                error="Error 10061 connecting to 127.0.0.1:6379. Connect call failed ('127.0.0.1', 6379)."
-2026-10-05T19:21:25.203850Z [warning  ] redis_auth_clear_fallback                error="Error 10061 connecting to 127.0.0.1:6379. Connect call failed ('127.0.0.1', 6379)."
-2026-10-05T19:21:25.204631Z [info     ] auth_login_success                       client_ip=127.0.0.1 username=qa-admin
-INFO:     127.0.0.1:64048 - "POST /api/v1/token HTTP/1.1" 200 OK
-HTTP Request: POST https://integrate.api.nvidia.com/v1/embeddings "HTTP/1.1 404 Not Found"
-2026-10-05T19:21:29.789513Z [warning  ] embedding_model_health_check_failed      action=circuit_breaker_opened_fallback_to_in_memory error='404 page not found' model=nvidia/nemotron-3-embed-1b-8k
-INFO:     127.0.0.1:64801 - "GET /api/v1/ready HTTP/1.1" 503 Service Unavailable
