@@ -303,10 +303,18 @@ def test_laya_action_policy_config_defaults():
     assert cfg.max_candidates == 250
 
 
-def test_policy_not_configured_without_checkpoint():
-    """A policy without a checkpoint path is not configured."""
+def test_policy_configured_when_enabled():
+    """A policy with enabled=True is configured (Router auto-downloads checkpoint)."""
     policy = LayaActionPolicy(config=LayaActionPolicyConfig(
         enabled=True, checkpoint="",
+    ))
+    assert policy.is_configured()
+
+
+def test_policy_not_configured_when_disabled():
+    """A policy with enabled=False is not configured."""
+    policy = LayaActionPolicy(config=LayaActionPolicyConfig(
+        enabled=False, checkpoint="some/checkpoint",
     ))
     assert not policy.is_configured()
 

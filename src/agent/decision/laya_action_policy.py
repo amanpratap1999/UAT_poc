@@ -188,11 +188,13 @@ class LayaActionPolicy:
         return self._model_version
 
     def is_configured(self) -> bool:
-        """True if the policy is enabled AND either a checkpoint or remote endpoint is set."""
-        return self._config.enabled and (
-            bool(self._config.checkpoint)
-            or (bool(self._config.endpoint) and bool(self._config.api_key))
-        )
+        """True if the policy is enabled.
+
+        With the Router backend (default), just ``enabled=true`` is enough —
+        the Router auto-downloads the checkpoint from HuggingFace on first use.
+        No checkpoint path or API key needed.
+        """
+        return self._config.enabled
 
     def is_healthy(self) -> bool:
         """Readiness check — model loaded and warm-up completed."""
@@ -256,23 +258,40 @@ class LayaActionPolicy:
             return False
 
     def _load_model(self) -> None:
-        """Load the checkpoint through LAYA's typed-decision SDK.
+        """Load the LAYA model using the best available backend.
 
-        Tries two backends in order:
-        1. Remote API (jev-ultrafast style) — if ``endpoint`` and ``api_key``
-           are configured, uses an OpenAI-compatible HTTP endpoint. This is
-           the most reliable path and doesn't require local GPU/CPU resources.
-        2. Local LAYA SDK — loads the checkpoint via ``laya.load()``. Requires
-           the optional ``laya`` package and the checkpoint to be available.
+        Tries three backends in order:
+        1. ``laya.Router`` (local, auto-download) — the simplest path.
+           Just ``pip install laya`` and it works — the Router auto-downloads
+           the checkpoint from HuggingFace on first use. No checkpoint path
+           or API key needed. This is the approach the user validated.
+        2. ``laya.load()`` (local, explicit checkpoint) — for when you want
+           to pin a specific checkpoint / subfolder.
+        3. Remote API (jev-ultrafast style) — calls an OpenAI-compatible
+           HTTP endpoint. No local dependencies needed.
 
-        Gracefully degrades if neither backend is available — the policy
-        reports ``is_healthy() == False`` and the DecisionEngine falls back
-        to Gemini.
+        Gracefully degrades if no backend is available.
         """
         if self._model is not None:
             return
 
-        # Path 1: Remote API (jev-ultrafast style)
+        # Path 1: laya.Router (auto-download, simplest path)
+        # This is what the user tested successfully — just import laya,
+        # create a Router(), and call system_one(). The Router handles
+        # checkpoint downloading + device selection internally.
+        try:
+            from laya import Router  # type: ignore[import-not-found]
+            self._model = Router()
+            self._model_version = "laya:router"
+            self._device = "auto-router"
+            logger.info("laya_action_policy_loaded_router", backend="laya.Router")
+            return
+        except ImportError:
+            logger.info("laya_router_not_available_trying_fallbacks")
+        except Exception as e:
+            logger.warning("laya_router_init_failed", error=str(e)[:200])
+
+        # Path 2: Remote API (jev-ultrafast style)
         if self._config.endpoint and self._config.api_key:
             self._model = _RemoteLayaBackend(
                 endpoint=self._config.endpoint,
@@ -287,37 +306,41 @@ class LayaActionPolicy:
             )
             return
 
-        # Path 2: Local LAYA SDK
-        if not self._config.checkpoint:
-            raise ValueError(
-                "LAYA_ACTION_CHECKPOINT is not set and no remote endpoint configured. "
-                "Set either LAYA_ACTION_CHECKPOINT (local) or LAYA_ACTION_ENDPOINT + "
-                "LAYA_ACTION_API_KEY (remote)."
+        # Path 3: Local LAYA SDK with explicit checkpoint
+        if self._config.checkpoint:
+            device = self._resolve_device()
+            self._device = device
+            try:
+                import laya  # type: ignore[import-not-found]
+            except ImportError as exc:
+                raise RuntimeError(
+                    "Could not load LAYA. Install with: pip install laya "
+                    "(for Router auto-download) OR pip install -e '.[laya]' "
+                    "(for explicit checkpoint) OR set LAYA_ACTION_ENDPOINT + "
+                    "LAYA_ACTION_API_KEY (for remote API)."
+                ) from exc
+            self._model = laya.load(
+                self._config.checkpoint,
+                device=device,
+                subfolder=self._config.model_subfolder or None,
             )
+            self._model_version = (
+                f"laya:{self._config.checkpoint}"
+                + (f"/{self._config.model_subfolder}" if self._config.model_subfolder else "")
+            )
+            logger.info(
+                "laya_action_policy_loaded_local",
+                checkpoint=self._config.checkpoint,
+                subfolder=self._config.model_subfolder,
+                device=device,
+            )
+            return
 
-        device = self._resolve_device()
-        self._device = device
-        try:
-            import laya  # type: ignore[import-not-found]
-        except ImportError as exc:
-            raise RuntimeError(
-                "Install the optional LAYA SDK with: pip install -e '.[laya]' "
-                "OR set LAYA_ACTION_ENDPOINT + LAYA_ACTION_API_KEY for remote mode."
-            ) from exc
-        self._model = laya.load(
-            self._config.checkpoint,
-            device=device,
-            subfolder=self._config.model_subfolder or None,
-        )
-        self._model_version = (
-            f"laya:{self._config.checkpoint}"
-            + (f"/{self._config.model_subfolder}" if self._config.model_subfolder else "")
-        )
-        logger.info(
-            "laya_action_policy_loaded_local",
-            checkpoint=self._config.checkpoint,
-            subfolder=self._config.model_subfolder,
-            device=device,
+        raise RuntimeError(
+            "No LAYA backend available. Install laya (pip install laya) for "
+            "auto-download mode, OR set LAYA_ACTION_CHECKPOINT for explicit "
+            "checkpoint, OR set LAYA_ACTION_ENDPOINT + LAYA_ACTION_API_KEY "
+            "for remote API mode."
         )
 
     def _resolve_device(self) -> str:
