@@ -434,25 +434,41 @@ class BrowserManager:
         Args:
             url: The full URL to navigate to.
         """
+        from playwright.async_api import Error as PlaywrightError
         from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
-        page = self.get_page()
         nav_timeout = self._browser_config.timeout  # e.g. 90 000 ms
         logger.info("navigating", url=url)
-        try:
-            await page.goto(url, wait_until="domcontentloaded", timeout=nav_timeout)
-        except PlaywrightTimeoutError:
-            logger.warning(
-                "navigation_timeout_retry",
-                url=url,
-                strategy="networkidle",
-                timeout_ms=nav_timeout,
-            )
-            # Retry: networkidle is more forgiving for heavy SPAs
-            await page.goto(url, wait_until="networkidle", timeout=nav_timeout)
-        await self.wait_for_load()
-        if not self._browser_config.headless:
-            self._bring_to_foreground()
+        for attempt in range(2):
+            page = self.get_page()
+            try:
+                try:
+                    await page.goto(url, wait_until="domcontentloaded", timeout=nav_timeout)
+                except PlaywrightTimeoutError:
+                    logger.warning(
+                        "navigation_timeout_retry",
+                        url=url,
+                        strategy="networkidle",
+                        timeout_ms=nav_timeout,
+                    )
+                    # Retry: networkidle is more forgiving for heavy SPAs
+                    await page.goto(url, wait_until="networkidle", timeout=nav_timeout)
+                await self.wait_for_load()
+                if not self._browser_config.headless:
+                    self._bring_to_foreground()
+                return
+            except PlaywrightError as exc:
+                error_text = str(exc).lower()
+                page_crashed = "page crashed" in error_text or "target closed" in error_text
+                if attempt > 0 or not page_crashed:
+                    raise
+                logger.warning(
+                    "navigation_page_crashed_relaunching",
+                    url=url,
+                    error=str(exc),
+                )
+                await self.close()
+                await self.launch()
 
     async def take_screenshot(self, name: str = "screenshot", hide_cursor: bool = True) -> str:
         """Capture a screenshot and save to disk.

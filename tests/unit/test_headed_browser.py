@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from playwright.async_api import Error as PlaywrightError
 
 from agent.browser.manager import VISUAL_CURSOR_SCRIPT, BrowserManager, reset_browser_globals
 from agent.browser.page_interactor import PageInteractor
@@ -139,6 +140,29 @@ async def test_browser_manager_display_error_on_headless_linux(monkeypatch: pyte
         await manager.launch()
 
     assert "no graphical display server found" in str(exc_info.value).lower()
+
+
+@pytest.mark.asyncio
+async def test_browser_manager_relaunches_once_after_page_crash() -> None:
+    browser_cfg = BrowserConfig.model_construct(headless=True, show_mouse_cursor=False)
+    sn_cfg = ServiceNowConfig.model_construct()
+    manager = BrowserManager(browser_config=browser_cfg, servicenow_config=sn_cfg)
+    first_page = MagicMock()
+    first_page.goto = AsyncMock(side_effect=PlaywrightError("Page crashed"))
+    second_page = MagicMock()
+    second_page.goto = AsyncMock()
+    manager.get_page = MagicMock(side_effect=[first_page, second_page])
+    manager.wait_for_load = AsyncMock()
+    manager.close = AsyncMock()
+    manager.launch = AsyncMock()
+
+    await manager.navigate("https://example.service-now.com")
+
+    first_page.goto.assert_awaited_once()
+    second_page.goto.assert_awaited_once()
+    manager.close.assert_awaited_once_with()
+    manager.launch.assert_awaited_once_with()
+    manager.wait_for_load.assert_awaited_once_with()
 
 
 @pytest.mark.asyncio
