@@ -1,0 +1,8 @@
+--- Step 8A.1: Instance check ---
+HTTP 200
+
+--- Step 8A.2 / 8A.3: Admin account check ---
+HTTP 401
+
+--- Step 8A.2 / 8A.3: itil_user account check ---
+HTTP 401

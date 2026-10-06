@@ -1,0 +1,18 @@
+{
+  "blocker": "ServiceNow Table API returns 401 for all tested accounts",
+  "instance_url": "https://aelumconsultingpvtltddemo3.service-now.com",
+  "accounts_tested": [
+    {"username": "prakhar.s1", "http_status": 401, "web_login": "unknown_ai_cannot_test_ui"},
+    {"username": "testingprakhar.s1", "http_status": 401, "web_login": "unknown_ai_cannot_test_ui"}
+  ],
+  "root_cause_hypothesis": "Account lacks itil/admin role OR Web Service Access Control blocks Table API basic auth OR glide.basicauth.enabled is false",
+  "action_required": "ServiceNow instance admin must grant itil role + enable Table API basic auth for at least one account",
+  "api_health": "healthy",
+  "celery_worker": "running",
+  "redis_memurai": "running",
+  "laya_status": "disabled_for_this_run",
+  "code_state": "980815b (target_record crash fixed, all 43 LAYA tests pass)",
+  "benchmark_completed": false,
+  "score": null,
+  "score_reason": "Cannot run benchmark without Table API access for fixture seeding"
+}
