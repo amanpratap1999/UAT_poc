@@ -541,18 +541,24 @@ class BrowserManager:
         """Get the current page title."""
         return await self.get_page().title()
 
-    async def wait_for_load(self) -> None:
+    async def wait_for_load(self, timeout_ms: int = 15000) -> None:
         """Wait for the page to reach a loaded state.
 
         Uses domcontentloaded as the baseline, then waits for
         ServiceNow-specific loading indicators across main page and frames to disappear.
+
+        Bounded by an overall timeout (default 15s) so SPAs that never fully
+        settle don't hang the agent indefinitely. This was the root cause of
+        Scenario 1's browser stability crash — the page loaded but the loading
+        indicator never fully disappeared on the ServiceNow workspace SPA.
         """
         page = self.get_page()
         try:
-            await page.wait_for_load_state("domcontentloaded")
+            # Bounded wait for DOMContentLoaded — the primary load signal
+            await page.wait_for_load_state("domcontentloaded", timeout=timeout_ms)
             await page.wait_for_timeout(500)
 
-            # Wait for ServiceNow loading indicator to disappear
+            # Wait for ServiceNow loading indicator to disappear (bounded)
             loading_indicator = page.locator(
                 ".loading, .busy, #loading, .loading-container, #is_loading, .sn-loading-loader"
             )
@@ -561,6 +567,7 @@ class BrowserManager:
             # Loading indicator may not exist — that's fine
 
             # Also wait for active frames (e.g., gsft_main) to settle domcontentloaded
+            # Bounded per-frame so one stuck frame doesn't block the whole page
             try:
                 frames = getattr(page, "frames", [])
                 if callable(frames):
@@ -574,6 +581,9 @@ class BrowserManager:
                 pass
 
         except Exception as e:
+            # Don't raise — a load timeout is a recoverable condition.
+            # The agent will observe whatever state the page is in and
+            # the decision engine will choose the next action.
             logger.warning("wait_for_load_timeout", error=str(e))
 
     async def wait_for_network_idle(self, timeout: int = 10000) -> None:

@@ -627,6 +627,20 @@ class LayaActionPolicyConfig(BaseSubConfig):
         default=True,
         description="Warm up the model at app startup (P7) so the first decision isn't slow",
     )
+    # Remote API fallback (jev-ultrafast style): when the local LAYA SDK
+    # or checkpoint is unavailable, the action policy can call a remote
+    # OpenAI-compatible endpoint that serves LAYA decisions. This is the
+    # same architecture as jev-ultrafast, which calls api.typesafe.ai.
+    # If both endpoint and api_key are set, the policy uses the remote API
+    # instead of loading the local checkpoint.
+    endpoint: str = Field(
+        default="",
+        description="Remote LAYA API endpoint (OpenAI-compatible). If set with api_key, used instead of local checkpoint.",
+    )
+    api_key: str = Field(
+        default="",
+        description="API key for the remote LAYA endpoint",
+    )
 
 
 class Settings(BaseSubConfig):

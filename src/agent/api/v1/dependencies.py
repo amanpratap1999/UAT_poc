@@ -398,6 +398,8 @@ def get_laya_action_policy(settings: Settings | None = None) -> Any:
             warmup_at_startup=cfg.warmup_at_startup,
             model_max_len=cfg.model_max_len,
             head_max_len=cfg.head_max_len,
+            endpoint=cfg.endpoint,
+            api_key=cfg.api_key,
         )
         policy = LayaActionPolicy(config=policy_cfg)
         if policy.is_configured():

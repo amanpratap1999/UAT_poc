@@ -124,6 +124,9 @@ class LayaActionPolicyConfig:
     warmup_at_startup: bool = True
     model_max_len: int = 2048
     head_max_len: int = 768
+    # Remote API fallback (jev-ultrafast style)
+    endpoint: str = ""  # if set with api_key, uses remote API instead of local checkpoint
+    api_key: str = ""
 
 
 class LayaActionPolicy:
@@ -185,8 +188,11 @@ class LayaActionPolicy:
         return self._model_version
 
     def is_configured(self) -> bool:
-        """True if the policy is enabled AND a checkpoint path is set."""
-        return self._config.enabled and bool(self._config.checkpoint)
+        """True if the policy is enabled AND either a checkpoint or remote endpoint is set."""
+        return self._config.enabled and (
+            bool(self._config.checkpoint)
+            or (bool(self._config.endpoint) and bool(self._config.api_key))
+        )
 
     def is_healthy(self) -> bool:
         """Readiness check — model loaded and warm-up completed."""
@@ -252,21 +258,52 @@ class LayaActionPolicy:
     def _load_model(self) -> None:
         """Load the checkpoint through LAYA's typed-decision SDK.
 
-        Gracefully degrades if the optional dependency is missing — the
-        policy reports ``is_healthy() == False`` and the DecisionEngine
-        falls back to Gemini.
+        Tries two backends in order:
+        1. Remote API (jev-ultrafast style) — if ``endpoint`` and ``api_key``
+           are configured, uses an OpenAI-compatible HTTP endpoint. This is
+           the most reliable path and doesn't require local GPU/CPU resources.
+        2. Local LAYA SDK — loads the checkpoint via ``laya.load()``. Requires
+           the optional ``laya`` package and the checkpoint to be available.
+
+        Gracefully degrades if neither backend is available — the policy
+        reports ``is_healthy() == False`` and the DecisionEngine falls back
+        to Gemini.
         """
         if self._model is not None:
             return
+
+        # Path 1: Remote API (jev-ultrafast style)
+        if self._config.endpoint and self._config.api_key:
+            self._model = _RemoteLayaBackend(
+                endpoint=self._config.endpoint,
+                api_key=self._config.api_key,
+                timeout=self._config.inference_timeout_seconds,
+            )
+            self._model_version = f"laya-remote:{self._config.endpoint}"
+            self._device = "remote"
+            logger.info(
+                "laya_action_policy_loaded_remote",
+                endpoint=self._config.endpoint,
+            )
+            return
+
+        # Path 2: Local LAYA SDK
         if not self._config.checkpoint:
-            raise ValueError("LAYA_ACTION_CHECKPOINT is not set")
+            raise ValueError(
+                "LAYA_ACTION_CHECKPOINT is not set and no remote endpoint configured. "
+                "Set either LAYA_ACTION_CHECKPOINT (local) or LAYA_ACTION_ENDPOINT + "
+                "LAYA_ACTION_API_KEY (remote)."
+            )
 
         device = self._resolve_device()
         self._device = device
         try:
             import laya  # type: ignore[import-not-found]
         except ImportError as exc:
-            raise RuntimeError("Install the optional LAYA SDK with: pip install -e '.[laya]'") from exc
+            raise RuntimeError(
+                "Install the optional LAYA SDK with: pip install -e '.[laya]' "
+                "OR set LAYA_ACTION_ENDPOINT + LAYA_ACTION_API_KEY for remote mode."
+            ) from exc
         self._model = laya.load(
             self._config.checkpoint,
             device=device,
@@ -277,7 +314,7 @@ class LayaActionPolicy:
             + (f"/{self._config.model_subfolder}" if self._config.model_subfolder else "")
         )
         logger.info(
-            "laya_action_policy_loaded",
+            "laya_action_policy_loaded_local",
             checkpoint=self._config.checkpoint,
             subfolder=self._config.model_subfolder,
             device=device,
@@ -690,3 +727,80 @@ class _ActionSpacePayload:
     plan_step: str
     persona: str
     allowed_operations: list[str]
+
+
+class _RemoteLayaBackend:
+    """Remote LAYA API backend (jev-ultrafast style).
+
+    Calls an OpenAI-compatible HTTP endpoint that serves LAYA decisions.
+    This is the same architecture as jev-ultrafast, which calls
+    ``api.typesafe.ai/v1/systemone``. The backend exposes the same
+    ``system_one()`` interface as the local LAYA SDK so the rest of the
+    action policy code is unchanged.
+
+    The endpoint must accept a JSON body with:
+        - ``state``: the serialized action space (string)
+        - ``questions``: the decision questions (dict)
+    And return a JSON response with:
+        - ``answers``: dict of question_name → {choice, confidence, ...}
+        - ``usage``: optional token/cost telemetry
+    """
+
+    def __init__(self, endpoint: str, api_key: str, timeout: float = 5.0) -> None:
+        self._endpoint = endpoint.rstrip("/")
+        self._api_key = api_key
+        self._timeout = timeout
+
+    def system_one(
+        self,
+        state: str,
+        questions: dict[str, Any],
+        max_len: int = 2048,
+        head_max_len: int = 768,
+    ) -> dict[str, Any]:
+        """Call the remote LAYA endpoint with the state + questions.
+
+        Returns a dict matching the local SDK's response shape:
+        ``{"answers": {...}, "usage": {...}}``
+        """
+        import httpx
+
+        # Build the request payload — matches the LAYA API contract
+        payload = {
+            "state": state[:max_len],  # truncate to configured max
+            "questions": questions,
+            "max_len": max_len,
+            "head_max_len": head_max_len,
+        }
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self._api_key}",
+        }
+
+        # Determine the full URL. If the endpoint is a base URL, append
+        # the LAYA system_one path.
+        url = self._endpoint
+        if not url.endswith("/system_one") and not url.endswith("/v1/systemone"):
+            if "/v1/" in url:
+                url = f"{url}/systemone"
+            else:
+                url = f"{url}/v1/systemone"
+
+        try:
+            with httpx.Client(timeout=self._timeout) as client:
+                response = client.post(url, json=payload, headers=headers)
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            logger.warning(
+                "laya_remote_http_error",
+                status_code=e.response.status_code,
+                url=url,
+                error=str(e)[:200],
+            )
+            # Return an empty answers dict so the caller falls back gracefully
+            return {"answers": {}, "usage": {}, "error": f"HTTP {e.response.status_code}"}
+        except Exception as e:
+            logger.warning("laya_remote_call_failed", url=url, error=str(e)[:200])
+            return {"answers": {}, "usage": {}, "error": str(e)[:200]}

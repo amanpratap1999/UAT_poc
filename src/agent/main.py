@@ -472,7 +472,14 @@ class AgentOrchestrator:
         return list(self._memory.retest_packages)
 
     async def _ensure_authenticated(self) -> None:
-        """Log in to ServiceNow if the initial navigation lands on a login screen."""
+        """Log in to ServiceNow if the initial navigation lands on a login screen.
+
+        After successful login, if the agent lands on the ServiceNow workspace
+        homepage (not an Incident form), auto-navigate to the Incident list.
+        This was the root cause of Scenario 2's navigation failure — the agent
+        logged in successfully but stayed on the workspace homepage and
+        couldn't figure out how to get to the Incident list.
+        """
         if not self._browser_manager:
             return
         try:
@@ -494,6 +501,42 @@ class AgentOrchestrator:
                         await self._browser_manager.wait_for_load()
                         await page.wait_for_timeout(3000)
                         logger.info("servicenow_session_authenticated")
+
+            # Post-login navigation: if we're on the workspace homepage
+            # (not an Incident form), navigate to the Incident list so the
+            # agent has actionable controls to work with.
+            current_url = page.url.lower()
+            is_incident_form = (
+                "incident.do" in current_url
+                or "sys_id" in current_url
+                or "nav_to.do" in current_url
+            )
+            is_workspace = (
+                "now/nav" in current_url
+                or "home.do" in current_url
+                or "polaris.do" in current_url
+                or ("/" == current_url.rstrip("/")[-1:])
+            )
+            if not is_incident_form and (is_workspace or "incident" not in current_url):
+                logger.info(
+                    "post_login_navigation",
+                    current_url=current_url[:120],
+                    target="incident_list",
+                )
+                instance_url = self._settings.servicenow.instance_url.rstrip("/")
+                # Navigate to the Incident list — this is the canonical
+                # entry point for any Incident-management QA goal
+                incident_list_url = f"{instance_url}/incident_list.do?sysparm_query=active=true"
+                try:
+                    await self._browser_manager.navigate(incident_list_url)
+                    await page.wait_for_timeout(2000)
+                    logger.info("navigated_to_incident_list")
+                except Exception as nav_err:
+                    logger.warning(
+                        "post_login_navigation_failed",
+                        error=str(nav_err),
+                        fallback="agent will attempt to navigate via the decision engine",
+                    )
         except Exception as e:
             logger.warning("ensure_authenticated_skipped", error=str(e))
 
