@@ -15,6 +15,8 @@ is tested in isolation.
 from __future__ import annotations
 
 import asyncio
+import sys
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -325,6 +327,22 @@ def test_policy_configured_with_checkpoint():
         enabled=True, checkpoint="test/laya",
     ))
     assert policy.is_configured()
+
+
+def test_load_model_uses_router_without_checkpoint(monkeypatch):
+    """The default local backend uses Router without loading a checkpoint path."""
+    router = MagicMock()
+    router_constructor = MagicMock(return_value=router)
+    laya_module = SimpleNamespace(Router=router_constructor, load=MagicMock())
+    monkeypatch.setitem(sys.modules, "laya", laya_module)
+    policy = LayaActionPolicy(config=LayaActionPolicyConfig(enabled=True))
+
+    policy._load_model()
+
+    router_constructor.assert_called_once_with()
+    laya_module.load.assert_not_called()
+    assert policy._model is router
+    assert policy.model_version == "laya:router"
 
 
 # ── Tests: stats / telemetry ──
