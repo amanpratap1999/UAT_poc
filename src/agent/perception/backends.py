@@ -175,7 +175,7 @@ class MoondreamBackend(GrounderBackend):
                 logger.info(
                     "moondream_detect_success",
                     target=target_description,
-                    confidence=1.0,
+                    confidence=0.65,
                     center_x=bbox.center_x,
                     center_y=bbox.center_y,
                 )
@@ -189,7 +189,7 @@ class MoondreamBackend(GrounderBackend):
                 return PerceptionCandidate(
                     source="moondream",
                     target_description=target_description,
-                    confidence=1.0,
+                    confidence=0.65,
                     bounding_box=bbox,
                     frame_context=frame_context,
                 )
@@ -204,7 +204,7 @@ class MoondreamBackend(GrounderBackend):
                 logger.info(
                     "moondream_detect_success",
                     target=target_description,
-                    confidence=1.0,
+                    confidence=0.65,
                     center_x=bbox.center_x,
                     center_y=bbox.center_y,
                 )
@@ -218,7 +218,7 @@ class MoondreamBackend(GrounderBackend):
                 return PerceptionCandidate(
                     source="moondream",
                     target_description=target_description,
-                    confidence=1.0,
+                    confidence=0.65,
                     bounding_box=bbox,
                     frame_context=frame_context,
                 )
@@ -251,7 +251,7 @@ class MoondreamBackend(GrounderBackend):
                 return PerceptionCandidate(
                     source="moondream",
                     target_description=target_description,
-                    confidence=1.0,
+                    confidence=0.65,
                     bounding_box=BoundingBox(x=px - 5, y=py - 5, width=10, height=10),
                     frame_context=frame_context,
                 )
