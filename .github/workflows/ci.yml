@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, servicenow_testing]
   pull_request:
-    branches: [main]
+    branches: [main, servicenow_testing]
 
 jobs:
   test:
@@ -113,26 +113,24 @@ jobs:
         run: |
           pytest tests/unit/ -v --tb=short --maxfail=20
 
-      - name: Run integration tests (memory-backed only)
+      - name: Run integration tests
         env:
           SESSION_STORE_TYPE: memory
-        # P0-06: CI exclusions reviewed. The --deselect list skips tests
-        # that have pre-existing collection errors due to import-time DB
-        # connection attempts. These are NOT audit regressions — they're
-        # environment-dependent tests that require a live ServiceNow instance
-        # or have SQLAlchemy URL parsing issues at import time.
-        #
-        # Mandatory tests (unit + audit-remediation + step-cache) are NOT
-        # excluded — they run in the unit test step above.
-        #
-        # To fix these exclusions: make the DB/Redis imports lazy in the
-        # test files (import inside fixtures, not at module level).
-        # Until then, these tests are deselected to avoid false CI failures.
         run: |
-          pytest tests/integration/ -v --tb=short --maxfail=10 \
-            --deselect tests/integration/test_agent_loop.py \
-            --deselect tests/integration/test_cognitive_loop.py \
-            --deselect tests/integration/test_incident_e2e.py \
-            --deselect tests/integration/test_local_worker_smoke.py \
-            --deselect tests/integration/test_phase7_acceptance.py \
-            --deselect tests/integration/test_phase7_product_api.py
+          pytest tests/integration/ -v --tb=short --maxfail=10
+
+      - name: Static type check
+        run: |
+          mypy src --ignore-missing-imports
+
+      - name: Frontend install
+        working-directory: frontend
+        run: npm ci
+
+      - name: Frontend tests
+        working-directory: frontend
+        run: npm run test -- --run
+
+      - name: Frontend production build
+        working-directory: frontend
+        run: npm run build
