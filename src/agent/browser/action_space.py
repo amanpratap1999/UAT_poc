@@ -192,6 +192,17 @@ class BrowserActionSpace:
             )
             index_counter += 1
 
+        seen_locators: set[str] = set()
+        unique_candidates: list[ActionSpaceCandidate] = []
+        for candidate in candidates:
+            if candidate.locator in seen_locators:
+                continue
+            seen_locators.add(candidate.locator)
+            unique_candidates.append(candidate)
+        candidates = unique_candidates[: cls.MAX_CANDIDATES]
+        for new_index, candidate in enumerate(candidates, start=1):
+            candidate.index = new_index
+
         # If no candidates were produced, return None so the LAYA path is
         # skipped and the Gemini path runs unchanged.
         if not candidates:
@@ -404,29 +415,12 @@ class BrowserActionSpace:
         action_space: _ActionSpacePayload,
         current_observation: PageObservation,
     ) -> bool:
-        """Check whether the action space is still valid for the current page.
-
-        Called by the ExecutionController (P5) before resolving a
-        LAYA-chosen index to a locator. Returns True if the page hasn't
-        changed in a way that would invalidate the indexed candidates.
-        """
-        # Re-compute the fingerprint from the current observation's
-        # candidate list (re-extracted) and compare. If the URL or title
-        # changed, or the candidate set changed, the action space is stale.
-        if action_space.page_url != current_observation.url:
-            return False
-        if action_space.page_title != current_observation.title:
-            return False
-        # Full re-extraction would be expensive — instead, compare the
-        # fingerprint of the current observation's buttons+fields count +
-        # their labels. This is a heuristic; a full re-extraction is the
-        # caller's responsibility if this returns False.
-        current_labels = sorted(
-            (b.label or b.text or "") for b in current_observation.buttons
-        ) + sorted(
-            (f.name or f.label or "") for f in current_observation.visible_fields
+        """Strictly verify that the indexed action space still matches the live page."""
+        current_space = cls.from_observation(
+            current_observation,
+            plan_step=action_space.plan_step,
+            persona=action_space.persona,
         )
-        candidate_labels = sorted(c.label for c in action_space.candidates)
-        # Not a strict equality check (candidates include dual-action
-        # "Open ..." labels) — just verify the page hasn't obviously changed
-        return len(current_labels) > 0 or len(candidate_labels) == 0
+        if current_space is None:
+            return False
+        return current_space.fingerprint == action_space.fingerprint
