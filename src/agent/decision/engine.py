@@ -420,11 +420,14 @@ class DecisionEngine:
                 "No decision provider is available; autonomous execution is blocked"
             )
 
-        # P9-LAYA: stamp heuristic fallback actions with their source
+        # Record decision provenance without ever labeling a safe cached/LLM
+        # decision as a heuristic fallback.
         if chosen_action and not chosen_action.metadata.get("action_source"):
             if not chosen_action.metadata:
                 chosen_action.metadata = {}
-            chosen_action.metadata["action_source"] = "heuristic"
+            chosen_action.metadata["action_source"] = (
+                "llm" if self._llm else "step_cache"
+            )
             if laya_decision_metadata:
                 chosen_action.metadata["laya_shadow_decision"] = laya_decision_metadata
 
