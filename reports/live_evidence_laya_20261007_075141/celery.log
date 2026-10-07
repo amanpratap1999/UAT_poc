@@ -1,0 +1,1029 @@
+Starting Celery worker...
+ 
+ -------------- celery@LAPTOP-FKE1L5S1 v5.6.3 (recovery)
+--- ***** ----- 
+-- ******* ---- Windows-10-10.0.26200-SP0 2026-10-07 12:56:49
+- *** --- * --- 
+- ** ---------- [config]
+- ** ---------- .> app:         agent_worker:0x15cf0e5fd90
+- ** ---------- .> transport:   sqla+sqlite:///celery_broker.db
+- ** ---------- .> results:     sqlite:///celery_results.db
+- *** --- * --- .> concurrency: 1 (solo)
+-- ******* ---- .> task events: OFF (enable -E to monitor tasks in this worker)
+--- ***** ----- 
+ -------------- [queues]
+                .> celery           exchange=celery(direct) key=celery
+                
+
+[tasks]
+  . agent.worker.tasks.execute_run
+
+[2026-10-07 12:56:49,480: INFO/MainProcess] Connected to sqla+sqlite:///celery_broker.db
+[2026-10-07 12:56:50,020: WARNING/MainProcess] Failed to publish worker ready event: Redis URL must specify one of the following schemes (redis://, rediss://, unix://)
+[2026-10-07 12:56:50,020: INFO/MainProcess] celery@LAPTOP-FKE1L5S1 ready.
+[2026-10-07 12:59:09,067: INFO/MainProcess] Task agent.worker.tasks.execute_run[6f867faf-b469-43ee-88d0-5a0322e924fd] received
+[2026-10-07 12:59:09,135: INFO/MainProcess] agent.worker.tasks.execute_run[6f867faf-b469-43ee-88d0-5a0322e924fd]: Starting execution for run_id=45d6cf0d-4035-4d77-86b0-4f57dad05317 tenant=default test_case_id=None
+[2026-10-07 12:59:11,602: WARNING/MainProcess] 2026-10-07 12:59:11 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 12:59:11,608: WARNING/MainProcess] 2026-10-07 12:59:11 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 12:59:12,398: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=browser tool_name=click
+[2026-10-07 12:59:12,399: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=browser tool_name=fill
+[2026-10-07 12:59:12,399: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=browser tool_name=select
+[2026-10-07 12:59:12,399: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=browser tool_name=navigate
+[2026-10-07 12:59:12,399: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=browser tool_name=wait
+[2026-10-07 12:59:12,399: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=browser tool_name=scroll
+[2026-10-07 12:59:12,399: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=browser tool_name=screenshot
+[2026-10-07 12:59:12,399: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=browser tool_name=observe
+[2026-10-07 12:59:12,400: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=validation tool_name=validate_state
+[2026-10-07 12:59:12,400: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=validation tool_name=validate_field
+[2026-10-07 12:59:12,400: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=validation tool_name=validate_errors
+[2026-10-07 12:59:12,400: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=knowledge tool_name=search_documentation
+[2026-10-07 12:59:12,400: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=reporting tool_name=generate_report
+[2026-10-07 12:59:12,402: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 12:59:12,408: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 12:59:12,435: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] laya_disabled_by_config
+[2026-10-07 12:59:12,436: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] laya_not_configured_using_llm_fallback
+[2026-10-07 12:59:12,447: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] laya_action_policy_attached    checkpoint= device=auto mode=primary
+[2026-10-07 12:59:12,451: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 12:59:12,452: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=browser tool_name=click
+[2026-10-07 12:59:12,453: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=browser tool_name=fill
+[2026-10-07 12:59:12,453: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=browser tool_name=select
+[2026-10-07 12:59:12,453: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=browser tool_name=navigate
+[2026-10-07 12:59:12,454: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=browser tool_name=wait
+[2026-10-07 12:59:12,454: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=browser tool_name=scroll
+[2026-10-07 12:59:12,455: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=browser tool_name=screenshot
+[2026-10-07 12:59:12,456: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=browser tool_name=observe
+[2026-10-07 12:59:12,456: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=validation tool_name=validate_state
+[2026-10-07 12:59:12,456: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=validation tool_name=validate_field
+[2026-10-07 12:59:12,457: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=validation tool_name=validate_errors
+[2026-10-07 12:59:12,457: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=knowledge tool_name=search_documentation
+[2026-10-07 12:59:12,457: WARNING/MainProcess] 2026-10-07 12:59:12 [info     ] registered_tool                category=reporting tool_name=generate_report
+[2026-10-07 12:59:15,200: WARNING/MainProcess] C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\src\agent\perception\backends.py:334: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  import google.generativeai as genai  # type: ignore[import-untyped]
+
+[2026-10-07 12:59:15,206: WARNING/MainProcess] 2026-10-07 12:59:15 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 12:59:15,210: WARNING/MainProcess] 2026-10-07 12:59:15 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 12:59:15,921: INFO/MainProcess] agent.worker.tasks.execute_run[6f867faf-b469-43ee-88d0-5a0322e924fd]: agent_browser_configuration run_id=45d6cf0d-4035-4d77-86b0-4f57dad05317 headless=True slow_mo=0 show_mouse_cursor=True keep_browser_open=False
+[2026-10-07 12:59:15,922: WARNING/MainProcess] 2026-10-07 12:59:15 [info     ] agent_run_started              goal='Open incident INC0010041 read-only. Verify its state and priority are consistent with the Impact and Urgency values. Report any mismatch. Do not modify any records.' persona=itil_user session_id=45d6cf0d-4035-4d77-86b0-4f57dad05317
+[2026-10-07 12:59:15,935: WARNING/MainProcess] 2026-10-07 12:59:15 [debug    ] session_saved_in_memory        session_id=45d6cf0d-4035-4d77-86b0-4f57dad05317
+[2026-10-07 12:59:15,936: WARNING/MainProcess] 2026-10-07 12:59:15 [info     ] state_transition               from_state=idle reason='Parsing user prompt into structured intent' to_state=intent_analysis
+[2026-10-07 12:59:15,936: WARNING/MainProcess] 2026-10-07 12:59:15 [info     ] parsing_user_intent            prompt='Open incident INC0010041 read-only. Verify its state and priority are consistent'
+[2026-10-07 12:59:18,416: INFO/MainProcess] HTTP Request: POST https://integrate.api.nvidia.com/v1/chat/completions "HTTP/1.1 200 OK"
+[2026-10-07 12:59:18,446: WARNING/MainProcess] 2026-10-07 12:59:18 [info     ] skill_resolved_for_intent      skill=IncidentSkill
+[2026-10-07 12:59:18,447: WARNING/MainProcess] 2026-10-07 12:59:18 [info     ] launching_browser              headless=True
+[2026-10-07 12:59:27,055: WARNING/MainProcess] 2026-10-07 12:59:27 [info     ] browser_launched
+[2026-10-07 12:59:27,523: WARNING/MainProcess] 2026-10-07 12:59:27 [info     ] navigating                     url=https://aelumconsultingpvtltddemo3.service-now.com
+[2026-10-07 12:59:32,839: WARNING/MainProcess] 2026-10-07 12:59:32 [warning  ] js_page_error                  error="Cannot read properties of null (reading 'appendChild')"
+[2026-10-07 12:59:39,645: WARNING/MainProcess] 2026-10-07 12:59:39 [info     ] authenticating_servicenow_session
+[2026-10-07 12:59:51,910: WARNING/MainProcess] 2026-10-07 12:59:51 [warning  ] js_page_error                  error="Unexpected token 'export'"
+[2026-10-07 12:59:51,917: WARNING/MainProcess] 2026-10-07 12:59:51 [warning  ] js_page_error                  error="Unexpected token 'export'"
+[2026-10-07 12:59:52,483: WARNING/MainProcess] 2026-10-07 12:59:52 [warning  ] js_page_error                  error="Cannot read properties of null (reading 'appendChild')"
+[2026-10-07 13:00:07,462: WARNING/MainProcess] 2026-10-07 13:00:07 [warning  ] wait_for_load_timeout          error='Timeout 15000ms exceeded.'
+[2026-10-07 13:00:10,502: WARNING/MainProcess] 2026-10-07 13:00:10 [info     ] servicenow_session_authenticated
+[2026-10-07 13:00:10,504: WARNING/MainProcess] 2026-10-07 13:00:10 [info     ] post_login_navigation          current_url=https://aelumconsultingpvtltddemo3.service-now.com/now/sow target=incident_list
+[2026-10-07 13:00:10,506: WARNING/MainProcess] 2026-10-07 13:00:10 [info     ] navigating                     url='https://aelumconsultingpvtltddemo3.service-now.com/incident_list.do?sysparm_query=active=true'
+[2026-10-07 13:00:13,322: WARNING/MainProcess] 2026-10-07 13:00:13 [warning  ] js_page_error                  error="Cannot read properties of null (reading 'appendChild')"
+[2026-10-07 13:00:30,468: WARNING/MainProcess] 2026-10-07 13:00:30 [info     ] navigated_to_incident_list
+[2026-10-07 13:00:30,474: WARNING/MainProcess] 2026-10-07 13:00:30 [info     ] state_transition               from_state=intent_analysis reason='Creating execution plan' to_state=planning
+[2026-10-07 13:00:30,526: WARNING/MainProcess] 2026-10-07 13:00:30 [warning  ] pgvector_retrieve_failed_fallback_to_in_memory error='invalid DSN: scheme is expected to be either "postgresql" or "postgres", got \'sqlite+aiosqlite\''
+[2026-10-07 13:00:30,536: WARNING/MainProcess] 2026-10-07 13:00:30 [info     ] docs_loaded                    module=incident_management sections=17
+[2026-10-07 13:00:30,539: WARNING/MainProcess] 2026-10-07 13:00:30 [info     ] knowledge_retrieved            query='Open incident INC0010041 read-only. Verify its sta' sections_matched=5
+[2026-10-07 13:00:30,542: WARNING/MainProcess] 2026-10-07 13:00:30 [info     ] building_incident_execution_plan goal="Validate that incident INC0010041's state and priority are consistent with its Impact and Urgency values." intent_type=IncidentValidation
+[2026-10-07 13:00:30,549: WARNING/MainProcess] 2026-10-07 13:00:30 [info     ] executing_canonical_plan       goal="Validate that incident INC0010041's state and priority are consistent with its Impact and Urgency values." step_count=5
+[2026-10-07 13:00:34,875: WARNING/MainProcess] 2026-10-07 13:00:34 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=plan_created
+[2026-10-07 13:00:38,930: WARNING/MainProcess] 2026-10-07 13:00:38 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:00:39,315: WARNING/MainProcess] 2026-10-07 13:00:39 [info     ] executing_plan_step            description='Open Target Incident Record' step_index=0
+[2026-10-07 13:00:43,500: WARNING/MainProcess] 2026-10-07 13:00:43 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_started
+[2026-10-07 13:00:43,502: WARNING/MainProcess] 2026-10-07 13:00:43 [info     ] state_transition               from_state=planning reason='Observing before: Open Target Incident Record' to_state=observing
+[2026-10-07 13:00:43,504: WARNING/MainProcess] 2026-10-07 13:00:43 [debug    ] observing_page
+[2026-10-07 13:00:47,889: WARNING/MainProcess] 2026-10-07 13:00:47 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 13:00:47,893: WARNING/MainProcess] 2026-10-07 13:00:47 [debug    ] building_semantic_world_state  page_type=list
+[2026-10-07 13:00:47,899: WARNING/MainProcess] 2026-10-07 13:00:47 [info     ] world_state_built              available_actions=30 blocked_actions=0 page_semantic='Record Queue List' record_state=None
+[2026-10-07 13:00:47,902: WARNING/MainProcess] 2026-10-07 13:00:47 [warning  ] page_gate_failed               expected_record=INC0010041 observed_url='https://aelumconsultingpvtltddemo3.service-now.com/incident_list.do?sysparm_query=active=true' reason='Target record INC0010041 is not in the URL, and observation did not identify it.'
+[2026-10-07 13:00:48,057: WARNING/MainProcess] 2026-10-07 13:00:48 [info     ] page_gate_navigating           instance=https://aelumconsultingpvtltddemo3.service-now.com target_url='https://aelumconsultingpvtltddemo3.service-now.com/nav_to.do?uri=incident.do%3Fsysparm_query=number=INC0010041'
+[2026-10-07 13:00:50,341: WARNING/MainProcess] 2026-10-07 13:00:50 [warning  ] js_page_error                  error="Cannot read properties of null (reading 'appendChild')"
+[2026-10-07 13:00:54,265: WARNING/MainProcess] 2026-10-07 13:00:54 [debug    ] observing_page
+[2026-10-07 13:00:55,798: WARNING/MainProcess] 2026-10-07 13:00:55 [info     ] observation_complete           buttons=7 console_errors=0 dom_fingerprint=b65ce154 fields=0 network_errors=0 page_type=homepage validations=0
+[2026-10-07 13:00:55,799: WARNING/MainProcess] 2026-10-07 13:00:55 [debug    ] building_semantic_world_state  page_type=homepage
+[2026-10-07 13:00:55,800: WARNING/MainProcess] 2026-10-07 13:00:55 [info     ] world_state_built              available_actions=7 blocked_actions=0 page_semantic='ServiceNow Workspace' record_state=None
+[2026-10-07 13:00:56,165: WARNING/MainProcess] 2026-10-07 13:00:56 [debug    ] network_error_captured         status=404 url='https://aelumconsultingpvtltddemo3.service-now.com/api/now/v1/cs/consumerAccount/unreadConversation?sysparm_return_only=count&portal=c86a62e2c7022010099a308dc7c26022&isOffglide=true'
+[2026-10-07 13:00:56,166: WARNING/MainProcess] 2026-10-07 13:00:56 [debug    ] console_error                  message='Failed to load resource: the server responded with a status of 404 (Not Found)'
+[2026-10-07 13:00:56,331: WARNING/MainProcess] 2026-10-07 13:00:56 [debug    ] console_error                  message='{status: 404, statusText: Not Found, message: Request failed with status code 404, data: Object, options: Object}'
+[2026-10-07 13:00:56,678: WARNING/MainProcess] 2026-10-07 13:00:56 [debug    ] network_error_captured         status=404 url='https://aelumconsultingpvtltddemo3.service-now.com/api/now/v1/cs/consumerAccount/unreadConversation?sysparm_return_only=count&portal=c86a62e2c7022010099a308dc7c26022&isOffglide=true'
+[2026-10-07 13:00:56,680: WARNING/MainProcess] 2026-10-07 13:00:56 [debug    ] console_error                  message='Failed to load resource: the server responded with a status of 404 (Not Found)'
+[2026-10-07 13:00:56,681: WARNING/MainProcess] 2026-10-07 13:00:56 [debug    ] console_error                  message='{status: 404, statusText: Not Found, message: Request failed with status code 404, data: Object, options: Object}'
+[2026-10-07 13:00:59,872: WARNING/MainProcess] 2026-10-07 13:00:59 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_finished
+[2026-10-07 13:01:03,959: WARNING/MainProcess] 2026-10-07 13:01:03 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:01:03,961: WARNING/MainProcess] 2026-10-07 13:01:03 [info     ] executing_plan_step            description='Validate Initial Incident State and Preconditions' step_index=1
+[2026-10-07 13:01:08,036: WARNING/MainProcess] 2026-10-07 13:01:08 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_started
+[2026-10-07 13:01:08,037: WARNING/MainProcess] 2026-10-07 13:01:08 [info     ] state_transition               from_state=observing reason='Observing before: Validate Initial Incident State and Preconditions' to_state=observing
+[2026-10-07 13:01:08,038: WARNING/MainProcess] 2026-10-07 13:01:08 [debug    ] observing_page
+[2026-10-07 13:01:13,007: WARNING/MainProcess] 2026-10-07 13:01:13 [warning  ] js_page_error                  error='angular is not defined'
+[2026-10-07 13:01:13,011: WARNING/MainProcess] 2026-10-07 13:01:13 [warning  ] js_page_error                  error='angular is not defined'
+[2026-10-07 13:01:24,814: WARNING/MainProcess] 2026-10-07 13:01:24 [info     ] observation_complete           buttons=14 console_errors=4 dom_fingerprint=a32e8c1b fields=2 network_errors=2 page_type=form validations=0
+[2026-10-07 13:01:24,814: WARNING/MainProcess] 2026-10-07 13:01:24 [debug    ] building_semantic_world_state  page_type=form
+[2026-10-07 13:01:24,814: WARNING/MainProcess] 2026-10-07 13:01:24 [info     ] world_state_built              available_actions=14 blocked_actions=0 page_semantic='New Record Form' record_state=None
+[2026-10-07 13:01:24,815: WARNING/MainProcess] 2026-10-07 13:01:24 [info     ] state_transition               from_state=observing reason='Deciding action for: Validate Initial Incident State and Preconditions' to_state=decision
+[2026-10-07 13:01:24,819: WARNING/MainProcess] 2026-10-07 13:01:24 [info     ] making_immediate_decision      step=0
+[2026-10-07 13:01:32,291: INFO/MainProcess] HTTP Request: POST https://integrate.api.nvidia.com/v1/chat/completions "HTTP/1.1 200 OK"
+[2026-10-07 13:01:32,312: WARNING/MainProcess] 2026-10-07 13:01:32 [info     ] evaluated_confidence           action=click is_above=True score=0.75 target='Incident INC0010041' threshold=0.7
+[2026-10-07 13:01:36,406: WARNING/MainProcess] 2026-10-07 13:01:36 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:01:36,408: WARNING/MainProcess] 2026-10-07 13:01:36 [info     ] state_transition               from_state=decision reason='Executing: click on Incident INC0010041' to_state=executing
+[2026-10-07 13:01:36,747: WARNING/MainProcess] 2026-10-07 13:01:36 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\before_perception_96822.png'
+[2026-10-07 13:01:36,748: WARNING/MainProcess] 2026-10-07 13:01:36 [debug    ] observing_page
+[2026-10-07 13:01:52,382: WARNING/MainProcess] 2026-10-07 13:01:52 [info     ] observation_complete           buttons=29 console_errors=0 dom_fingerprint=75e108de fields=15 network_errors=2 page_type=form validations=2
+[2026-10-07 13:01:54,719: WARNING/MainProcess] 2026-10-07 13:01:54 [info     ] perception_started             provider=moondream reason=dom_insufficient target='Incident INC0010041'
+[2026-10-07 13:01:55,711: WARNING/MainProcess] 2026-10-07 13:01:55 [info     ] perception_started             provider=moondream target='Incident INC0010041' task=ground_element
+[2026-10-07 13:01:55,751: WARNING/MainProcess] 2026-10-07 13:01:55 [info     ] moondream_inference_started    target='Incident INC0010041' task=detect
+[2026-10-07 13:02:08,229: WARNING/MainProcess] 2026-10-07 13:02:08 [info     ] moondream_detect_success       center_x=959 center_y=25 confidence=1.0 target='Incident INC0010041'
+[2026-10-07 13:02:08,229: WARNING/MainProcess] 2026-10-07 13:02:08 [info     ] perception_completed           method=detect provider=moondream success=True target='Incident INC0010041'
+[2026-10-07 13:02:08,232: WARNING/MainProcess] 2026-10-07 13:02:08 [info     ] perception_completed           confidence=1.0 provider=moondream success=True target='Incident INC0010041'
+[2026-10-07 13:02:08,232: WARNING/MainProcess] 2026-10-07 13:02:08 [info     ] perception_route               confidence=1.0 decision=high_confidence_execute route=MOONDREAM target='Incident INC0010041'
+[2026-10-07 13:02:08,232: WARNING/MainProcess] 2026-10-07 13:02:08 [error    ] moondream_dom_mismatch         target='Incident INC0010041'
+[2026-10-07 13:02:08,664: WARNING/MainProcess] 2026-10-07 13:02:08 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\step_1_click_96854.png'
+[2026-10-07 13:02:12,756: WARNING/MainProcess] 2026-10-07 13:02:12 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:02:12,758: WARNING/MainProcess] 2026-10-07 13:02:12 [info     ] state_transition               from_state=executing reason='Observing after: Validate Initial Incident State and Preconditions' to_state=observing
+[2026-10-07 13:02:12,759: WARNING/MainProcess] 2026-10-07 13:02:12 [debug    ] observing_page
+[2026-10-07 13:02:27,056: WARNING/MainProcess] 2026-10-07 13:02:27 [info     ] observation_complete           buttons=29 console_errors=0 dom_fingerprint=75e108de fields=15 network_errors=2 page_type=form validations=2
+[2026-10-07 13:02:27,057: WARNING/MainProcess] 2026-10-07 13:02:27 [debug    ] building_semantic_world_state  page_type=form
+[2026-10-07 13:02:27,059: WARNING/MainProcess] 2026-10-07 13:02:27 [info     ] world_state_built              available_actions=29 blocked_actions=0 page_semantic='Domain Record (INC0010041)' record_state=2
+[2026-10-07 13:02:27,060: WARNING/MainProcess] 2026-10-07 13:02:27 [info     ] state_transition               from_state=observing reason='Validating: Validate Initial Incident State and Preconditions' to_state=validating
+[2026-10-07 13:02:27,063: WARNING/MainProcess] 2026-10-07 13:02:27 [info     ] validating_action              action_type=click
+[2026-10-07 13:02:27,079: WARNING/MainProcess] 2026-10-07 13:02:27 [info     ] validation_complete            checks=5 failed=2 passed=False
+[2026-10-07 13:02:27,081: WARNING/MainProcess] 2026-10-07 13:02:27 [info     ] incident_skill_validating_action action=click
+[2026-10-07 13:02:27,084: WARNING/MainProcess] 2026-10-07 13:02:27 [debug    ] parsing_incident_from_observation url=https://aelumconsultingpvtltddemo3.service-now.com/now/nav/ui/classic/params/target/incident.do%3Fsysparm_query%3Dnumber%3DINC0010041
+[2026-10-07 13:02:27,090: WARNING/MainProcess] 2026-10-07 13:02:27 [info     ] incident_parsed                number=INC0010041 short_description= state=unknown
+[2026-10-07 13:02:27,091: WARNING/MainProcess] 2026-10-07 13:02:27 [debug    ] parsing_incident_from_observation url=https://aelumconsultingpvtltddemo3.service-now.com/now/nav/ui/classic/params/target/incident.do%3Fsysparm_query%3Dnumber%3DINC0010041
+[2026-10-07 13:02:27,091: WARNING/MainProcess] 2026-10-07 13:02:27 [info     ] incident_parsed                number=INC0010041 short_description= state=2
+[2026-10-07 13:02:27,091: WARNING/MainProcess] 2026-10-07 13:02:27 [info     ] validating_incident_business_outcome step="Step 0 of the Execution Plan failed because the agent is not on the incident record form. The current page shows a list/filtered view with a button/link labeled 'Incident INC0010041' that opens the record. Clicking it will navigate to the INC0010041 form, allowing subsequent validation steps."
+[2026-10-07 13:02:27,097: WARNING/MainProcess] 2026-10-07 13:02:27 [info     ] evidence_recorded              confidence=0.5 evidence_id=EV-001 passed=False step='Step 0 of the Execution Plan failed beca'
+[2026-10-07 13:02:31,177: WARNING/MainProcess] 2026-10-07 13:02:31 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_finished
+[2026-10-07 13:02:35,282: WARNING/MainProcess] 2026-10-07 13:02:35 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:02:35,284: WARNING/MainProcess] 2026-10-07 13:02:35 [info     ] executing_plan_step            description='Update State to In Progress' step_index=2
+[2026-10-07 13:02:39,386: WARNING/MainProcess] 2026-10-07 13:02:39 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_started
+[2026-10-07 13:02:39,402: WARNING/MainProcess] 2026-10-07 13:02:39 [info     ] state_transition               from_state=validating reason='Observing before: Update State to In Progress' to_state=observing
+[2026-10-07 13:02:39,403: WARNING/MainProcess] 2026-10-07 13:02:39 [debug    ] observing_page
+[2026-10-07 13:02:53,359: WARNING/MainProcess] 2026-10-07 13:02:53 [info     ] observation_complete           buttons=29 console_errors=0 dom_fingerprint=75e108de fields=15 network_errors=2 page_type=form validations=2
+[2026-10-07 13:02:53,360: WARNING/MainProcess] 2026-10-07 13:02:53 [debug    ] building_semantic_world_state  page_type=form
+[2026-10-07 13:02:53,362: WARNING/MainProcess] 2026-10-07 13:02:53 [info     ] world_state_built              available_actions=29 blocked_actions=0 page_semantic='Domain Record (INC0010041)' record_state=2
+[2026-10-07 13:02:53,363: WARNING/MainProcess] 2026-10-07 13:02:53 [debug    ] observing_page
+[2026-10-07 13:03:07,195: WARNING/MainProcess] 2026-10-07 13:03:07 [info     ] observation_complete           buttons=29 console_errors=0 dom_fingerprint=75e108de fields=15 network_errors=2 page_type=form validations=2
+[2026-10-07 13:03:07,601: WARNING/MainProcess] 2026-10-07 13:03:07 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\read_only_observation_2_96913.png'
+[2026-10-07 13:03:11,673: WARNING/MainProcess] 2026-10-07 13:03:11 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_finished
+[2026-10-07 13:03:11,675: WARNING/MainProcess] 2026-10-07 13:03:11 [warning  ] local_lock_fallback            lock_key=uat:lease:instance:record:INC0010041 note='Process-local lock � not cross-worker. Set store_type=redis for production.' session_id=45d6cf0d-4035-4d77-86b0-4f57dad05317
+[2026-10-07 13:03:15,757: WARNING/MainProcess] 2026-10-07 13:03:15 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:03:15,758: WARNING/MainProcess] 2026-10-07 13:03:15 [info     ] executing_plan_step            description='Click Update to Persist Record' step_index=3
+[2026-10-07 13:03:19,868: WARNING/MainProcess] 2026-10-07 13:03:19 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_started
+[2026-10-07 13:03:19,868: WARNING/MainProcess] 2026-10-07 13:03:19 [info     ] state_transition               from_state=observing reason='Observing before: Click Update to Persist Record' to_state=observing
+[2026-10-07 13:03:19,870: WARNING/MainProcess] 2026-10-07 13:03:19 [debug    ] observing_page
+[2026-10-07 13:03:34,922: WARNING/MainProcess] 2026-10-07 13:03:34 [info     ] observation_complete           buttons=29 console_errors=0 dom_fingerprint=75e108de fields=15 network_errors=2 page_type=form validations=2
+[2026-10-07 13:03:34,923: WARNING/MainProcess] 2026-10-07 13:03:34 [debug    ] building_semantic_world_state  page_type=form
+[2026-10-07 13:03:34,925: WARNING/MainProcess] 2026-10-07 13:03:34 [info     ] world_state_built              available_actions=29 blocked_actions=0 page_semantic='Domain Record (INC0010041)' record_state=2
+[2026-10-07 13:03:34,926: WARNING/MainProcess] 2026-10-07 13:03:34 [debug    ] observing_page
+[2026-10-07 13:03:48,941: WARNING/MainProcess] 2026-10-07 13:03:48 [info     ] observation_complete           buttons=29 console_errors=0 dom_fingerprint=75e108de fields=15 network_errors=2 page_type=form validations=2
+[2026-10-07 13:03:49,257: WARNING/MainProcess] 2026-10-07 13:03:49 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\read_only_observation_3_96954.png'
+[2026-10-07 13:03:53,341: WARNING/MainProcess] 2026-10-07 13:03:53 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_finished
+[2026-10-07 13:03:57,420: WARNING/MainProcess] 2026-10-07 13:03:57 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:03:57,421: WARNING/MainProcess] 2026-10-07 13:03:57 [info     ] executing_plan_step            description='Re-open and Validate Incident State' step_index=4
+[2026-10-07 13:04:01,493: WARNING/MainProcess] 2026-10-07 13:04:01 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_started
+[2026-10-07 13:04:01,495: WARNING/MainProcess] 2026-10-07 13:04:01 [info     ] state_transition               from_state=observing reason='Observing before: Re-open and Validate Incident State' to_state=observing
+[2026-10-07 13:04:01,496: WARNING/MainProcess] 2026-10-07 13:04:01 [debug    ] observing_page
+[2026-10-07 13:04:21,362: WARNING/MainProcess] 2026-10-07 13:04:21 [info     ] observation_complete           buttons=29 console_errors=0 dom_fingerprint=75e108de fields=15 network_errors=2 page_type=form validations=2
+[2026-10-07 13:04:21,369: WARNING/MainProcess] 2026-10-07 13:04:21 [debug    ] building_semantic_world_state  page_type=form
+[2026-10-07 13:04:21,372: WARNING/MainProcess] 2026-10-07 13:04:21 [info     ] world_state_built              available_actions=29 blocked_actions=0 page_semantic='Domain Record (INC0010041)' record_state=2
+[2026-10-07 13:04:21,373: WARNING/MainProcess] 2026-10-07 13:04:21 [debug    ] observing_page
+[2026-10-07 13:04:39,702: WARNING/MainProcess] 2026-10-07 13:04:39 [info     ] observation_complete           buttons=29 console_errors=0 dom_fingerprint=75e108de fields=15 network_errors=2 page_type=form validations=2
+[2026-10-07 13:04:40,364: WARNING/MainProcess] 2026-10-07 13:04:40 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\read_only_observation_4_97005.png'
+[2026-10-07 13:04:44,430: WARNING/MainProcess] 2026-10-07 13:04:44 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_finished
+[2026-10-07 13:04:44,441: WARNING/MainProcess] 2026-10-07 13:04:44 [info     ] generating_final_report
+[2026-10-07 13:04:44,464: WARNING/MainProcess] 2026-10-07 13:04:44 [info     ] generating_report_summary
+[2026-10-07 13:05:14,323: INFO/MainProcess] HTTP Request: POST https://integrate.api.nvidia.com/v1/chat/completions "HTTP/1.1 200 OK"
+[2026-10-07 13:05:14,372: WARNING/MainProcess] 2026-10-07 13:05:14 [info     ] generating_report              session_id=45d6cf0d-4035-4d77-86b0-4f57dad05317
+[2026-10-07 13:05:14,449: WARNING/MainProcess] 2026-10-07 13:05:14 [info     ] exit_criteria_pass             coverage=0.0 requirements_covered=1 requirements_total=0
+[2026-10-07 13:05:14,450: WARNING/MainProcess] 2026-10-07 13:05:14 [info     ] exit_criteria_evaluated        reason='All requirements covered; no open defects; all retests passed.' verdict=PASS
+[2026-10-07 13:05:14,979: WARNING/MainProcess] 2026-10-07 13:05:14 [info     ] report_generated               defects=0 report_id=RPT-7D85E59A status=partial
+[2026-10-07 13:05:14,989: WARNING/MainProcess] 2026-10-07 13:05:14 [info     ] report_saved                   format=markdown path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\reports\\RPT-7D85E59A_20261007_072915.md'
+[2026-10-07 13:05:15,051: WARNING/MainProcess] 2026-10-07 13:05:15 [info     ] report_saved                   format=json path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\reports\\RPT-7D85E59A_20261007_072915.json'
+[2026-10-07 13:05:15,191: WARNING/MainProcess] 2026-10-07 13:05:15 [info     ] xlsx_results_exported          path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\reports\\RPT-7D85E59A_20261007_073515.xlsx' rows=1
+[2026-10-07 13:05:15,205: WARNING/MainProcess] 2026-10-07 13:05:15 [debug    ] session_saved_in_memory        session_id=45d6cf0d-4035-4d77-86b0-4f57dad05317
+[2026-10-07 13:05:15,206: WARNING/MainProcess] 2026-10-07 13:05:15 [info     ] closing_browser_after_run      headless=True keep_browser_open=False session_id=45d6cf0d-4035-4d77-86b0-4f57dad05317
+[2026-10-07 13:05:15,207: WARNING/MainProcess] 2026-10-07 13:05:15 [info     ] closing_browser_context
+[2026-10-07 13:05:15,542: WARNING/MainProcess] 2026-10-07 13:05:15 [info     ] agent_run_completed            actions=4 session_id=45d6cf0d-4035-4d77-86b0-4f57dad05317 state=completed
+[2026-10-07 13:05:16,038: INFO/MainProcess] agent.worker.tasks.execute_run[6f867faf-b469-43ee-88d0-5a0322e924fd]: perception_evidence_saved: C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\reports\45d6cf0d-4035-4d77-86b0-4f57dad05317_perception.json
+[2026-10-07 13:05:16,323: INFO/MainProcess] agent.worker.tasks.execute_run[6f867faf-b469-43ee-88d0-5a0322e924fd]: result_snapshot_saved: C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\reports\45d6cf0d-4035-4d77-86b0-4f57dad05317_result.json
+[2026-10-07 13:05:16,780: WARNING/MainProcess] 2026-10-07 13:05:16 [debug    ] session_deleted_in_memory      session_id=session:45d6cf0d-4035-4d77-86b0-4f57dad05317
+[2026-10-07 13:05:16,850: INFO/MainProcess] Task agent.worker.tasks.execute_run[6f867faf-b469-43ee-88d0-5a0322e924fd] succeeded in 367.7649999999994s: 'done'
+[2026-10-07 13:10:53,902: INFO/MainProcess] Task agent.worker.tasks.execute_run[bb6c251d-5d92-42d0-8ada-b0adf63c4c02] received
+[2026-10-07 13:10:53,974: INFO/MainProcess] agent.worker.tasks.execute_run[bb6c251d-5d92-42d0-8ada-b0adf63c4c02]: Starting execution for run_id=b27458c0-b64b-4887-9c01-967e94791f4a tenant=default test_case_id=None
+[2026-10-07 13:10:54,303: WARNING/MainProcess] 2026-10-07 13:10:54 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 13:10:54,318: WARNING/MainProcess] 2026-10-07 13:10:54 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 13:10:55,142: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=browser tool_name=click
+[2026-10-07 13:10:55,143: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=browser tool_name=fill
+[2026-10-07 13:10:55,143: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=browser tool_name=select
+[2026-10-07 13:10:55,143: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=browser tool_name=navigate
+[2026-10-07 13:10:55,143: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=browser tool_name=wait
+[2026-10-07 13:10:55,143: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=browser tool_name=scroll
+[2026-10-07 13:10:55,143: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=browser tool_name=screenshot
+[2026-10-07 13:10:55,143: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=browser tool_name=observe
+[2026-10-07 13:10:55,143: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=validation tool_name=validate_state
+[2026-10-07 13:10:55,144: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=validation tool_name=validate_field
+[2026-10-07 13:10:55,144: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=validation tool_name=validate_errors
+[2026-10-07 13:10:55,144: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=knowledge tool_name=search_documentation
+[2026-10-07 13:10:55,144: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=reporting tool_name=generate_report
+[2026-10-07 13:10:55,149: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 13:10:55,158: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 13:10:55,158: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] laya_disabled_by_config
+[2026-10-07 13:10:55,158: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] laya_not_configured_using_llm_fallback
+[2026-10-07 13:10:55,164: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 13:10:55,165: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=browser tool_name=click
+[2026-10-07 13:10:55,165: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=browser tool_name=fill
+[2026-10-07 13:10:55,165: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=browser tool_name=select
+[2026-10-07 13:10:55,165: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=browser tool_name=navigate
+[2026-10-07 13:10:55,166: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=browser tool_name=wait
+[2026-10-07 13:10:55,166: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=browser tool_name=scroll
+[2026-10-07 13:10:55,167: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=browser tool_name=screenshot
+[2026-10-07 13:10:55,167: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=browser tool_name=observe
+[2026-10-07 13:10:55,167: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=validation tool_name=validate_state
+[2026-10-07 13:10:55,167: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=validation tool_name=validate_field
+[2026-10-07 13:10:55,167: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=validation tool_name=validate_errors
+[2026-10-07 13:10:55,167: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=knowledge tool_name=search_documentation
+[2026-10-07 13:10:55,168: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] registered_tool                category=reporting tool_name=generate_report
+[2026-10-07 13:10:55,370: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 13:10:55,376: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 13:10:55,712: INFO/MainProcess] agent.worker.tasks.execute_run[bb6c251d-5d92-42d0-8ada-b0adf63c4c02]: agent_browser_configuration run_id=b27458c0-b64b-4887-9c01-967e94791f4a headless=True slow_mo=0 show_mouse_cursor=True keep_browser_open=False
+[2026-10-07 13:10:55,714: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] agent_run_started              goal='Read-only inspect the Incident list. For each visible Incident, verify it has Short Description and Caller populated. Report any missing mandatory fields. Do not modify any records.' persona=itil_user session_id=b27458c0-b64b-4887-9c01-967e94791f4a
+[2026-10-07 13:10:55,722: WARNING/MainProcess] 2026-10-07 13:10:55 [debug    ] session_saved_in_memory        session_id=b27458c0-b64b-4887-9c01-967e94791f4a
+[2026-10-07 13:10:55,723: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] state_transition               from_state=idle reason='Parsing user prompt into structured intent' to_state=intent_analysis
+[2026-10-07 13:10:55,724: WARNING/MainProcess] 2026-10-07 13:10:55 [info     ] parsing_user_intent            prompt='Read-only inspect the Incident list. For each visible Incident, verify it has Sh'
+[2026-10-07 13:10:57,900: INFO/MainProcess] HTTP Request: POST https://integrate.api.nvidia.com/v1/chat/completions "HTTP/1.1 200 OK"
+[2026-10-07 13:10:57,912: WARNING/MainProcess] 2026-10-07 13:10:57 [info     ] skill_resolved_for_intent      skill=IncidentSkill
+[2026-10-07 13:10:57,912: WARNING/MainProcess] 2026-10-07 13:10:57 [info     ] launching_browser              headless=True
+[2026-10-07 13:11:00,466: WARNING/MainProcess] 2026-10-07 13:11:00 [info     ] browser_launched
+[2026-10-07 13:11:00,898: WARNING/MainProcess] 2026-10-07 13:11:00 [info     ] navigating                     url=https://aelumconsultingpvtltddemo3.service-now.com
+[2026-10-07 13:11:03,908: WARNING/MainProcess] 2026-10-07 13:11:03 [warning  ] js_page_error                  error="Cannot read properties of null (reading 'appendChild')"
+[2026-10-07 13:11:14,812: WARNING/MainProcess] 2026-10-07 13:11:14 [info     ] authenticating_servicenow_session
+[2026-10-07 13:11:15,824: WARNING/MainProcess] 2026-10-07 13:11:15 [warning  ] js_page_error                  error="Unexpected token 'export'"
+[2026-10-07 13:11:15,831: WARNING/MainProcess] 2026-10-07 13:11:15 [warning  ] js_page_error                  error="Unexpected token 'export'"
+[2026-10-07 13:11:17,616: WARNING/MainProcess] 2026-10-07 13:11:17 [warning  ] js_page_error                  error="Cannot read properties of undefined (reading 'scriptLoader')"
+[2026-10-07 13:11:17,832: WARNING/MainProcess] 2026-10-07 13:11:17 [warning  ] js_page_error                  error="Cannot read properties of null (reading 'appendChild')"
+[2026-10-07 13:11:35,110: WARNING/MainProcess] 2026-10-07 13:11:35 [info     ] servicenow_session_authenticated
+[2026-10-07 13:11:35,113: WARNING/MainProcess] 2026-10-07 13:11:35 [info     ] post_login_navigation          current_url=https://aelumconsultingpvtltddemo3.service-now.com/now/sow/home target=incident_list
+[2026-10-07 13:11:35,114: WARNING/MainProcess] 2026-10-07 13:11:35 [info     ] navigating                     url='https://aelumconsultingpvtltddemo3.service-now.com/incident_list.do?sysparm_query=active=true'
+[2026-10-07 13:11:37,186: WARNING/MainProcess] 2026-10-07 13:11:37 [warning  ] js_page_error                  error="Cannot read properties of null (reading 'appendChild')"
+[2026-10-07 13:11:43,281: WARNING/MainProcess] 2026-10-07 13:11:43 [info     ] navigated_to_incident_list
+[2026-10-07 13:11:43,292: WARNING/MainProcess] 2026-10-07 13:11:43 [info     ] state_transition               from_state=intent_analysis reason='Creating execution plan' to_state=planning
+[2026-10-07 13:11:43,355: WARNING/MainProcess] 2026-10-07 13:11:43 [warning  ] pgvector_retrieve_failed_fallback_to_in_memory error='invalid DSN: scheme is expected to be either "postgresql" or "postgres", got \'sqlite+aiosqlite\''
+[2026-10-07 13:11:43,370: WARNING/MainProcess] 2026-10-07 13:11:43 [info     ] docs_loaded                    module=incident_management sections=17
+[2026-10-07 13:11:43,377: WARNING/MainProcess] 2026-10-07 13:11:43 [info     ] knowledge_retrieved            query='Read-only inspect the Incident list. For each visi' sections_matched=5
+[2026-10-07 13:11:43,387: WARNING/MainProcess] 2026-10-07 13:11:43 [info     ] building_incident_execution_plan goal='Validate that all visible incidents have Short Description and Caller populated.' intent_type=IncidentValidation
+[2026-10-07 13:11:43,472: WARNING/MainProcess] 2026-10-07 13:11:43 [info     ] executing_canonical_plan       goal='Validate that all visible incidents have Short Description and Caller populated.' step_count=6
+[2026-10-07 13:11:48,561: WARNING/MainProcess] 2026-10-07 13:11:48 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=plan_created
+[2026-10-07 13:11:52,630: WARNING/MainProcess] 2026-10-07 13:11:52 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:11:52,633: WARNING/MainProcess] 2026-10-07 13:11:52 [info     ] executing_plan_step            description='Navigate to Incident Management' step_index=0
+[2026-10-07 13:11:56,695: WARNING/MainProcess] 2026-10-07 13:11:56 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_started
+[2026-10-07 13:11:56,699: WARNING/MainProcess] 2026-10-07 13:11:56 [info     ] state_transition               from_state=planning reason='Observing before: Navigate to Incident Management' to_state=observing
+[2026-10-07 13:11:56,700: WARNING/MainProcess] 2026-10-07 13:11:56 [debug    ] observing_page
+[2026-10-07 13:11:59,965: WARNING/MainProcess] Exception ignored in: 
+[2026-10-07 13:11:59,966: WARNING/MainProcess] <function BaseSubprocessTransport.__del__ at 0x0000015CEF8B4CC0>
+[2026-10-07 13:11:59,966: WARNING/MainProcess] Traceback (most recent call last):
+[2026-10-07 13:11:59,969: WARNING/MainProcess]   File "C:\Users\Prakhar Singh\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_subprocess.py", line 125, in __del__
+[2026-10-07 13:12:00,107: WARNING/MainProcess]     
+[2026-10-07 13:12:00,107: WARNING/MainProcess] _warn(f"unclosed transport {self!r}", ResourceWarning, source=self)
+[2026-10-07 13:12:00,111: WARNING/MainProcess]  
+[2026-10-07 13:12:00,111: WARNING/MainProcess]  
+[2026-10-07 13:12:00,113: WARNING/MainProcess]  
+[2026-10-07 13:12:00,113: WARNING/MainProcess]  
+[2026-10-07 13:12:00,113: WARNING/MainProcess]  
+[2026-10-07 13:12:00,113: WARNING/MainProcess]  
+[2026-10-07 13:12:00,113: WARNING/MainProcess]  
+[2026-10-07 13:12:00,113: WARNING/MainProcess]  
+[2026-10-07 13:12:00,113: WARNING/MainProcess]  
+[2026-10-07 13:12:00,113: WARNING/MainProcess]  
+[2026-10-07 13:12:00,113: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,113: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,113: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,113: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,113: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,113: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,113: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,113: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,113: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,113: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,113: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,113: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,113: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,113: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,113: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,115: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,115: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,115: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,115: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,115: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,115: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,115: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,115: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,117: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,117: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,117: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,117: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,117: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,117: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,117: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,117: WARNING/MainProcess]   File "C:\Users\Prakhar Singh\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_subprocess.py", line 70, in __repr__
+[2026-10-07 13:12:00,119: WARNING/MainProcess]     
+[2026-10-07 13:12:00,119: WARNING/MainProcess] info.append(f'stdin={stdin.pipe}')
+[2026-10-07 13:12:00,123: WARNING/MainProcess]  
+[2026-10-07 13:12:00,125: WARNING/MainProcess]  
+[2026-10-07 13:12:00,125: WARNING/MainProcess]  
+[2026-10-07 13:12:00,125: WARNING/MainProcess]  
+[2026-10-07 13:12:00,125: WARNING/MainProcess]  
+[2026-10-07 13:12:00,125: WARNING/MainProcess]  
+[2026-10-07 13:12:00,125: WARNING/MainProcess]  
+[2026-10-07 13:12:00,125: WARNING/MainProcess]  
+[2026-10-07 13:12:00,125: WARNING/MainProcess]  
+[2026-10-07 13:12:00,125: WARNING/MainProcess]  
+[2026-10-07 13:12:00,125: WARNING/MainProcess]  
+[2026-10-07 13:12:00,125: WARNING/MainProcess]  
+[2026-10-07 13:12:00,125: WARNING/MainProcess]  
+[2026-10-07 13:12:00,127: WARNING/MainProcess]  
+[2026-10-07 13:12:00,127: WARNING/MainProcess]  
+[2026-10-07 13:12:00,127: WARNING/MainProcess]  
+[2026-10-07 13:12:00,127: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,127: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,127: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,127: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,127: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,127: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,127: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,127: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,127: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,127: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,127: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,127: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,127: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,127: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,127: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,127: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,127: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,127: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,127: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,127: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,127: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,127: WARNING/MainProcess]   File "C:\Users\Prakhar Singh\AppData\Local\Programs\Python\Python311\Lib\asyncio\proactor_events.py", line 80, in __repr__
+[2026-10-07 13:12:00,236: WARNING/MainProcess]     
+[2026-10-07 13:12:00,236: WARNING/MainProcess] info.append(f'fd={self._sock.fileno()}')
+[2026-10-07 13:12:00,238: WARNING/MainProcess]  
+[2026-10-07 13:12:00,238: WARNING/MainProcess]  
+[2026-10-07 13:12:00,238: WARNING/MainProcess]  
+[2026-10-07 13:12:00,240: WARNING/MainProcess]  
+[2026-10-07 13:12:00,240: WARNING/MainProcess]  
+[2026-10-07 13:12:00,240: WARNING/MainProcess]  
+[2026-10-07 13:12:00,240: WARNING/MainProcess]  
+[2026-10-07 13:12:00,240: WARNING/MainProcess]  
+[2026-10-07 13:12:00,240: WARNING/MainProcess]  
+[2026-10-07 13:12:00,240: WARNING/MainProcess]  
+[2026-10-07 13:12:00,240: WARNING/MainProcess]  
+[2026-10-07 13:12:00,240: WARNING/MainProcess]  
+[2026-10-07 13:12:00,240: WARNING/MainProcess]  
+[2026-10-07 13:12:00,240: WARNING/MainProcess]  
+[2026-10-07 13:12:00,242: WARNING/MainProcess]  
+[2026-10-07 13:12:00,242: WARNING/MainProcess]  
+[2026-10-07 13:12:00,242: WARNING/MainProcess]  
+[2026-10-07 13:12:00,242: WARNING/MainProcess]  
+[2026-10-07 13:12:00,242: WARNING/MainProcess]  
+[2026-10-07 13:12:00,242: WARNING/MainProcess]  
+[2026-10-07 13:12:00,242: WARNING/MainProcess]  
+[2026-10-07 13:12:00,242: WARNING/MainProcess]  
+[2026-10-07 13:12:00,242: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,242: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,242: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,242: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,242: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,242: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,242: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,242: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,242: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,242: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,242: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,242: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,244: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,244: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,244: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,244: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,244: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,244: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,244: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,246: WARNING/MainProcess]   File "C:\Users\Prakhar Singh\AppData\Local\Programs\Python\Python311\Lib\asyncio\windows_utils.py", line 102, in fileno
+[2026-10-07 13:12:00,304: WARNING/MainProcess]     
+[2026-10-07 13:12:00,304: WARNING/MainProcess] raise ValueError("I/O operation on closed pipe")
+[2026-10-07 13:12:00,306: WARNING/MainProcess] ValueError
+[2026-10-07 13:12:00,306: WARNING/MainProcess] : 
+[2026-10-07 13:12:00,306: WARNING/MainProcess] I/O operation on closed pipe
+[2026-10-07 13:12:00,308: WARNING/MainProcess] Exception ignored in: 
+[2026-10-07 13:12:00,308: WARNING/MainProcess] <function _ProactorBasePipeTransport.__del__ at 0x0000015CEF8B63E0>
+[2026-10-07 13:12:00,308: WARNING/MainProcess] Traceback (most recent call last):
+[2026-10-07 13:12:00,308: WARNING/MainProcess]   File "C:\Users\Prakhar Singh\AppData\Local\Programs\Python\Python311\Lib\asyncio\proactor_events.py", line 116, in __del__
+[2026-10-07 13:12:00,310: WARNING/MainProcess]     
+[2026-10-07 13:12:00,310: WARNING/MainProcess] _warn(f"unclosed transport {self!r}", ResourceWarning, source=self)
+[2026-10-07 13:12:00,310: WARNING/MainProcess]  
+[2026-10-07 13:12:00,310: WARNING/MainProcess]  
+[2026-10-07 13:12:00,310: WARNING/MainProcess]  
+[2026-10-07 13:12:00,310: WARNING/MainProcess]  
+[2026-10-07 13:12:00,310: WARNING/MainProcess]  
+[2026-10-07 13:12:00,310: WARNING/MainProcess]  
+[2026-10-07 13:12:00,310: WARNING/MainProcess]  
+[2026-10-07 13:12:00,312: WARNING/MainProcess]  
+[2026-10-07 13:12:00,312: WARNING/MainProcess]  
+[2026-10-07 13:12:00,314: WARNING/MainProcess]  
+[2026-10-07 13:12:00,314: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,314: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,314: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,314: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,314: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,314: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,314: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,315: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,315: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,315: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,315: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,315: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,315: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,315: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,315: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,315: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,315: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,315: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,315: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,315: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,315: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,315: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,315: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,315: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,315: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,315: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,315: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,315: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,315: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,315: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,315: WARNING/MainProcess]   File "C:\Users\Prakhar Singh\AppData\Local\Programs\Python\Python311\Lib\asyncio\proactor_events.py", line 80, in __repr__
+[2026-10-07 13:12:00,317: WARNING/MainProcess]     
+[2026-10-07 13:12:00,317: WARNING/MainProcess] info.append(f'fd={self._sock.fileno()}')
+[2026-10-07 13:12:00,317: WARNING/MainProcess]  
+[2026-10-07 13:12:00,317: WARNING/MainProcess]  
+[2026-10-07 13:12:00,317: WARNING/MainProcess]  
+[2026-10-07 13:12:00,317: WARNING/MainProcess]  
+[2026-10-07 13:12:00,319: WARNING/MainProcess]  
+[2026-10-07 13:12:00,319: WARNING/MainProcess]  
+[2026-10-07 13:12:00,319: WARNING/MainProcess]  
+[2026-10-07 13:12:00,319: WARNING/MainProcess]  
+[2026-10-07 13:12:00,319: WARNING/MainProcess]  
+[2026-10-07 13:12:00,321: WARNING/MainProcess]  
+[2026-10-07 13:12:00,321: WARNING/MainProcess]  
+[2026-10-07 13:12:00,321: WARNING/MainProcess]  
+[2026-10-07 13:12:00,321: WARNING/MainProcess]  
+[2026-10-07 13:12:00,321: WARNING/MainProcess]  
+[2026-10-07 13:12:00,321: WARNING/MainProcess]  
+[2026-10-07 13:12:00,321: WARNING/MainProcess]  
+[2026-10-07 13:12:00,321: WARNING/MainProcess]  
+[2026-10-07 13:12:00,322: WARNING/MainProcess]  
+[2026-10-07 13:12:00,322: WARNING/MainProcess]  
+[2026-10-07 13:12:00,322: WARNING/MainProcess]  
+[2026-10-07 13:12:00,322: WARNING/MainProcess]  
+[2026-10-07 13:12:00,323: WARNING/MainProcess]  
+[2026-10-07 13:12:00,323: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,323: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,323: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,323: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,323: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,323: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,323: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,323: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,323: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,323: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,323: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,323: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,323: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,323: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,323: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,323: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,323: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,323: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,323: WARNING/MainProcess] ^
+[2026-10-07 13:12:00,323: WARNING/MainProcess]   File "C:\Users\Prakhar Singh\AppData\Local\Programs\Python\Python311\Lib\asyncio\windows_utils.py", line 102, in fileno
+[2026-10-07 13:12:00,330: WARNING/MainProcess]     
+[2026-10-07 13:12:00,330: WARNING/MainProcess] raise ValueError("I/O operation on closed pipe")
+[2026-10-07 13:12:00,330: WARNING/MainProcess] ValueError
+[2026-10-07 13:12:00,330: WARNING/MainProcess] : 
+[2026-10-07 13:12:00,330: WARNING/MainProcess] I/O operation on closed pipe
+[2026-10-07 13:12:00,456: ERROR/MainProcess] Task exception was never retrieved
+future: <Task finished name='Task-27' coro=<AsyncClient.aclose() done, defined at C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\httpx2\_client.py:2198> exception=RuntimeError('Event loop is closed')>
+Traceback (most recent call last):
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\httpx2\_client.py", line 2205, in aclose
+    await self._transport.aclose()
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\httpx2\_transports\default.py", line 400, in aclose
+    await self._pool.aclose()
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\httpcore2\_async\connection_pool.py", line 382, in aclose
+    await self._close_connections(closing_connections)
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\httpcore2\_async\connection_pool.py", line 374, in _close_connections
+    await connection.aclose()
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\httpcore2\_async\connection.py", line 157, in aclose
+    await self._connection.aclose()
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\httpcore2\_async\http11.py", line 236, in aclose
+    await self._network_stream.aclose()
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\httpcore2\_backends\anyio.py", line 55, in aclose
+    await self._stream.aclose()
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\anyio\streams\tls.py", line 248, in aclose
+    await self.transport_stream.aclose()
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1467, in aclose
+    self._transport.close()
+  File "C:\Users\Prakhar Singh\AppData\Local\Programs\Python\Python311\Lib\asyncio\proactor_events.py", line 109, in close
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "C:\Users\Prakhar Singh\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 762, in call_soon
+    self._check_closed()
+  File "C:\Users\Prakhar Singh\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 520, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+[2026-10-07 13:12:00,975: ERROR/MainProcess] Task exception was never retrieved
+future: <Task finished name='Task-28' coro=<AsyncClient.aclose() done, defined at C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\httpx2\_client.py:2198> exception=RuntimeError('Event loop is closed')>
+Traceback (most recent call last):
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\httpx2\_client.py", line 2205, in aclose
+    await self._transport.aclose()
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\httpx2\_transports\default.py", line 400, in aclose
+    await self._pool.aclose()
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\httpcore2\_async\connection_pool.py", line 382, in aclose
+    await self._close_connections(closing_connections)
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\httpcore2\_async\connection_pool.py", line 374, in _close_connections
+    await connection.aclose()
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\httpcore2\_async\connection.py", line 157, in aclose
+    await self._connection.aclose()
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\httpcore2\_async\http11.py", line 236, in aclose
+    await self._network_stream.aclose()
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\httpcore2\_backends\anyio.py", line 55, in aclose
+    await self._stream.aclose()
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\anyio\streams\tls.py", line 248, in aclose
+    await self.transport_stream.aclose()
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1467, in aclose
+    self._transport.close()
+  File "C:\Users\Prakhar Singh\AppData\Local\Programs\Python\Python311\Lib\asyncio\proactor_events.py", line 109, in close
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "C:\Users\Prakhar Singh\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 762, in call_soon
+    self._check_closed()
+  File "C:\Users\Prakhar Singh\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 520, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+[2026-10-07 13:12:00,986: ERROR/MainProcess] Task exception was never retrieved
+future: <Task finished name='Task-31' coro=<AsyncClient.aclose() done, defined at C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\httpx2\_client.py:2198> exception=RuntimeError('Event loop is closed')>
+Traceback (most recent call last):
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\httpx2\_client.py", line 2205, in aclose
+    await self._transport.aclose()
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\httpx2\_transports\default.py", line 400, in aclose
+    await self._pool.aclose()
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\httpcore2\_async\connection_pool.py", line 382, in aclose
+    await self._close_connections(closing_connections)
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\httpcore2\_async\connection_pool.py", line 374, in _close_connections
+    await connection.aclose()
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\httpcore2\_async\connection.py", line 157, in aclose
+    await self._connection.aclose()
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\httpcore2\_async\http11.py", line 236, in aclose
+    await self._network_stream.aclose()
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\httpcore2\_backends\anyio.py", line 55, in aclose
+    await self._stream.aclose()
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\anyio\streams\tls.py", line 248, in aclose
+    await self.transport_stream.aclose()
+  File "C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 1467, in aclose
+    self._transport.close()
+  File "C:\Users\Prakhar Singh\AppData\Local\Programs\Python\Python311\Lib\asyncio\proactor_events.py", line 109, in close
+    self._loop.call_soon(self._call_connection_lost, None)
+  File "C:\Users\Prakhar Singh\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 762, in call_soon
+    self._check_closed()
+  File "C:\Users\Prakhar Singh\AppData\Local\Programs\Python\Python311\Lib\asyncio\base_events.py", line 520, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+[2026-10-07 13:12:04,961: WARNING/MainProcess] 2026-10-07 13:12:04 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 13:12:04,967: WARNING/MainProcess] 2026-10-07 13:12:04 [debug    ] building_semantic_world_state  page_type=list
+[2026-10-07 13:12:04,969: WARNING/MainProcess] 2026-10-07 13:12:04 [info     ] world_state_built              available_actions=30 blocked_actions=0 page_semantic='Record Queue List' record_state=None
+[2026-10-07 13:12:04,969: WARNING/MainProcess] 2026-10-07 13:12:04 [info     ] state_transition               from_state=observing reason='Deciding action for: Navigate to Incident Management' to_state=decision
+[2026-10-07 13:12:04,969: WARNING/MainProcess] 2026-10-07 13:12:04 [info     ] making_immediate_decision      step=0
+[2026-10-07 13:12:39,456: INFO/MainProcess] HTTP Request: POST https://integrate.api.nvidia.com/v1/chat/completions "HTTP/1.1 200 OK"
+[2026-10-07 13:12:39,976: WARNING/MainProcess] 2026-10-07 13:12:39 [warning  ] llm_decision_failed_fallback_to_heuristic error="'observe' is not a valid ActionType"
+[2026-10-07 13:12:39,981: WARNING/MainProcess] 2026-10-07 13:12:39 [info     ] evaluated_confidence           action=click is_above=False score=0.20 target='text:List controls' threshold=0.7
+[2026-10-07 13:12:44,056: WARNING/MainProcess] 2026-10-07 13:12:44 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:12:44,058: WARNING/MainProcess] 2026-10-07 13:12:44 [info     ] state_transition               from_state=decision reason='Executing: click on text:List controls' to_state=executing
+[2026-10-07 13:12:44,636: WARNING/MainProcess] 2026-10-07 13:12:44 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\before_perception_97490.png'
+[2026-10-07 13:12:44,636: WARNING/MainProcess] 2026-10-07 13:12:44 [debug    ] observing_page
+[2026-10-07 13:12:48,891: WARNING/MainProcess] 2026-10-07 13:12:48 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 13:12:49,170: WARNING/MainProcess] 2026-10-07 13:12:49 [info     ] dom_candidate_unverified_escalating locator='text:List controls >> nth=0' target='text:List controls'
+[2026-10-07 13:12:49,171: WARNING/MainProcess] 2026-10-07 13:12:49 [info     ] perception_started             provider=moondream reason=dom_insufficient target='text:List controls'
+[2026-10-07 13:12:49,202: WARNING/MainProcess] 2026-10-07 13:12:49 [info     ] perception_started             provider=moondream target='text:List controls' task=ground_element
+[2026-10-07 13:12:49,232: WARNING/MainProcess] 2026-10-07 13:12:49 [info     ] moondream_inference_started    target='text:List controls' task=detect
+[2026-10-07 13:13:44,102: WARNING/MainProcess] 2026-10-07 13:13:44 [info     ] moondream_detect_success       center_x=1619 center_y=20 confidence=1.0 target='text:List controls'
+[2026-10-07 13:13:44,107: WARNING/MainProcess] 2026-10-07 13:13:44 [info     ] perception_completed           method=detect provider=moondream success=True target='text:List controls'
+[2026-10-07 13:13:44,111: WARNING/MainProcess] 2026-10-07 13:13:44 [info     ] perception_completed           confidence=1.0 provider=moondream success=True target='text:List controls'
+[2026-10-07 13:13:44,111: WARNING/MainProcess] 2026-10-07 13:13:44 [info     ] perception_route               confidence=1.0 decision=high_confidence_execute route=MOONDREAM target='text:List controls'
+[2026-10-07 13:13:44,113: WARNING/MainProcess] 2026-10-07 13:13:44 [error    ] moondream_dom_mismatch         target='text:List controls'
+[2026-10-07 13:13:44,871: WARNING/MainProcess] 2026-10-07 13:13:44 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\step_0_click_97550.png'
+[2026-10-07 13:13:48,953: WARNING/MainProcess] 2026-10-07 13:13:48 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:13:48,956: WARNING/MainProcess] 2026-10-07 13:13:48 [info     ] state_transition               from_state=executing reason='Observing after: Navigate to Incident Management' to_state=observing
+[2026-10-07 13:13:48,957: WARNING/MainProcess] 2026-10-07 13:13:48 [debug    ] observing_page
+[2026-10-07 13:13:54,010: WARNING/MainProcess] 2026-10-07 13:13:54 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 13:13:54,010: WARNING/MainProcess] 2026-10-07 13:13:54 [debug    ] building_semantic_world_state  page_type=list
+[2026-10-07 13:13:54,012: WARNING/MainProcess] 2026-10-07 13:13:54 [info     ] world_state_built              available_actions=30 blocked_actions=0 page_semantic='Record Queue List' record_state=None
+[2026-10-07 13:13:54,012: WARNING/MainProcess] 2026-10-07 13:13:54 [info     ] state_transition               from_state=observing reason='Validating: Navigate to Incident Management' to_state=validating
+[2026-10-07 13:13:54,013: WARNING/MainProcess] 2026-10-07 13:13:54 [info     ] validating_action              action_type=click
+[2026-10-07 13:13:54,017: WARNING/MainProcess] 2026-10-07 13:13:54 [info     ] validation_complete            checks=5 failed=2 passed=False
+[2026-10-07 13:13:54,017: WARNING/MainProcess] 2026-10-07 13:13:54 [info     ] incident_skill_validating_action action=click
+[2026-10-07 13:13:54,019: WARNING/MainProcess] 2026-10-07 13:13:54 [debug    ] parsing_incident_from_observation url='https://aelumconsultingpvtltddemo3.service-now.com/incident_list.do?sysparm_query=active=true'
+[2026-10-07 13:13:54,021: WARNING/MainProcess] 2026-10-07 13:13:54 [info     ] incident_parsed                number=New short_description= state=unknown
+[2026-10-07 13:13:54,021: WARNING/MainProcess] 2026-10-07 13:13:54 [debug    ] parsing_incident_from_observation url='https://aelumconsultingpvtltddemo3.service-now.com/incident_list.do?sysparm_query=active=true'
+[2026-10-07 13:13:54,023: WARNING/MainProcess] 2026-10-07 13:13:54 [info     ] incident_parsed                number=New short_description= state=unknown
+[2026-10-07 13:13:54,023: WARNING/MainProcess] 2026-10-07 13:13:54 [info     ] validating_incident_business_outcome step='[HEURISTIC FALLBACK] click available action List controls'
+[2026-10-07 13:13:54,025: WARNING/MainProcess] 2026-10-07 13:13:54 [info     ] evidence_recorded              confidence=0.5 evidence_id=EV-001 passed=False step='[HEURISTIC FALLBACK] click available act'
+[2026-10-07 13:13:58,096: WARNING/MainProcess] 2026-10-07 13:13:58 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_finished
+[2026-10-07 13:14:02,141: WARNING/MainProcess] 2026-10-07 13:14:02 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:14:02,143: WARNING/MainProcess] 2026-10-07 13:14:02 [info     ] executing_plan_step            description='Open an Existing Incident in New State' step_index=1
+[2026-10-07 13:14:06,188: WARNING/MainProcess] 2026-10-07 13:14:06 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_started
+[2026-10-07 13:14:06,190: WARNING/MainProcess] 2026-10-07 13:14:06 [info     ] state_transition               from_state=validating reason='Observing before: Open an Existing Incident in New State' to_state=observing
+[2026-10-07 13:14:06,190: WARNING/MainProcess] 2026-10-07 13:14:06 [debug    ] observing_page
+[2026-10-07 13:14:10,450: WARNING/MainProcess] 2026-10-07 13:14:10 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 13:14:10,450: WARNING/MainProcess] 2026-10-07 13:14:10 [debug    ] building_semantic_world_state  page_type=list
+[2026-10-07 13:14:10,451: WARNING/MainProcess] 2026-10-07 13:14:10 [info     ] world_state_built              available_actions=30 blocked_actions=0 page_semantic='Record Queue List' record_state=None
+[2026-10-07 13:14:10,452: WARNING/MainProcess] 2026-10-07 13:14:10 [info     ] state_transition               from_state=observing reason='Deciding action for: Open an Existing Incident in New State' to_state=decision
+[2026-10-07 13:14:10,453: WARNING/MainProcess] 2026-10-07 13:14:10 [info     ] making_immediate_decision      step=1
+[2026-10-07 13:14:18,440: INFO/MainProcess] HTTP Request: POST https://integrate.api.nvidia.com/v1/chat/completions "HTTP/1.1 200 OK"
+[2026-10-07 13:14:18,460: WARNING/MainProcess] 2026-10-07 13:14:18 [warning  ] llm_decision_failed_fallback_to_heuristic error="'observe' is not a valid ActionType"
+[2026-10-07 13:14:18,462: WARNING/MainProcess] 2026-10-07 13:14:18 [info     ] evaluated_confidence           action=click is_above=False score=0.20 target='text:List controls' threshold=0.7
+[2026-10-07 13:14:22,524: WARNING/MainProcess] 2026-10-07 13:14:22 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:14:22,526: WARNING/MainProcess] 2026-10-07 13:14:22 [info     ] state_transition               from_state=decision reason='Executing: click on text:List controls' to_state=executing
+[2026-10-07 13:14:22,975: WARNING/MainProcess] 2026-10-07 13:14:22 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\before_perception_97588.png'
+[2026-10-07 13:14:22,978: WARNING/MainProcess] 2026-10-07 13:14:22 [debug    ] observing_page
+[2026-10-07 13:14:26,691: WARNING/MainProcess] 2026-10-07 13:14:26 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 13:14:26,887: WARNING/MainProcess] 2026-10-07 13:14:26 [info     ] dom_candidate_unverified_escalating locator='text:List controls >> nth=0' target='text:List controls'
+[2026-10-07 13:14:26,889: WARNING/MainProcess] 2026-10-07 13:14:26 [info     ] perception_started             provider=moondream reason=dom_insufficient target='text:List controls'
+[2026-10-07 13:14:26,917: WARNING/MainProcess] 2026-10-07 13:14:26 [info     ] perception_started             provider=moondream target='text:List controls' task=ground_element
+[2026-10-07 13:14:26,948: WARNING/MainProcess] 2026-10-07 13:14:26 [info     ] moondream_inference_started    target='text:List controls' task=detect
+[2026-10-07 13:14:32,677: WARNING/MainProcess] 2026-10-07 13:14:32 [info     ] moondream_detect_success       center_x=1619 center_y=20 confidence=1.0 target='text:List controls'
+[2026-10-07 13:14:32,677: WARNING/MainProcess] 2026-10-07 13:14:32 [info     ] perception_completed           method=detect provider=moondream success=True target='text:List controls'
+[2026-10-07 13:14:32,681: WARNING/MainProcess] 2026-10-07 13:14:32 [info     ] perception_completed           confidence=1.0 provider=moondream success=True target='text:List controls'
+[2026-10-07 13:14:32,681: WARNING/MainProcess] 2026-10-07 13:14:32 [info     ] perception_route               confidence=1.0 decision=high_confidence_execute route=MOONDREAM target='text:List controls'
+[2026-10-07 13:14:32,682: WARNING/MainProcess] 2026-10-07 13:14:32 [error    ] moondream_dom_mismatch         target='text:List controls'
+[2026-10-07 13:14:32,870: WARNING/MainProcess] 2026-10-07 13:14:32 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\step_1_click_97598.png'
+[2026-10-07 13:14:36,923: WARNING/MainProcess] 2026-10-07 13:14:36 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:14:36,924: WARNING/MainProcess] 2026-10-07 13:14:36 [info     ] state_transition               from_state=executing reason='Observing after: Open an Existing Incident in New State' to_state=observing
+[2026-10-07 13:14:36,924: WARNING/MainProcess] 2026-10-07 13:14:36 [debug    ] observing_page
+[2026-10-07 13:14:40,702: WARNING/MainProcess] 2026-10-07 13:14:40 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 13:14:40,706: WARNING/MainProcess] 2026-10-07 13:14:40 [debug    ] building_semantic_world_state  page_type=list
+[2026-10-07 13:14:40,707: WARNING/MainProcess] 2026-10-07 13:14:40 [info     ] world_state_built              available_actions=30 blocked_actions=0 page_semantic='Record Queue List' record_state=None
+[2026-10-07 13:14:40,707: WARNING/MainProcess] 2026-10-07 13:14:40 [info     ] state_transition               from_state=observing reason='Validating: Open an Existing Incident in New State' to_state=validating
+[2026-10-07 13:14:40,707: WARNING/MainProcess] 2026-10-07 13:14:40 [info     ] validating_action              action_type=click
+[2026-10-07 13:14:40,709: WARNING/MainProcess] 2026-10-07 13:14:40 [info     ] validation_complete            checks=5 failed=2 passed=False
+[2026-10-07 13:14:40,709: WARNING/MainProcess] 2026-10-07 13:14:40 [info     ] incident_skill_validating_action action=click
+[2026-10-07 13:14:40,710: WARNING/MainProcess] 2026-10-07 13:14:40 [debug    ] parsing_incident_from_observation url='https://aelumconsultingpvtltddemo3.service-now.com/incident_list.do?sysparm_query=active=true'
+[2026-10-07 13:14:40,711: WARNING/MainProcess] 2026-10-07 13:14:40 [info     ] incident_parsed                number=New short_description= state=unknown
+[2026-10-07 13:14:40,711: WARNING/MainProcess] 2026-10-07 13:14:40 [debug    ] parsing_incident_from_observation url='https://aelumconsultingpvtltddemo3.service-now.com/incident_list.do?sysparm_query=active=true'
+[2026-10-07 13:14:40,712: WARNING/MainProcess] 2026-10-07 13:14:40 [info     ] incident_parsed                number=New short_description= state=unknown
+[2026-10-07 13:14:40,712: WARNING/MainProcess] 2026-10-07 13:14:40 [info     ] validating_incident_business_outcome step='[HEURISTIC FALLBACK] click available action List controls'
+[2026-10-07 13:14:40,714: WARNING/MainProcess] 2026-10-07 13:14:40 [info     ] evidence_recorded              confidence=0.5 evidence_id=EV-002 passed=False step='[HEURISTIC FALLBACK] click available act'
+[2026-10-07 13:14:44,780: WARNING/MainProcess] 2026-10-07 13:14:44 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_finished
+[2026-10-07 13:14:48,846: WARNING/MainProcess] 2026-10-07 13:14:48 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:14:48,846: WARNING/MainProcess] 2026-10-07 13:14:48 [info     ] executing_plan_step            description='Update Assignment Group' step_index=2
+[2026-10-07 13:14:52,921: WARNING/MainProcess] 2026-10-07 13:14:52 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_started
+[2026-10-07 13:14:52,921: WARNING/MainProcess] 2026-10-07 13:14:52 [info     ] state_transition               from_state=validating reason='Observing before: Update Assignment Group' to_state=observing
+[2026-10-07 13:14:52,923: WARNING/MainProcess] 2026-10-07 13:14:52 [debug    ] observing_page
+[2026-10-07 13:14:56,966: WARNING/MainProcess] 2026-10-07 13:14:56 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 13:14:56,966: WARNING/MainProcess] 2026-10-07 13:14:56 [debug    ] building_semantic_world_state  page_type=list
+[2026-10-07 13:14:56,968: WARNING/MainProcess] 2026-10-07 13:14:56 [info     ] world_state_built              available_actions=30 blocked_actions=0 page_semantic='Record Queue List' record_state=None
+[2026-10-07 13:14:56,969: WARNING/MainProcess] 2026-10-07 13:14:56 [info     ] state_transition               from_state=observing reason='Deciding action for: Update Assignment Group' to_state=decision
+[2026-10-07 13:14:56,970: WARNING/MainProcess] 2026-10-07 13:14:56 [info     ] making_immediate_decision      step=2
+[2026-10-07 13:15:09,033: INFO/MainProcess] HTTP Request: POST https://integrate.api.nvidia.com/v1/chat/completions "HTTP/1.1 200 OK"
+[2026-10-07 13:15:09,042: WARNING/MainProcess] 2026-10-07 13:15:09 [info     ] evaluated_confidence           action=validate is_above=True score=0.95 target=page threshold=0.7
+[2026-10-07 13:15:13,112: WARNING/MainProcess] 2026-10-07 13:15:13 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:15:13,113: WARNING/MainProcess] 2026-10-07 13:15:13 [info     ] state_transition               from_state=decision reason='Executing: validate on page' to_state=executing
+[2026-10-07 13:15:13,457: WARNING/MainProcess] 2026-10-07 13:15:13 [debug    ] policy_check_passed            action_type=validate target=page
+[2026-10-07 13:15:13,462: WARNING/MainProcess] 2026-10-07 13:15:13 [info     ] executing_action               action_type=validate target=page value='Incidents | ServiceNow'
+[2026-10-07 13:15:14,238: WARNING/MainProcess] 2026-10-07 13:15:14 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\action_validate_97639.png'
+[2026-10-07 13:15:14,240: WARNING/MainProcess] 2026-10-07 13:15:14 [info     ] action_succeeded               action_type=validate duration_ms=533
+[2026-10-07 13:15:18,270: WARNING/MainProcess] 2026-10-07 13:15:18 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:15:18,271: WARNING/MainProcess] 2026-10-07 13:15:18 [info     ] state_transition               from_state=executing reason='Observing after: Update Assignment Group' to_state=observing
+[2026-10-07 13:15:18,271: WARNING/MainProcess] 2026-10-07 13:15:18 [debug    ] observing_page
+[2026-10-07 13:15:21,845: WARNING/MainProcess] 2026-10-07 13:15:21 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 13:15:21,845: WARNING/MainProcess] 2026-10-07 13:15:21 [debug    ] building_semantic_world_state  page_type=list
+[2026-10-07 13:15:21,850: WARNING/MainProcess] 2026-10-07 13:15:21 [info     ] world_state_built              available_actions=30 blocked_actions=0 page_semantic='Record Queue List' record_state=None
+[2026-10-07 13:15:21,850: WARNING/MainProcess] 2026-10-07 13:15:21 [info     ] state_transition               from_state=observing reason='Validating: Update Assignment Group' to_state=validating
+[2026-10-07 13:15:21,850: WARNING/MainProcess] 2026-10-07 13:15:21 [info     ] validating_action              action_type=validate
+[2026-10-07 13:15:21,851: WARNING/MainProcess] 2026-10-07 13:15:21 [info     ] validation_complete            checks=3 failed=0 passed=True
+[2026-10-07 13:15:21,851: WARNING/MainProcess] 2026-10-07 13:15:21 [info     ] incident_skill_validating_action action=validate
+[2026-10-07 13:15:21,851: WARNING/MainProcess] 2026-10-07 13:15:21 [debug    ] parsing_incident_from_observation url='https://aelumconsultingpvtltddemo3.service-now.com/incident_list.do?sysparm_query=active=true'
+[2026-10-07 13:15:21,851: WARNING/MainProcess] 2026-10-07 13:15:21 [info     ] incident_parsed                number=New short_description= state=unknown
+[2026-10-07 13:15:21,851: WARNING/MainProcess] 2026-10-07 13:15:21 [debug    ] parsing_incident_from_observation url='https://aelumconsultingpvtltddemo3.service-now.com/incident_list.do?sysparm_query=active=true'
+[2026-10-07 13:15:21,852: WARNING/MainProcess] 2026-10-07 13:15:21 [info     ] incident_parsed                number=New short_description= state=unknown
+[2026-10-07 13:15:21,852: WARNING/MainProcess] 2026-10-07 13:15:21 [info     ] validating_incident_business_outcome step='Step 0 (Navigate to Incident Management) failed due to vision issues but we are already on the incident list page. Validating the current page confirms we are at the correct location, allowing us to consider step 0 complete and proceed to step 1.'
+[2026-10-07 13:15:21,853: WARNING/MainProcess] 2026-10-07 13:15:21 [info     ] evidence_recorded              confidence=0.5 evidence_id=EV-003 passed=False step='Step 0 (Navigate to Incident Management)'
+[2026-10-07 13:15:21,854: WARNING/MainProcess] 2026-10-07 13:15:21 [info     ] investigating_mismatch         actual='Validation: FAILED (3/4 checks passed)\n  [PASS] action_execution: Action executed without throwing an error\n  [PASS] no_new_errors: No new validation or error messages appeared\n  [PASS] no_new_js_errors: No new JavaScript errors introduced during action\n  [FAIL] Step 0 (Navigate to Incident Management) failed due to vision issues but we are already on the incident list page. Validating the current page confirms we are at the correct location, allowing us to consider step 0 complete and proceed to step 1.: Verify Step 0 (Navigate to Incident Management) failed due to vision issues but we are already on the incident list page. Validating the current page confirms we are at the correct location, allowing us to consider step 0 complete and proceed to step 1.\n      Error: UNVERIFIED: impact and/or urgency were not observed on the page.' expected='Assignment group populated' table=incident
+[2026-10-07 13:15:21,861: WARNING/MainProcess] 2026-10-07 13:15:21 [warning  ] learning_store_using_in_memory_fallback error='invalid DSN: scheme is expected to be either "postgresql" or "postgres", got \'sqlite+aiosqlite\''
+[2026-10-07 13:15:25,244: WARNING/MainProcess] 2026-10-07 13:15:25 [warning  ] js_page_error                  error="Cannot read properties of null (reading 'appendChild')"
+[2026-10-07 13:15:27,129: WARNING/MainProcess] 2026-10-07 13:15:27 [debug    ] observing_page
+[2026-10-07 13:15:31,179: WARNING/MainProcess] 2026-10-07 13:15:31 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 13:15:31,527: WARNING/MainProcess] 2026-10-07 13:15:31 [debug    ] policy_check_passed            action_type=validate target=page
+[2026-10-07 13:15:31,530: WARNING/MainProcess] 2026-10-07 13:15:31 [info     ] executing_action               action_type=validate target=page value='Incidents | ServiceNow'
+[2026-10-07 13:15:32,234: WARNING/MainProcess] 2026-10-07 13:15:32 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\action_validate_97658.png'
+[2026-10-07 13:15:32,236: WARNING/MainProcess] 2026-10-07 13:15:32 [info     ] action_succeeded               action_type=validate duration_ms=526
+[2026-10-07 13:15:32,236: WARNING/MainProcess] 2026-10-07 13:15:32 [debug    ] observing_page
+[2026-10-07 13:15:36,434: WARNING/MainProcess] 2026-10-07 13:15:36 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 13:15:36,434: WARNING/MainProcess] 2026-10-07 13:15:36 [info     ] validating_action              action_type=validate
+[2026-10-07 13:15:36,434: WARNING/MainProcess] 2026-10-07 13:15:36 [info     ] validation_complete            checks=3 failed=0 passed=True
+[2026-10-07 13:15:40,510: WARNING/MainProcess] 2026-10-07 13:15:40 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_finished
+[2026-10-07 13:15:44,583: WARNING/MainProcess] 2026-10-07 13:15:44 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:15:44,583: WARNING/MainProcess] 2026-10-07 13:15:44 [info     ] executing_plan_step            description='Move State to In Progress' step_index=3
+[2026-10-07 13:15:48,625: WARNING/MainProcess] 2026-10-07 13:15:48 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_started
+[2026-10-07 13:15:48,627: WARNING/MainProcess] 2026-10-07 13:15:48 [info     ] state_transition               from_state=validating reason='Observing before: Move State to In Progress' to_state=observing
+[2026-10-07 13:15:48,627: WARNING/MainProcess] 2026-10-07 13:15:48 [debug    ] observing_page
+[2026-10-07 13:15:53,128: WARNING/MainProcess] 2026-10-07 13:15:53 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 13:15:53,129: WARNING/MainProcess] 2026-10-07 13:15:53 [debug    ] building_semantic_world_state  page_type=list
+[2026-10-07 13:15:53,131: WARNING/MainProcess] 2026-10-07 13:15:53 [info     ] world_state_built              available_actions=30 blocked_actions=0 page_semantic='Record Queue List' record_state=None
+[2026-10-07 13:15:53,132: WARNING/MainProcess] 2026-10-07 13:15:53 [info     ] state_transition               from_state=observing reason='Deciding action for: Move State to In Progress' to_state=decision
+[2026-10-07 13:15:53,133: WARNING/MainProcess] 2026-10-07 13:15:53 [info     ] making_immediate_decision      step=3
+[2026-10-07 13:16:29,239: INFO/MainProcess] HTTP Request: POST https://integrate.api.nvidia.com/v1/chat/completions "HTTP/1.1 200 OK"
+[2026-10-07 13:16:29,262: WARNING/MainProcess] 2026-10-07 13:16:29 [warning  ] llm_decision_failed_fallback_to_heuristic error='1 validation error for AgentAction\nvalue\n  Input should be a valid string [type=string_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.13/v/string_type'
+[2026-10-07 13:16:29,269: WARNING/MainProcess] 2026-10-07 13:16:29 [info     ] evaluated_confidence           action=click is_above=False score=0.20 target='text:List controls' threshold=0.7
+[2026-10-07 13:16:33,318: WARNING/MainProcess] 2026-10-07 13:16:33 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:16:33,319: WARNING/MainProcess] 2026-10-07 13:16:33 [info     ] state_transition               from_state=decision reason='Executing: click on text:List controls' to_state=executing
+[2026-10-07 13:16:33,750: WARNING/MainProcess] 2026-10-07 13:16:33 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\before_perception_97719.png'
+[2026-10-07 13:16:33,753: WARNING/MainProcess] 2026-10-07 13:16:33 [debug    ] observing_page
+[2026-10-07 13:16:37,620: WARNING/MainProcess] 2026-10-07 13:16:37 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 13:16:37,885: WARNING/MainProcess] 2026-10-07 13:16:37 [info     ] dom_candidate_unverified_escalating locator='text:List controls >> nth=0' target='text:List controls'
+[2026-10-07 13:16:37,885: WARNING/MainProcess] 2026-10-07 13:16:37 [info     ] perception_started             provider=moondream reason=dom_insufficient target='text:List controls'
+[2026-10-07 13:16:37,925: WARNING/MainProcess] 2026-10-07 13:16:37 [info     ] perception_started             provider=moondream target='text:List controls' task=ground_element
+[2026-10-07 13:16:37,952: WARNING/MainProcess] 2026-10-07 13:16:37 [info     ] moondream_inference_started    target='text:List controls' task=detect
+[2026-10-07 13:16:45,277: WARNING/MainProcess] 2026-10-07 13:16:45 [info     ] moondream_detect_success       center_x=1619 center_y=20 confidence=1.0 target='text:List controls'
+[2026-10-07 13:16:45,283: WARNING/MainProcess] 2026-10-07 13:16:45 [info     ] perception_completed           method=detect provider=moondream success=True target='text:List controls'
+[2026-10-07 13:16:45,284: WARNING/MainProcess] 2026-10-07 13:16:45 [info     ] perception_completed           confidence=1.0 provider=moondream success=True target='text:List controls'
+[2026-10-07 13:16:45,285: WARNING/MainProcess] 2026-10-07 13:16:45 [info     ] perception_route               confidence=1.0 decision=high_confidence_execute route=MOONDREAM target='text:List controls'
+[2026-10-07 13:16:45,285: WARNING/MainProcess] 2026-10-07 13:16:45 [error    ] moondream_dom_mismatch         target='text:List controls'
+[2026-10-07 13:16:45,488: WARNING/MainProcess] 2026-10-07 13:16:45 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\step_3_click_97731.png'
+[2026-10-07 13:16:49,548: WARNING/MainProcess] 2026-10-07 13:16:49 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:16:49,550: WARNING/MainProcess] 2026-10-07 13:16:49 [info     ] state_transition               from_state=executing reason='Observing after: Move State to In Progress' to_state=observing
+[2026-10-07 13:16:49,550: WARNING/MainProcess] 2026-10-07 13:16:49 [debug    ] observing_page
+[2026-10-07 13:16:53,542: WARNING/MainProcess] 2026-10-07 13:16:53 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 13:16:53,547: WARNING/MainProcess] 2026-10-07 13:16:53 [debug    ] building_semantic_world_state  page_type=list
+[2026-10-07 13:16:53,548: WARNING/MainProcess] 2026-10-07 13:16:53 [info     ] world_state_built              available_actions=30 blocked_actions=0 page_semantic='Record Queue List' record_state=None
+[2026-10-07 13:16:53,549: WARNING/MainProcess] 2026-10-07 13:16:53 [info     ] state_transition               from_state=observing reason='Validating: Move State to In Progress' to_state=validating
+[2026-10-07 13:16:53,549: WARNING/MainProcess] 2026-10-07 13:16:53 [info     ] validating_action              action_type=click
+[2026-10-07 13:16:53,552: WARNING/MainProcess] 2026-10-07 13:16:53 [info     ] validation_complete            checks=5 failed=2 passed=False
+[2026-10-07 13:16:53,552: WARNING/MainProcess] 2026-10-07 13:16:53 [info     ] incident_skill_validating_action action=click
+[2026-10-07 13:16:53,552: WARNING/MainProcess] 2026-10-07 13:16:53 [debug    ] parsing_incident_from_observation url='https://aelumconsultingpvtltddemo3.service-now.com/incident_list.do?sysparm_query=active=true'
+[2026-10-07 13:16:53,553: WARNING/MainProcess] 2026-10-07 13:16:53 [info     ] incident_parsed                number=New short_description= state=unknown
+[2026-10-07 13:16:53,554: WARNING/MainProcess] 2026-10-07 13:16:53 [debug    ] parsing_incident_from_observation url='https://aelumconsultingpvtltddemo3.service-now.com/incident_list.do?sysparm_query=active=true'
+[2026-10-07 13:16:53,555: WARNING/MainProcess] 2026-10-07 13:16:53 [info     ] incident_parsed                number=New short_description= state=unknown
+[2026-10-07 13:16:53,555: WARNING/MainProcess] 2026-10-07 13:16:53 [info     ] validating_incident_business_outcome step='[HEURISTIC FALLBACK] click available action List controls'
+[2026-10-07 13:16:53,557: WARNING/MainProcess] 2026-10-07 13:16:53 [info     ] evidence_recorded              confidence=0.5 evidence_id=EV-004 passed=False step='[HEURISTIC FALLBACK] click available act'
+[2026-10-07 13:16:57,627: WARNING/MainProcess] 2026-10-07 13:16:57 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_finished
+[2026-10-07 13:17:01,692: WARNING/MainProcess] 2026-10-07 13:17:01 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:17:01,693: WARNING/MainProcess] 2026-10-07 13:17:01 [warning  ] agent_stuck_detected           reason='Same action repeated 3 times: click on text:list controls' repeated_action='click: text:list controls' repetition_count=3
+[2026-10-07 13:17:05,739: WARNING/MainProcess] 2026-10-07 13:17:05 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_finished
+[2026-10-07 13:17:05,741: WARNING/MainProcess] 2026-10-07 13:17:05 [info     ] state_transition               from_state=validating reason='Agent stuck in action loop: Same action repeated 3 times: click on text:list controls' to_state=failed
+[2026-10-07 13:17:05,743: WARNING/MainProcess] 2026-10-07 13:17:05 [info     ] generating_final_report
+[2026-10-07 13:17:05,744: WARNING/MainProcess] 2026-10-07 13:17:05 [info     ] generating_report_summary
+[2026-10-07 13:17:24,838: INFO/MainProcess] HTTP Request: POST https://integrate.api.nvidia.com/v1/chat/completions "HTTP/1.1 200 OK"
+[2026-10-07 13:17:24,845: WARNING/MainProcess] 2026-10-07 13:17:24 [info     ] generating_report              session_id=b27458c0-b64b-4887-9c01-967e94791f4a
+[2026-10-07 13:17:24,850: WARNING/MainProcess] 2026-10-07 13:17:24 [info     ] exit_criteria_pass             coverage=0.0 requirements_covered=4 requirements_total=0
+[2026-10-07 13:17:24,850: WARNING/MainProcess] 2026-10-07 13:17:24 [info     ] exit_criteria_evaluated        reason='All requirements covered; no open defects; all retests passed.' verdict=PASS
+[2026-10-07 13:17:25,342: WARNING/MainProcess] 2026-10-07 13:17:25 [info     ] report_generated               defects=0 report_id=RPT-97741773 status=failed
+[2026-10-07 13:17:25,350: WARNING/MainProcess] 2026-10-07 13:17:25 [info     ] report_saved                   format=markdown path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\reports\\RPT-97741773_20261007_074055.md'
+[2026-10-07 13:17:25,378: WARNING/MainProcess] 2026-10-07 13:17:25 [info     ] report_saved                   format=json path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\reports\\RPT-97741773_20261007_074055.json'
+[2026-10-07 13:17:25,459: WARNING/MainProcess] 2026-10-07 13:17:25 [info     ] xlsx_results_exported          path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\reports\\RPT-97741773_20261007_074725.xlsx' rows=1
+[2026-10-07 13:17:25,463: WARNING/MainProcess] 2026-10-07 13:17:25 [info     ] state_transition               from_state=failed reason='Report status is failed' to_state=failed
+[2026-10-07 13:17:25,470: WARNING/MainProcess] 2026-10-07 13:17:25 [debug    ] session_saved_in_memory        session_id=b27458c0-b64b-4887-9c01-967e94791f4a
+[2026-10-07 13:17:25,470: WARNING/MainProcess] 2026-10-07 13:17:25 [info     ] closing_browser_after_run      headless=True keep_browser_open=False session_id=b27458c0-b64b-4887-9c01-967e94791f4a
+[2026-10-07 13:17:25,471: WARNING/MainProcess] 2026-10-07 13:17:25 [info     ] closing_browser_context
+[2026-10-07 13:17:25,709: WARNING/MainProcess] 2026-10-07 13:17:25 [info     ] agent_run_completed            actions=4 session_id=b27458c0-b64b-4887-9c01-967e94791f4a state=failed
+[2026-10-07 13:17:26,157: INFO/MainProcess] agent.worker.tasks.execute_run[bb6c251d-5d92-42d0-8ada-b0adf63c4c02]: perception_evidence_saved: C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\reports\b27458c0-b64b-4887-9c01-967e94791f4a_perception.json
+[2026-10-07 13:17:26,481: INFO/MainProcess] agent.worker.tasks.execute_run[bb6c251d-5d92-42d0-8ada-b0adf63c4c02]: result_snapshot_saved: C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\reports\b27458c0-b64b-4887-9c01-967e94791f4a_result.json
+[2026-10-07 13:17:26,938: WARNING/MainProcess] 2026-10-07 13:17:26 [debug    ] session_deleted_in_memory      session_id=session:b27458c0-b64b-4887-9c01-967e94791f4a
+[2026-10-07 13:17:26,990: INFO/MainProcess] Task agent.worker.tasks.execute_run[bb6c251d-5d92-42d0-8ada-b0adf63c4c02] succeeded in 393.07799999999406s: 'done'
+[2026-10-07 13:17:37,077: INFO/MainProcess] Task agent.worker.tasks.execute_run[5012e86a-ff33-4abe-a811-0a21abbd035b] received
+[2026-10-07 13:17:37,100: INFO/MainProcess] agent.worker.tasks.execute_run[5012e86a-ff33-4abe-a811-0a21abbd035b]: Starting execution for run_id=1ae76cc9-0aa3-4041-958d-e602f7156d3d tenant=default test_case_id=None
+[2026-10-07 13:17:37,312: WARNING/MainProcess] 2026-10-07 13:17:37 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 13:17:37,318: WARNING/MainProcess] 2026-10-07 13:17:37 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 13:17:38,066: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=browser tool_name=click
+[2026-10-07 13:17:38,069: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=browser tool_name=fill
+[2026-10-07 13:17:38,069: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=browser tool_name=select
+[2026-10-07 13:17:38,069: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=browser tool_name=navigate
+[2026-10-07 13:17:38,069: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=browser tool_name=wait
+[2026-10-07 13:17:38,069: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=browser tool_name=scroll
+[2026-10-07 13:17:38,069: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=browser tool_name=screenshot
+[2026-10-07 13:17:38,069: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=browser tool_name=observe
+[2026-10-07 13:17:38,069: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=validation tool_name=validate_state
+[2026-10-07 13:17:38,070: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=validation tool_name=validate_field
+[2026-10-07 13:17:38,070: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=validation tool_name=validate_errors
+[2026-10-07 13:17:38,070: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=knowledge tool_name=search_documentation
+[2026-10-07 13:17:38,070: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=reporting tool_name=generate_report
+[2026-10-07 13:17:38,073: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 13:17:38,079: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 13:17:38,080: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] laya_disabled_by_config
+[2026-10-07 13:17:38,080: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] laya_not_configured_using_llm_fallback
+[2026-10-07 13:17:38,083: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 13:17:38,083: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=browser tool_name=click
+[2026-10-07 13:17:38,083: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=browser tool_name=fill
+[2026-10-07 13:17:38,084: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=browser tool_name=select
+[2026-10-07 13:17:38,084: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=browser tool_name=navigate
+[2026-10-07 13:17:38,084: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=browser tool_name=wait
+[2026-10-07 13:17:38,084: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=browser tool_name=scroll
+[2026-10-07 13:17:38,085: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=browser tool_name=screenshot
+[2026-10-07 13:17:38,085: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=browser tool_name=observe
+[2026-10-07 13:17:38,085: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=validation tool_name=validate_state
+[2026-10-07 13:17:38,085: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=validation tool_name=validate_field
+[2026-10-07 13:17:38,085: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=validation tool_name=validate_errors
+[2026-10-07 13:17:38,085: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=knowledge tool_name=search_documentation
+[2026-10-07 13:17:38,085: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] registered_tool                category=reporting tool_name=generate_report
+[2026-10-07 13:17:38,273: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 13:17:38,277: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 13:17:38,601: INFO/MainProcess] agent.worker.tasks.execute_run[5012e86a-ff33-4abe-a811-0a21abbd035b]: agent_browser_configuration run_id=1ae76cc9-0aa3-4041-958d-e602f7156d3d headless=True slow_mo=0 show_mouse_cursor=True keep_browser_open=False
+[2026-10-07 13:17:38,604: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] agent_run_started              goal='Read-only inspect 3 recent Incidents. For any in Resolved state, verify close_code and close_notes are populated. Report any missing resolution fields. Do not modify any records.' persona=itil_user session_id=1ae76cc9-0aa3-4041-958d-e602f7156d3d
+[2026-10-07 13:17:38,605: WARNING/MainProcess] 2026-10-07 13:17:38 [debug    ] session_saved_in_memory        session_id=1ae76cc9-0aa3-4041-958d-e602f7156d3d
+[2026-10-07 13:17:38,605: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] state_transition               from_state=idle reason='Parsing user prompt into structured intent' to_state=intent_analysis
+[2026-10-07 13:17:38,606: WARNING/MainProcess] 2026-10-07 13:17:38 [info     ] parsing_user_intent            prompt='Read-only inspect 3 recent Incidents. For any in Resolved state, verify close_co'
+[2026-10-07 13:17:40,694: INFO/MainProcess] HTTP Request: POST https://integrate.api.nvidia.com/v1/chat/completions "HTTP/1.1 200 OK"
+[2026-10-07 13:17:40,696: WARNING/MainProcess] 2026-10-07 13:17:40 [info     ] skill_resolved_for_intent      skill=IncidentSkill
+[2026-10-07 13:17:40,696: WARNING/MainProcess] 2026-10-07 13:17:40 [info     ] launching_browser              headless=True
+[2026-10-07 13:17:43,523: WARNING/MainProcess] 2026-10-07 13:17:43 [info     ] browser_launched
+[2026-10-07 13:17:43,842: WARNING/MainProcess] 2026-10-07 13:17:43 [info     ] navigating                     url=https://aelumconsultingpvtltddemo3.service-now.com
+[2026-10-07 13:17:47,032: WARNING/MainProcess] 2026-10-07 13:17:47 [warning  ] js_page_error                  error="Cannot read properties of null (reading 'appendChild')"
+[2026-10-07 13:18:00,034: WARNING/MainProcess] 2026-10-07 13:18:00 [info     ] authenticating_servicenow_session
+[2026-10-07 13:18:03,987: WARNING/MainProcess] 2026-10-07 13:18:03 [warning  ] js_page_error                  error="Cannot read properties of null (reading 'appendChild')"
+[2026-10-07 13:18:18,980: WARNING/MainProcess] 2026-10-07 13:18:18 [warning  ] wait_for_load_timeout          error='Timeout 15000ms exceeded.'
+[2026-10-07 13:18:21,987: WARNING/MainProcess] 2026-10-07 13:18:21 [info     ] servicenow_session_authenticated
+[2026-10-07 13:18:21,989: WARNING/MainProcess] 2026-10-07 13:18:21 [info     ] post_login_navigation          current_url=https://aelumconsultingpvtltddemo3.service-now.com/now/sow/home target=incident_list
+[2026-10-07 13:18:21,990: WARNING/MainProcess] 2026-10-07 13:18:21 [info     ] navigating                     url='https://aelumconsultingpvtltddemo3.service-now.com/incident_list.do?sysparm_query=active=true'
+[2026-10-07 13:18:25,128: WARNING/MainProcess] 2026-10-07 13:18:25 [warning  ] js_page_error                  error="Cannot read properties of null (reading 'appendChild')"
+[2026-10-07 13:18:37,607: WARNING/MainProcess] 2026-10-07 13:18:37 [info     ] navigated_to_incident_list
+[2026-10-07 13:18:37,611: WARNING/MainProcess] 2026-10-07 13:18:37 [info     ] state_transition               from_state=intent_analysis reason='Creating execution plan' to_state=planning
+[2026-10-07 13:18:37,621: WARNING/MainProcess] 2026-10-07 13:18:37 [warning  ] pgvector_retrieve_failed_fallback_to_in_memory error='invalid DSN: scheme is expected to be either "postgresql" or "postgres", got \'sqlite+aiosqlite\''
+[2026-10-07 13:18:37,627: WARNING/MainProcess] 2026-10-07 13:18:37 [info     ] docs_loaded                    module=incident_management sections=17
+[2026-10-07 13:18:37,628: WARNING/MainProcess] 2026-10-07 13:18:37 [info     ] knowledge_retrieved            query='Read-only inspect 3 recent Incidents. For any in R' sections_matched=5
+[2026-10-07 13:18:37,629: WARNING/MainProcess] 2026-10-07 13:18:37 [info     ] building_incident_execution_plan goal='Inspect three recent incidents and verify that resolved incidents have close_code and close_notes populated' intent_type=IncidentValidation
+[2026-10-07 13:18:37,631: WARNING/MainProcess] 2026-10-07 13:18:37 [info     ] executing_canonical_plan       goal='Inspect three recent incidents and verify that resolved incidents have close_code and close_notes populated' step_count=4
+[2026-10-07 13:18:41,871: WARNING/MainProcess] 2026-10-07 13:18:41 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=plan_created
+[2026-10-07 13:18:45,935: WARNING/MainProcess] 2026-10-07 13:18:45 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:18:45,937: WARNING/MainProcess] 2026-10-07 13:18:45 [info     ] executing_plan_step            description='Open Existing Incident' step_index=0
+[2026-10-07 13:18:49,988: WARNING/MainProcess] 2026-10-07 13:18:49 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_started
+[2026-10-07 13:18:49,990: WARNING/MainProcess] 2026-10-07 13:18:49 [info     ] state_transition               from_state=planning reason='Observing before: Open Existing Incident' to_state=observing
+[2026-10-07 13:18:49,990: WARNING/MainProcess] 2026-10-07 13:18:49 [debug    ] observing_page
+[2026-10-07 13:18:54,002: WARNING/MainProcess] 2026-10-07 13:18:54 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 13:18:54,009: WARNING/MainProcess] 2026-10-07 13:18:54 [debug    ] building_semantic_world_state  page_type=list
+[2026-10-07 13:18:54,012: WARNING/MainProcess] 2026-10-07 13:18:54 [info     ] world_state_built              available_actions=30 blocked_actions=0 page_semantic='Record Queue List' record_state=None
+[2026-10-07 13:18:54,013: WARNING/MainProcess] 2026-10-07 13:18:54 [info     ] state_transition               from_state=observing reason='Deciding action for: Open Existing Incident' to_state=decision
+[2026-10-07 13:18:54,013: WARNING/MainProcess] 2026-10-07 13:18:54 [info     ] making_immediate_decision      step=0
+[2026-10-07 13:19:00,250: INFO/MainProcess] HTTP Request: POST https://integrate.api.nvidia.com/v1/chat/completions "HTTP/1.1 200 OK"
+[2026-10-07 13:19:00,271: WARNING/MainProcess] 2026-10-07 13:19:00 [warning  ] llm_decision_failed_fallback_to_heuristic error='1 validation error for AgentAction\nvalue\n  Input should be a valid string [type=string_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.13/v/string_type'
+[2026-10-07 13:19:00,272: WARNING/MainProcess] 2026-10-07 13:19:00 [info     ] evaluated_confidence           action=click is_above=False score=0.20 target='text:List controls' threshold=0.7
+[2026-10-07 13:19:04,336: WARNING/MainProcess] 2026-10-07 13:19:04 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:19:04,337: WARNING/MainProcess] 2026-10-07 13:19:04 [info     ] state_transition               from_state=decision reason='Executing: click on text:List controls' to_state=executing
+[2026-10-07 13:19:04,677: WARNING/MainProcess] 2026-10-07 13:19:04 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\before_perception_97870.png'
+[2026-10-07 13:19:04,680: WARNING/MainProcess] 2026-10-07 13:19:04 [debug    ] observing_page
+[2026-10-07 13:19:09,379: WARNING/MainProcess] 2026-10-07 13:19:09 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 13:19:09,649: WARNING/MainProcess] 2026-10-07 13:19:09 [info     ] dom_candidate_unverified_escalating locator='text:List controls >> nth=0' target='text:List controls'
+[2026-10-07 13:19:09,649: WARNING/MainProcess] 2026-10-07 13:19:09 [info     ] perception_started             provider=moondream reason=dom_insufficient target='text:List controls'
+[2026-10-07 13:19:09,698: WARNING/MainProcess] 2026-10-07 13:19:09 [info     ] perception_started             provider=moondream target='text:List controls' task=ground_element
+[2026-10-07 13:19:09,722: WARNING/MainProcess] 2026-10-07 13:19:09 [info     ] moondream_inference_started    target='text:List controls' task=detect
+[2026-10-07 13:19:16,548: WARNING/MainProcess] 2026-10-07 13:19:16 [info     ] moondream_detect_success       center_x=1619 center_y=20 confidence=1.0 target='text:List controls'
+[2026-10-07 13:19:16,548: WARNING/MainProcess] 2026-10-07 13:19:16 [info     ] perception_completed           method=detect provider=moondream success=True target='text:List controls'
+[2026-10-07 13:19:16,550: WARNING/MainProcess] 2026-10-07 13:19:16 [info     ] perception_completed           confidence=1.0 provider=moondream success=True target='text:List controls'
+[2026-10-07 13:19:16,551: WARNING/MainProcess] 2026-10-07 13:19:16 [info     ] perception_route               confidence=1.0 decision=high_confidence_execute route=MOONDREAM target='text:List controls'
+[2026-10-07 13:19:16,551: WARNING/MainProcess] 2026-10-07 13:19:16 [error    ] moondream_dom_mismatch         target='text:List controls'
+[2026-10-07 13:19:16,743: WARNING/MainProcess] 2026-10-07 13:19:16 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\step_0_click_97882.png'
+[2026-10-07 13:19:20,808: WARNING/MainProcess] 2026-10-07 13:19:20 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:19:20,808: WARNING/MainProcess] 2026-10-07 13:19:20 [info     ] state_transition               from_state=executing reason='Observing after: Open Existing Incident' to_state=observing
+[2026-10-07 13:19:20,809: WARNING/MainProcess] 2026-10-07 13:19:20 [debug    ] observing_page
+[2026-10-07 13:19:24,903: WARNING/MainProcess] 2026-10-07 13:19:24 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 13:19:24,905: WARNING/MainProcess] 2026-10-07 13:19:24 [debug    ] building_semantic_world_state  page_type=list
+[2026-10-07 13:19:24,906: WARNING/MainProcess] 2026-10-07 13:19:24 [info     ] world_state_built              available_actions=30 blocked_actions=0 page_semantic='Record Queue List' record_state=None
+[2026-10-07 13:19:24,906: WARNING/MainProcess] 2026-10-07 13:19:24 [info     ] state_transition               from_state=observing reason='Validating: Open Existing Incident' to_state=validating
+[2026-10-07 13:19:24,906: WARNING/MainProcess] 2026-10-07 13:19:24 [info     ] validating_action              action_type=click
+[2026-10-07 13:19:24,909: WARNING/MainProcess] 2026-10-07 13:19:24 [info     ] validation_complete            checks=5 failed=2 passed=False
+[2026-10-07 13:19:24,910: WARNING/MainProcess] 2026-10-07 13:19:24 [info     ] incident_skill_validating_action action=click
+[2026-10-07 13:19:24,910: WARNING/MainProcess] 2026-10-07 13:19:24 [debug    ] parsing_incident_from_observation url='https://aelumconsultingpvtltddemo3.service-now.com/incident_list.do?sysparm_query=active=true'
+[2026-10-07 13:19:24,912: WARNING/MainProcess] 2026-10-07 13:19:24 [info     ] incident_parsed                number=New short_description= state=unknown
+[2026-10-07 13:19:24,912: WARNING/MainProcess] 2026-10-07 13:19:24 [debug    ] parsing_incident_from_observation url='https://aelumconsultingpvtltddemo3.service-now.com/incident_list.do?sysparm_query=active=true'
+[2026-10-07 13:19:24,913: WARNING/MainProcess] 2026-10-07 13:19:24 [info     ] incident_parsed                number=New short_description= state=unknown
+[2026-10-07 13:19:24,913: WARNING/MainProcess] 2026-10-07 13:19:24 [info     ] validating_incident_business_outcome step='[HEURISTIC FALLBACK] click available action List controls'
+[2026-10-07 13:19:24,915: WARNING/MainProcess] 2026-10-07 13:19:24 [info     ] evidence_recorded              confidence=0.5 evidence_id=EV-001 passed=False step='[HEURISTIC FALLBACK] click available act'
+[2026-10-07 13:19:28,971: WARNING/MainProcess] 2026-10-07 13:19:28 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_finished
+[2026-10-07 13:19:33,025: WARNING/MainProcess] 2026-10-07 13:19:33 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:19:33,026: WARNING/MainProcess] 2026-10-07 13:19:33 [info     ] executing_plan_step            description='Populate Resolution Code & Notes' step_index=1
+[2026-10-07 13:19:37,068: WARNING/MainProcess] 2026-10-07 13:19:37 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_started
+[2026-10-07 13:19:37,069: WARNING/MainProcess] 2026-10-07 13:19:37 [info     ] state_transition               from_state=validating reason='Observing before: Populate Resolution Code & Notes' to_state=observing
+[2026-10-07 13:19:37,070: WARNING/MainProcess] 2026-10-07 13:19:37 [debug    ] observing_page
+[2026-10-07 13:19:40,733: WARNING/MainProcess] 2026-10-07 13:19:40 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 13:19:40,734: WARNING/MainProcess] 2026-10-07 13:19:40 [debug    ] building_semantic_world_state  page_type=list
+[2026-10-07 13:19:40,735: WARNING/MainProcess] 2026-10-07 13:19:40 [info     ] world_state_built              available_actions=30 blocked_actions=0 page_semantic='Record Queue List' record_state=None
+[2026-10-07 13:19:40,735: WARNING/MainProcess] 2026-10-07 13:19:40 [info     ] state_transition               from_state=observing reason='Deciding action for: Populate Resolution Code & Notes' to_state=decision
+[2026-10-07 13:19:40,736: WARNING/MainProcess] 2026-10-07 13:19:40 [info     ] making_immediate_decision      step=1
+[2026-10-07 13:19:54,932: INFO/MainProcess] HTTP Request: POST https://integrate.api.nvidia.com/v1/chat/completions "HTTP/1.1 200 OK"
+[2026-10-07 13:19:54,966: WARNING/MainProcess] 2026-10-07 13:19:54 [warning  ] llm_decision_failed_fallback_to_heuristic error='1 validation error for AgentAction\nvalue\n  Input should be a valid string [type=string_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.13/v/string_type'
+[2026-10-07 13:19:54,970: WARNING/MainProcess] 2026-10-07 13:19:54 [info     ] evaluated_confidence           action=click is_above=False score=0.20 target='text:List controls' threshold=0.7
+[2026-10-07 13:19:59,025: WARNING/MainProcess] 2026-10-07 13:19:59 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:19:59,027: WARNING/MainProcess] 2026-10-07 13:19:59 [info     ] state_transition               from_state=decision reason='Executing: click on text:List controls' to_state=executing
+[2026-10-07 13:19:59,510: WARNING/MainProcess] 2026-10-07 13:19:59 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\before_perception_97925.png'
+[2026-10-07 13:19:59,510: WARNING/MainProcess] 2026-10-07 13:19:59 [debug    ] observing_page
+[2026-10-07 13:20:03,828: WARNING/MainProcess] 2026-10-07 13:20:03 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 13:20:04,032: WARNING/MainProcess] 2026-10-07 13:20:04 [info     ] dom_candidate_unverified_escalating locator='text:List controls >> nth=0' target='text:List controls'
+[2026-10-07 13:20:04,032: WARNING/MainProcess] 2026-10-07 13:20:04 [info     ] perception_started             provider=moondream reason=dom_insufficient target='text:List controls'
+[2026-10-07 13:20:04,068: WARNING/MainProcess] 2026-10-07 13:20:04 [info     ] perception_started             provider=moondream target='text:List controls' task=ground_element
+[2026-10-07 13:20:04,092: WARNING/MainProcess] 2026-10-07 13:20:04 [info     ] moondream_inference_started    target='text:List controls' task=detect
+[2026-10-07 13:20:11,235: WARNING/MainProcess] 2026-10-07 13:20:11 [info     ] moondream_detect_success       center_x=1619 center_y=20 confidence=1.0 target='text:List controls'
+[2026-10-07 13:20:11,236: WARNING/MainProcess] 2026-10-07 13:20:11 [info     ] perception_completed           method=detect provider=moondream success=True target='text:List controls'
+[2026-10-07 13:20:11,238: WARNING/MainProcess] 2026-10-07 13:20:11 [info     ] perception_completed           confidence=1.0 provider=moondream success=True target='text:List controls'
+[2026-10-07 13:20:11,239: WARNING/MainProcess] 2026-10-07 13:20:11 [info     ] perception_route               confidence=1.0 decision=high_confidence_execute route=MOONDREAM target='text:List controls'
+[2026-10-07 13:20:11,239: WARNING/MainProcess] 2026-10-07 13:20:11 [error    ] moondream_dom_mismatch         target='text:List controls'
+[2026-10-07 13:20:11,457: WARNING/MainProcess] 2026-10-07 13:20:11 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\step_1_click_97937.png'
+[2026-10-07 13:20:15,524: WARNING/MainProcess] 2026-10-07 13:20:15 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:20:15,525: WARNING/MainProcess] 2026-10-07 13:20:15 [info     ] state_transition               from_state=executing reason='Observing after: Populate Resolution Code & Notes' to_state=observing
+[2026-10-07 13:20:15,525: WARNING/MainProcess] 2026-10-07 13:20:15 [debug    ] observing_page
+[2026-10-07 13:20:19,164: WARNING/MainProcess] 2026-10-07 13:20:19 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 13:20:19,164: WARNING/MainProcess] 2026-10-07 13:20:19 [debug    ] building_semantic_world_state  page_type=list
+[2026-10-07 13:20:19,165: WARNING/MainProcess] 2026-10-07 13:20:19 [info     ] world_state_built              available_actions=30 blocked_actions=0 page_semantic='Record Queue List' record_state=None
+[2026-10-07 13:20:19,165: WARNING/MainProcess] 2026-10-07 13:20:19 [info     ] state_transition               from_state=observing reason='Validating: Populate Resolution Code & Notes' to_state=validating
+[2026-10-07 13:20:19,166: WARNING/MainProcess] 2026-10-07 13:20:19 [info     ] validating_action              action_type=click
+[2026-10-07 13:20:19,167: WARNING/MainProcess] 2026-10-07 13:20:19 [info     ] validation_complete            checks=5 failed=2 passed=False
+[2026-10-07 13:20:19,167: WARNING/MainProcess] 2026-10-07 13:20:19 [info     ] incident_skill_validating_action action=click
+[2026-10-07 13:20:19,168: WARNING/MainProcess] 2026-10-07 13:20:19 [debug    ] parsing_incident_from_observation url='https://aelumconsultingpvtltddemo3.service-now.com/incident_list.do?sysparm_query=active=true'
+[2026-10-07 13:20:19,168: WARNING/MainProcess] 2026-10-07 13:20:19 [info     ] incident_parsed                number=New short_description= state=unknown
+[2026-10-07 13:20:19,169: WARNING/MainProcess] 2026-10-07 13:20:19 [debug    ] parsing_incident_from_observation url='https://aelumconsultingpvtltddemo3.service-now.com/incident_list.do?sysparm_query=active=true'
+[2026-10-07 13:20:19,169: WARNING/MainProcess] 2026-10-07 13:20:19 [info     ] incident_parsed                number=New short_description= state=unknown
+[2026-10-07 13:20:19,169: WARNING/MainProcess] 2026-10-07 13:20:19 [info     ] validating_incident_business_outcome step='[HEURISTIC FALLBACK] click available action List controls'
+[2026-10-07 13:20:19,170: WARNING/MainProcess] 2026-10-07 13:20:19 [info     ] evidence_recorded              confidence=0.5 evidence_id=EV-002 passed=False step='[HEURISTIC FALLBACK] click available act'
+[2026-10-07 13:20:23,232: WARNING/MainProcess] 2026-10-07 13:20:23 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_finished
+[2026-10-07 13:20:27,289: WARNING/MainProcess] 2026-10-07 13:20:27 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:20:27,290: WARNING/MainProcess] 2026-10-07 13:20:27 [info     ] executing_plan_step            description='Update State to Resolved' step_index=2
+[2026-10-07 13:20:31,337: WARNING/MainProcess] 2026-10-07 13:20:31 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_started
+[2026-10-07 13:20:31,338: WARNING/MainProcess] 2026-10-07 13:20:31 [info     ] state_transition               from_state=validating reason='Observing before: Update State to Resolved' to_state=observing
+[2026-10-07 13:20:31,338: WARNING/MainProcess] 2026-10-07 13:20:31 [debug    ] observing_page
+[2026-10-07 13:20:34,973: WARNING/MainProcess] 2026-10-07 13:20:34 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 13:20:34,977: WARNING/MainProcess] 2026-10-07 13:20:34 [debug    ] building_semantic_world_state  page_type=list
+[2026-10-07 13:20:34,977: WARNING/MainProcess] 2026-10-07 13:20:34 [info     ] world_state_built              available_actions=30 blocked_actions=0 page_semantic='Record Queue List' record_state=None
+[2026-10-07 13:20:34,978: WARNING/MainProcess] 2026-10-07 13:20:34 [info     ] state_transition               from_state=observing reason='Deciding action for: Update State to Resolved' to_state=decision
+[2026-10-07 13:20:34,978: WARNING/MainProcess] 2026-10-07 13:20:34 [info     ] making_immediate_decision      step=2
+[2026-10-07 13:20:47,584: INFO/MainProcess] HTTP Request: POST https://integrate.api.nvidia.com/v1/chat/completions "HTTP/1.1 200 OK"
+[2026-10-07 13:20:47,590: WARNING/MainProcess] 2026-10-07 13:20:47 [warning  ] llm_decision_failed_fallback_to_heuristic error='1 validation error for AgentAction\nvalue\n  Input should be a valid string [type=string_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.13/v/string_type'
+[2026-10-07 13:20:47,591: WARNING/MainProcess] 2026-10-07 13:20:47 [info     ] evaluated_confidence           action=click is_above=False score=0.20 target='text:List controls' threshold=0.7
+[2026-10-07 13:20:51,649: WARNING/MainProcess] 2026-10-07 13:20:51 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:20:51,652: WARNING/MainProcess] 2026-10-07 13:20:51 [info     ] state_transition               from_state=decision reason='Executing: click on text:List controls' to_state=executing
+[2026-10-07 13:20:51,862: WARNING/MainProcess] 2026-10-07 13:20:51 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\before_perception_97977.png'
+[2026-10-07 13:20:51,862: WARNING/MainProcess] 2026-10-07 13:20:51 [debug    ] observing_page
+[2026-10-07 13:20:55,684: WARNING/MainProcess] 2026-10-07 13:20:55 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 13:20:55,883: WARNING/MainProcess] 2026-10-07 13:20:55 [info     ] dom_candidate_unverified_escalating locator='text:List controls >> nth=0' target='text:List controls'
+[2026-10-07 13:20:55,886: WARNING/MainProcess] 2026-10-07 13:20:55 [info     ] perception_started             provider=moondream reason=dom_insufficient target='text:List controls'
+[2026-10-07 13:20:55,906: WARNING/MainProcess] 2026-10-07 13:20:55 [info     ] perception_started             provider=moondream target='text:List controls' task=ground_element
+[2026-10-07 13:20:55,924: WARNING/MainProcess] 2026-10-07 13:20:55 [info     ] moondream_inference_started    target='text:List controls' task=detect
+[2026-10-07 13:21:02,801: WARNING/MainProcess] 2026-10-07 13:21:02 [info     ] moondream_detect_success       center_x=1619 center_y=20 confidence=1.0 target='text:List controls'
+[2026-10-07 13:21:02,802: WARNING/MainProcess] 2026-10-07 13:21:02 [info     ] perception_completed           method=detect provider=moondream success=True target='text:List controls'
+[2026-10-07 13:21:02,804: WARNING/MainProcess] 2026-10-07 13:21:02 [info     ] perception_completed           confidence=1.0 provider=moondream success=True target='text:List controls'
+[2026-10-07 13:21:02,804: WARNING/MainProcess] 2026-10-07 13:21:02 [info     ] perception_route               confidence=1.0 decision=high_confidence_execute route=MOONDREAM target='text:List controls'
+[2026-10-07 13:21:02,805: WARNING/MainProcess] 2026-10-07 13:21:02 [error    ] moondream_dom_mismatch         target='text:List controls'
+[2026-10-07 13:21:03,008: WARNING/MainProcess] 2026-10-07 13:21:03 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\step_2_click_97988.png'
+[2026-10-07 13:21:07,088: WARNING/MainProcess] 2026-10-07 13:21:07 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:21:07,089: WARNING/MainProcess] 2026-10-07 13:21:07 [info     ] state_transition               from_state=executing reason='Observing after: Update State to Resolved' to_state=observing
+[2026-10-07 13:21:07,089: WARNING/MainProcess] 2026-10-07 13:21:07 [debug    ] observing_page
+[2026-10-07 13:21:10,808: WARNING/MainProcess] 2026-10-07 13:21:10 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 13:21:10,809: WARNING/MainProcess] 2026-10-07 13:21:10 [debug    ] building_semantic_world_state  page_type=list
+[2026-10-07 13:21:10,809: WARNING/MainProcess] 2026-10-07 13:21:10 [info     ] world_state_built              available_actions=30 blocked_actions=0 page_semantic='Record Queue List' record_state=None
+[2026-10-07 13:21:10,809: WARNING/MainProcess] 2026-10-07 13:21:10 [info     ] state_transition               from_state=observing reason='Validating: Update State to Resolved' to_state=validating
+[2026-10-07 13:21:10,809: WARNING/MainProcess] 2026-10-07 13:21:10 [info     ] validating_action              action_type=click
+[2026-10-07 13:21:10,810: WARNING/MainProcess] 2026-10-07 13:21:10 [info     ] validation_complete            checks=5 failed=2 passed=False
+[2026-10-07 13:21:10,810: WARNING/MainProcess] 2026-10-07 13:21:10 [info     ] incident_skill_validating_action action=click
+[2026-10-07 13:21:10,811: WARNING/MainProcess] 2026-10-07 13:21:10 [debug    ] parsing_incident_from_observation url='https://aelumconsultingpvtltddemo3.service-now.com/incident_list.do?sysparm_query=active=true'
+[2026-10-07 13:21:10,811: WARNING/MainProcess] 2026-10-07 13:21:10 [info     ] incident_parsed                number=New short_description= state=unknown
+[2026-10-07 13:21:10,811: WARNING/MainProcess] 2026-10-07 13:21:10 [debug    ] parsing_incident_from_observation url='https://aelumconsultingpvtltddemo3.service-now.com/incident_list.do?sysparm_query=active=true'
+[2026-10-07 13:21:10,811: WARNING/MainProcess] 2026-10-07 13:21:10 [info     ] incident_parsed                number=New short_description= state=unknown
+[2026-10-07 13:21:10,812: WARNING/MainProcess] 2026-10-07 13:21:10 [info     ] validating_incident_business_outcome step='[HEURISTIC FALLBACK] click available action List controls'
+[2026-10-07 13:21:10,813: WARNING/MainProcess] 2026-10-07 13:21:10 [info     ] evidence_recorded              confidence=0.5 evidence_id=EV-003 passed=False step='[HEURISTIC FALLBACK] click available act'
+[2026-10-07 13:21:14,872: WARNING/MainProcess] 2026-10-07 13:21:14 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_finished
+[2026-10-07 13:21:18,940: WARNING/MainProcess] 2026-10-07 13:21:18 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 13:21:18,940: WARNING/MainProcess] 2026-10-07 13:21:18 [warning  ] agent_stuck_detected           reason='Same action repeated 3 times: click on text:list controls' repeated_action='click: text:list controls' repetition_count=3
+[2026-10-07 13:21:22,994: WARNING/MainProcess] 2026-10-07 13:21:22 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_finished
+[2026-10-07 13:21:22,995: WARNING/MainProcess] 2026-10-07 13:21:22 [info     ] state_transition               from_state=validating reason='Agent stuck in action loop: Same action repeated 3 times: click on text:list controls' to_state=failed
+[2026-10-07 13:21:22,997: WARNING/MainProcess] 2026-10-07 13:21:22 [info     ] generating_final_report
+[2026-10-07 13:21:22,998: WARNING/MainProcess] 2026-10-07 13:21:22 [info     ] generating_report_summary
+[2026-10-07 13:21:37,620: INFO/MainProcess] HTTP Request: POST https://integrate.api.nvidia.com/v1/chat/completions "HTTP/1.1 200 OK"
+[2026-10-07 13:21:37,839: WARNING/MainProcess] 2026-10-07 13:21:37 [info     ] generating_report              session_id=1ae76cc9-0aa3-4041-958d-e602f7156d3d
+[2026-10-07 13:21:37,849: WARNING/MainProcess] 2026-10-07 13:21:37 [info     ] exit_criteria_pass             coverage=0.0 requirements_covered=2 requirements_total=0
+[2026-10-07 13:21:37,850: WARNING/MainProcess] 2026-10-07 13:21:37 [info     ] exit_criteria_evaluated        reason='All requirements covered; no open defects; all retests passed.' verdict=PASS
+[2026-10-07 13:21:38,321: WARNING/MainProcess] 2026-10-07 13:21:38 [info     ] report_generated               defects=0 report_id=RPT-100D61A0 status=failed
+[2026-10-07 13:21:38,333: WARNING/MainProcess] 2026-10-07 13:21:38 [info     ] report_saved                   format=markdown path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\reports\\RPT-100D61A0_20261007_074738.md'
+[2026-10-07 13:21:38,359: WARNING/MainProcess] 2026-10-07 13:21:38 [info     ] report_saved                   format=json path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\reports\\RPT-100D61A0_20261007_074738.json'
+[2026-10-07 13:21:38,473: WARNING/MainProcess] 2026-10-07 13:21:38 [info     ] xlsx_results_exported          path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\reports\\RPT-100D61A0_20261007_075138.xlsx' rows=1
+[2026-10-07 13:21:38,474: WARNING/MainProcess] 2026-10-07 13:21:38 [info     ] state_transition               from_state=failed reason='Report status is failed' to_state=failed
+[2026-10-07 13:21:38,481: WARNING/MainProcess] 2026-10-07 13:21:38 [debug    ] session_saved_in_memory        session_id=1ae76cc9-0aa3-4041-958d-e602f7156d3d
+[2026-10-07 13:21:38,482: WARNING/MainProcess] 2026-10-07 13:21:38 [info     ] closing_browser_after_run      headless=True keep_browser_open=False session_id=1ae76cc9-0aa3-4041-958d-e602f7156d3d
+[2026-10-07 13:21:38,482: WARNING/MainProcess] 2026-10-07 13:21:38 [info     ] closing_browser_context
+[2026-10-07 13:21:38,729: WARNING/MainProcess] 2026-10-07 13:21:38 [info     ] agent_run_completed            actions=3 session_id=1ae76cc9-0aa3-4041-958d-e602f7156d3d state=failed
+[2026-10-07 13:21:39,123: INFO/MainProcess] agent.worker.tasks.execute_run[5012e86a-ff33-4abe-a811-0a21abbd035b]: perception_evidence_saved: C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\reports\1ae76cc9-0aa3-4041-958d-e602f7156d3d_perception.json
+[2026-10-07 13:21:39,359: INFO/MainProcess] agent.worker.tasks.execute_run[5012e86a-ff33-4abe-a811-0a21abbd035b]: result_snapshot_saved: C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\reports\1ae76cc9-0aa3-4041-958d-e602f7156d3d_result.json
+[2026-10-07 13:21:39,678: WARNING/MainProcess] 2026-10-07 13:21:39 [debug    ] session_deleted_in_memory      session_id=session:1ae76cc9-0aa3-4041-958d-e602f7156d3d
+[2026-10-07 13:21:39,718: INFO/MainProcess] Task agent.worker.tasks.execute_run[5012e86a-ff33-4abe-a811-0a21abbd035b] succeeded in 242.63999999999942s: 'done'

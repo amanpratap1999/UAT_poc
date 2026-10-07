@@ -1,0 +1,27 @@
+{
+  "score": 35.0,
+  "max_score": 10,
+  "normalized_score": 3.5,
+  "mode": "exploratory_with_laya_primary",
+  "total_runs": 3,
+  "completed_runs": 0,
+  "failed_runs": 2,
+  "blocked_runs": 0,
+  "completion_rate_pct": 0.0,
+  "total_findings": 0,
+  "total_defects": 0,
+  "avg_duration_seconds": 334.7,
+  "exit_criteria_evaluated_pct": 100.0,
+  "telemetry_recorded_pct": 100.0,
+  "laya_mode": "primary",
+  "laya_actions": 0,
+  "gemini_actions": 2,
+  "laya_used": false,
+  "run_statuses": [
+    "partial",
+    "failed",
+    "failed"
+  ],
+  "timestamp": "2026-10-07T07:51:48.465133+00:00",
+  "commit": "cfec1fc"
+}
