@@ -42,6 +42,11 @@ logger = get_logger(__name__)
 _LLM_BILLING_CODES = {401, 402, 403, 429}
 
 
+class DecisionUnavailableError(RuntimeError):
+    """Raised when no safe immediate action can be selected."""
+    pass
+
+
 class LLMBillingError(RuntimeError):
     """Raised when the LLM provider returns a billing/auth/quota error.
 
@@ -349,14 +354,36 @@ class DecisionEngine:
                         },
                     ]
                 )
-                action_type = response.get("action_type", "wait")
-                target = response.get("target", "")
-                value = response.get("value", "")
-                rationale = response.get("reasoning", "Selected by decision engine")
-                expected = response.get("expected_outcome", "Action executes successfully")
-
+                raw_action_type = str(response.get("action_type", "") or "").strip().lower()
+                if not raw_action_type:
+                    raise DecisionUnavailableError("LLM returned no action_type")
+                try:
+                    action_type = ActionType(raw_action_type)
+                except ValueError as exc:
+                    raise DecisionUnavailableError(
+                        f"LLM returned unsupported action_type '{raw_action_type}'"
+                    ) from exc
+                target = str(response.get("target", "") or "").strip()
+                value = str(response.get("value", "") or "")
+                rationale = str(
+                    response.get("reasoning", "Selected by decision engine") or
+                    "Selected by decision engine"
+                )
+                expected = str(
+                    response.get("expected_outcome", "Action executes successfully") or
+                    "Action executes successfully"
+                )
+                if action_type in {
+                    ActionType.CLICK,
+                    ActionType.FILL,
+                    ActionType.SELECT,
+                    ActionType.KEY_PRESS,
+                } and not target:
+                    raise DecisionUnavailableError(
+                        f"LLM action '{action_type}' has no target"
+                    )
                 chosen_action = AgentAction(
-                    action_type=ActionType(action_type),
+                    action_type=action_type,
                     target=target,
                     value=value,
                     reasoning=rationale,
@@ -384,14 +411,14 @@ class DecisionEngine:
                     )
                     raise LLMBillingError(status_code, str(e)) from e
 
-                logger.warning("llm_decision_failed_fallback_to_heuristic", error=str(e))
-                chosen_action = self._heuristic_decision(world_state, memory)
-                rationale = chosen_action.reasoning
-                expected = "Action executes"
+                logger.error("llm_decision_unavailable", error=str(e))
+                raise DecisionUnavailableError(
+                    f"No safe decision available from LLM: {type(e).__name__}: {e}"
+                ) from e
         else:
-            chosen_action = self._heuristic_decision(world_state, memory)
-            rationale = chosen_action.reasoning
-            expected = "Action executes"
+            raise DecisionUnavailableError(
+                "No decision provider is available; autonomous execution is blocked"
+            )
 
         # P9-LAYA: stamp heuristic fallback actions with their source
         if chosen_action and not chosen_action.metadata.get("action_source"):
@@ -451,19 +478,7 @@ class DecisionEngine:
     def _heuristic_decision(
         self, world_state: SemanticWorldState, memory: SessionMemory
     ) -> AgentAction:
-        """Heuristic fallback action decision."""
-        if world_state.available_actions:
-            first_action = world_state.available_actions[0]
-            return AgentAction(
-                action_type=ActionType.CLICK,
-                target=first_action.target,
-                reasoning=f"[HEURISTIC FALLBACK] click available action {first_action.action_name}",
-                metadata={"is_heuristic_fallback": True},
-            )
-        return AgentAction(
-            action_type=ActionType.WAIT,
-            target="",
-            value="1000",
-            reasoning="[HEURISTIC FALLBACK] wait for page state",
-            metadata={"is_heuristic_fallback": True},
+        """Legacy compatibility shim; arbitrary browser clicks are disabled."""
+        raise DecisionUnavailableError(
+            "Heuristic browser action fallback is disabled for autonomous safety"
         )
