@@ -1,0 +1,201 @@
+Starting Celery worker...
+ 
+ -------------- celery@LAPTOP-FKE1L5S1 v5.6.3 (recovery)
+--- ***** ----- 
+-- ******* ---- Windows-10-10.0.26200-SP0 2026-10-07 12:32:03
+- *** --- * --- 
+- ** ---------- [config]
+- ** ---------- .> app:         agent_worker:0x1bbc1a83850
+- ** ---------- .> transport:   sqla+sqlite:///celery_broker.db
+- ** ---------- .> results:     sqlite:///celery_results.db
+- *** --- * --- .> concurrency: 1 (solo)
+-- ******* ---- .> task events: OFF (enable -E to monitor tasks in this worker)
+--- ***** ----- 
+ -------------- [queues]
+                .> celery           exchange=celery(direct) key=celery
+                
+
+[tasks]
+  . agent.worker.tasks.execute_run
+
+[2026-10-07 12:32:04,220: INFO/MainProcess] Connected to sqla+sqlite:///celery_broker.db
+[2026-10-07 12:32:04,705: WARNING/MainProcess] Failed to publish worker ready event: Redis URL must specify one of the following schemes (redis://, rediss://, unix://)
+[2026-10-07 12:32:04,706: INFO/MainProcess] celery@LAPTOP-FKE1L5S1 ready.
+[2026-10-07 12:32:24,832: INFO/MainProcess] Task agent.worker.tasks.execute_run[94d9e395-5ac1-4559-81b9-1da71cb6453f] received
+[2026-10-07 12:32:24,854: INFO/MainProcess] agent.worker.tasks.execute_run[94d9e395-5ac1-4559-81b9-1da71cb6453f]: Starting execution for run_id=df2be5c4-e6e3-4160-b502-84674e02b34b tenant=default test_case_id=None
+[2026-10-07 12:32:26,741: WARNING/MainProcess] 2026-10-07 12:32:26 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 12:32:26,747: WARNING/MainProcess] 2026-10-07 12:32:26 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 12:32:27,509: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=browser tool_name=click
+[2026-10-07 12:32:27,510: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=browser tool_name=fill
+[2026-10-07 12:32:27,510: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=browser tool_name=select
+[2026-10-07 12:32:27,510: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=browser tool_name=navigate
+[2026-10-07 12:32:27,510: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=browser tool_name=wait
+[2026-10-07 12:32:27,510: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=browser tool_name=scroll
+[2026-10-07 12:32:27,510: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=browser tool_name=screenshot
+[2026-10-07 12:32:27,510: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=browser tool_name=observe
+[2026-10-07 12:32:27,511: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=validation tool_name=validate_state
+[2026-10-07 12:32:27,511: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=validation tool_name=validate_field
+[2026-10-07 12:32:27,511: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=validation tool_name=validate_errors
+[2026-10-07 12:32:27,511: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=knowledge tool_name=search_documentation
+[2026-10-07 12:32:27,511: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=reporting tool_name=generate_report
+[2026-10-07 12:32:27,515: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 12:32:27,518: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 12:32:27,525: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] laya_disabled_by_config
+[2026-10-07 12:32:27,526: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] laya_not_configured_using_llm_fallback
+[2026-10-07 12:32:27,533: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] laya_action_policy_attached    checkpoint= device=auto mode=primary
+[2026-10-07 12:32:27,536: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 12:32:27,536: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=browser tool_name=click
+[2026-10-07 12:32:27,537: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=browser tool_name=fill
+[2026-10-07 12:32:27,538: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=browser tool_name=select
+[2026-10-07 12:32:27,538: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=browser tool_name=navigate
+[2026-10-07 12:32:27,539: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=browser tool_name=wait
+[2026-10-07 12:32:27,539: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=browser tool_name=scroll
+[2026-10-07 12:32:27,539: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=browser tool_name=screenshot
+[2026-10-07 12:32:27,539: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=browser tool_name=observe
+[2026-10-07 12:32:27,539: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=validation tool_name=validate_state
+[2026-10-07 12:32:27,539: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=validation tool_name=validate_field
+[2026-10-07 12:32:27,539: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=validation tool_name=validate_errors
+[2026-10-07 12:32:27,539: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=knowledge tool_name=search_documentation
+[2026-10-07 12:32:27,540: WARNING/MainProcess] 2026-10-07 12:32:27 [info     ] registered_tool                category=reporting tool_name=generate_report
+[2026-10-07 12:32:29,965: WARNING/MainProcess] C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\src\agent\perception\backends.py:334: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  import google.generativeai as genai  # type: ignore[import-untyped]
+
+[2026-10-07 12:32:29,970: WARNING/MainProcess] 2026-10-07 12:32:29 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 12:32:29,974: WARNING/MainProcess] 2026-10-07 12:32:29 [info     ] llm_client_initialized         model=nvidia/nemotron-3-super-120b-a12b provider=nvidia
+[2026-10-07 12:32:30,379: INFO/MainProcess] agent.worker.tasks.execute_run[94d9e395-5ac1-4559-81b9-1da71cb6453f]: agent_browser_configuration run_id=df2be5c4-e6e3-4160-b502-84674e02b34b headless=True slow_mo=0 show_mouse_cursor=True keep_browser_open=False
+[2026-10-07 12:32:30,380: WARNING/MainProcess] 2026-10-07 12:32:30 [info     ] agent_run_started              goal='Read-only inspect 3 recent Incidents. For any in Resolved state, verify close_code and close_notes are populated. Report any missing resolution fields. Do not modify any records.' persona=itil_user session_id=df2be5c4-e6e3-4160-b502-84674e02b34b
+[2026-10-07 12:32:30,386: WARNING/MainProcess] 2026-10-07 12:32:30 [debug    ] session_saved_in_memory        session_id=df2be5c4-e6e3-4160-b502-84674e02b34b
+[2026-10-07 12:32:30,387: WARNING/MainProcess] 2026-10-07 12:32:30 [info     ] state_transition               from_state=idle reason='Parsing user prompt into structured intent' to_state=intent_analysis
+[2026-10-07 12:32:30,388: WARNING/MainProcess] 2026-10-07 12:32:30 [info     ] parsing_user_intent            prompt='Read-only inspect 3 recent Incidents. For any in Resolved state, verify close_co'
+[2026-10-07 12:32:35,155: INFO/MainProcess] HTTP Request: POST https://integrate.api.nvidia.com/v1/chat/completions "HTTP/1.1 200 OK"
+[2026-10-07 12:32:35,183: WARNING/MainProcess] 2026-10-07 12:32:35 [info     ] skill_resolved_for_intent      skill=IncidentSkill
+[2026-10-07 12:32:35,183: WARNING/MainProcess] 2026-10-07 12:32:35 [info     ] launching_browser              headless=True
+[2026-10-07 12:32:38,109: WARNING/MainProcess] 2026-10-07 12:32:38 [info     ] browser_launched
+[2026-10-07 12:32:38,476: WARNING/MainProcess] 2026-10-07 12:32:38 [info     ] navigating                     url=https://aelumconsultingpvtltddemo3.service-now.com
+[2026-10-07 12:32:40,969: WARNING/MainProcess] 2026-10-07 12:32:40 [warning  ] js_page_error                  error="Cannot read properties of null (reading 'appendChild')"
+[2026-10-07 12:32:46,125: WARNING/MainProcess] 2026-10-07 12:32:46 [info     ] authenticating_servicenow_session
+[2026-10-07 12:32:48,796: WARNING/MainProcess] 2026-10-07 12:32:48 [warning  ] js_page_error                  error="Unexpected token 'export'"
+[2026-10-07 12:32:49,067: WARNING/MainProcess] 2026-10-07 12:32:49 [warning  ] js_page_error                  error="Unexpected token 'export'"
+[2026-10-07 12:32:49,287: WARNING/MainProcess] 2026-10-07 12:32:49 [warning  ] js_page_error                  error='Qg is not a function'
+[2026-10-07 12:32:49,404: WARNING/MainProcess] 2026-10-07 12:32:49 [warning  ] js_page_error                  error="Cannot read properties of undefined (reading 'scriptLoader')"
+[2026-10-07 12:32:50,325: WARNING/MainProcess] 2026-10-07 12:32:50 [warning  ] js_page_error                  error="Cannot destructure property 'COMPONENT_BOOTSTRAPPED' of 'jt.actionTypes' as it is undefined."
+[2026-10-07 12:32:50,616: WARNING/MainProcess] 2026-10-07 12:32:50 [warning  ] js_page_error                  error="Cannot read properties of undefined (reading 'COMPONENT_DOM_READY')"
+[2026-10-07 12:32:50,783: WARNING/MainProcess] 2026-10-07 12:32:50 [warning  ] js_page_error                  error="Cannot read properties of null (reading 'appendChild')"
+[2026-10-07 12:33:05,785: WARNING/MainProcess] 2026-10-07 12:33:05 [info     ] servicenow_session_authenticated
+[2026-10-07 12:33:05,787: WARNING/MainProcess] 2026-10-07 12:33:05 [info     ] post_login_navigation          current_url=https://aelumconsultingpvtltddemo3.service-now.com/now/sow/home target=incident_list
+[2026-10-07 12:33:05,788: WARNING/MainProcess] 2026-10-07 12:33:05 [info     ] navigating                     url='https://aelumconsultingpvtltddemo3.service-now.com/incident_list.do?sysparm_query=active=true'
+[2026-10-07 12:33:09,929: WARNING/MainProcess] 2026-10-07 12:33:09 [warning  ] js_page_error                  error="Cannot read properties of null (reading 'appendChild')"
+[2026-10-07 12:33:15,355: WARNING/MainProcess] 2026-10-07 12:33:15 [info     ] navigated_to_incident_list
+[2026-10-07 12:33:15,359: WARNING/MainProcess] 2026-10-07 12:33:15 [info     ] state_transition               from_state=intent_analysis reason='Creating execution plan' to_state=planning
+[2026-10-07 12:33:15,379: WARNING/MainProcess] 2026-10-07 12:33:15 [warning  ] pgvector_retrieve_failed_fallback_to_in_memory error='invalid DSN: scheme is expected to be either "postgresql" or "postgres", got \'sqlite+aiosqlite\''
+[2026-10-07 12:33:15,386: WARNING/MainProcess] 2026-10-07 12:33:15 [info     ] docs_loaded                    module=incident_management sections=17
+[2026-10-07 12:33:15,389: WARNING/MainProcess] 2026-10-07 12:33:15 [info     ] knowledge_retrieved            query='Read-only inspect 3 recent Incidents. For any in R' sections_matched=5
+[2026-10-07 12:33:15,391: WARNING/MainProcess] 2026-10-07 12:33:15 [info     ] building_incident_execution_plan goal='Validate that the three most recent incidents have close_code and close_notes populated when in Resolved state.' intent_type=IncidentValidation
+[2026-10-07 12:33:15,396: WARNING/MainProcess] 2026-10-07 12:33:15 [info     ] executing_canonical_plan       goal='Validate that the three most recent incidents have close_code and close_notes populated when in Resolved state.' step_count=5
+[2026-10-07 12:33:19,827: WARNING/MainProcess] 2026-10-07 12:33:19 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=plan_created
+[2026-10-07 12:33:23,913: WARNING/MainProcess] 2026-10-07 12:33:23 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 12:33:23,913: WARNING/MainProcess] 2026-10-07 12:33:23 [info     ] executing_plan_step            description='Open Target Incident Record' step_index=0
+[2026-10-07 12:33:28,005: WARNING/MainProcess] 2026-10-07 12:33:28 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_started
+[2026-10-07 12:33:28,007: WARNING/MainProcess] 2026-10-07 12:33:28 [info     ] state_transition               from_state=planning reason='Observing before: Open Target Incident Record' to_state=observing
+[2026-10-07 12:33:28,007: WARNING/MainProcess] 2026-10-07 12:33:28 [debug    ] observing_page
+[2026-10-07 12:33:32,469: WARNING/MainProcess] 2026-10-07 12:33:32 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 12:33:32,471: WARNING/MainProcess] 2026-10-07 12:33:32 [debug    ] building_semantic_world_state  page_type=list
+[2026-10-07 12:33:32,473: WARNING/MainProcess] 2026-10-07 12:33:32 [info     ] world_state_built              available_actions=30 blocked_actions=0 page_semantic='Record Queue List' record_state=None
+[2026-10-07 12:33:32,475: WARNING/MainProcess] 2026-10-07 12:33:32 [debug    ] observing_page
+[2026-10-07 12:33:36,478: WARNING/MainProcess] 2026-10-07 12:33:36 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 12:33:37,482: WARNING/MainProcess] 2026-10-07 12:33:37 [debug    ] observing_page
+[2026-10-07 12:33:41,155: WARNING/MainProcess] 2026-10-07 12:33:41 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 12:33:42,169: WARNING/MainProcess] 2026-10-07 12:33:42 [debug    ] observing_page
+[2026-10-07 12:33:46,483: WARNING/MainProcess] 2026-10-07 12:33:46 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 12:33:46,908: WARNING/MainProcess] 2026-10-07 12:33:46 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\read_only_observation_0_95152.png'
+[2026-10-07 12:33:51,009: WARNING/MainProcess] 2026-10-07 12:33:51 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_finished
+[2026-10-07 12:33:55,089: WARNING/MainProcess] 2026-10-07 12:33:55 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 12:33:55,090: WARNING/MainProcess] 2026-10-07 12:33:55 [info     ] executing_plan_step            description='Validate Initial Incident State and Preconditions' step_index=1
+[2026-10-07 12:33:59,150: WARNING/MainProcess] 2026-10-07 12:33:59 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_started
+[2026-10-07 12:33:59,151: WARNING/MainProcess] 2026-10-07 12:33:59 [info     ] state_transition               from_state=observing reason='Observing before: Validate Initial Incident State and Preconditions' to_state=observing
+[2026-10-07 12:33:59,151: WARNING/MainProcess] 2026-10-07 12:33:59 [debug    ] observing_page
+[2026-10-07 12:34:02,831: WARNING/MainProcess] 2026-10-07 12:34:02 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 12:34:02,831: WARNING/MainProcess] 2026-10-07 12:34:02 [debug    ] building_semantic_world_state  page_type=list
+[2026-10-07 12:34:02,832: WARNING/MainProcess] 2026-10-07 12:34:02 [info     ] world_state_built              available_actions=30 blocked_actions=0 page_semantic='Record Queue List' record_state=None
+[2026-10-07 12:34:02,832: WARNING/MainProcess] 2026-10-07 12:34:02 [debug    ] observing_page
+[2026-10-07 12:34:06,413: WARNING/MainProcess] 2026-10-07 12:34:06 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 12:34:07,416: WARNING/MainProcess] 2026-10-07 12:34:07 [debug    ] observing_page
+[2026-10-07 12:34:11,129: WARNING/MainProcess] 2026-10-07 12:34:11 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 12:34:12,142: WARNING/MainProcess] 2026-10-07 12:34:12 [debug    ] observing_page
+[2026-10-07 12:34:16,057: WARNING/MainProcess] 2026-10-07 12:34:16 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 12:34:16,254: WARNING/MainProcess] 2026-10-07 12:34:16 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\read_only_observation_1_95182.png'
+[2026-10-07 12:34:20,340: WARNING/MainProcess] 2026-10-07 12:34:20 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_finished
+[2026-10-07 12:34:24,411: WARNING/MainProcess] 2026-10-07 12:34:24 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 12:34:24,411: WARNING/MainProcess] 2026-10-07 12:34:24 [info     ] executing_plan_step            description='Update State to In Progress' step_index=2
+[2026-10-07 12:34:28,494: WARNING/MainProcess] 2026-10-07 12:34:28 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_started
+[2026-10-07 12:34:28,495: WARNING/MainProcess] 2026-10-07 12:34:28 [info     ] state_transition               from_state=observing reason='Observing before: Update State to In Progress' to_state=observing
+[2026-10-07 12:34:28,496: WARNING/MainProcess] 2026-10-07 12:34:28 [debug    ] observing_page
+[2026-10-07 12:34:32,979: WARNING/MainProcess] 2026-10-07 12:34:32 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 12:34:32,979: WARNING/MainProcess] 2026-10-07 12:34:32 [debug    ] building_semantic_world_state  page_type=list
+[2026-10-07 12:34:32,980: WARNING/MainProcess] 2026-10-07 12:34:32 [info     ] world_state_built              available_actions=30 blocked_actions=0 page_semantic='Record Queue List' record_state=None
+[2026-10-07 12:34:32,980: WARNING/MainProcess] 2026-10-07 12:34:32 [debug    ] observing_page
+[2026-10-07 12:34:38,790: WARNING/MainProcess] 2026-10-07 12:34:38 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 12:34:39,794: WARNING/MainProcess] 2026-10-07 12:34:39 [debug    ] observing_page
+[2026-10-07 12:34:44,013: WARNING/MainProcess] 2026-10-07 12:34:44 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 12:34:45,020: WARNING/MainProcess] 2026-10-07 12:34:45 [debug    ] observing_page
+[2026-10-07 12:34:49,602: WARNING/MainProcess] 2026-10-07 12:34:49 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 12:34:50,017: WARNING/MainProcess] 2026-10-07 12:34:50 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\read_only_observation_2_95215.png'
+[2026-10-07 12:34:54,085: WARNING/MainProcess] 2026-10-07 12:34:54 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_finished
+[2026-10-07 12:34:58,134: WARNING/MainProcess] 2026-10-07 12:34:58 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 12:34:58,135: WARNING/MainProcess] 2026-10-07 12:34:58 [info     ] executing_plan_step            description='Click Update to Persist Record' step_index=3
+[2026-10-07 12:35:02,163: WARNING/MainProcess] 2026-10-07 12:35:02 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_started
+[2026-10-07 12:35:02,165: WARNING/MainProcess] 2026-10-07 12:35:02 [info     ] state_transition               from_state=observing reason='Observing before: Click Update to Persist Record' to_state=observing
+[2026-10-07 12:35:02,165: WARNING/MainProcess] 2026-10-07 12:35:02 [debug    ] observing_page
+[2026-10-07 12:35:05,765: WARNING/MainProcess] 2026-10-07 12:35:05 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 12:35:05,770: WARNING/MainProcess] 2026-10-07 12:35:05 [debug    ] building_semantic_world_state  page_type=list
+[2026-10-07 12:35:05,770: WARNING/MainProcess] 2026-10-07 12:35:05 [info     ] world_state_built              available_actions=30 blocked_actions=0 page_semantic='Record Queue List' record_state=None
+[2026-10-07 12:35:05,771: WARNING/MainProcess] 2026-10-07 12:35:05 [debug    ] observing_page
+[2026-10-07 12:35:09,291: WARNING/MainProcess] 2026-10-07 12:35:09 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 12:35:10,302: WARNING/MainProcess] 2026-10-07 12:35:10 [debug    ] observing_page
+[2026-10-07 12:35:14,501: WARNING/MainProcess] 2026-10-07 12:35:14 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 12:35:15,503: WARNING/MainProcess] 2026-10-07 12:35:15 [debug    ] observing_page
+[2026-10-07 12:35:20,898: WARNING/MainProcess] 2026-10-07 12:35:20 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 12:35:21,129: WARNING/MainProcess] 2026-10-07 12:35:21 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\read_only_observation_3_95246.png'
+[2026-10-07 12:35:25,216: WARNING/MainProcess] 2026-10-07 12:35:25 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_finished
+[2026-10-07 12:35:29,273: WARNING/MainProcess] 2026-10-07 12:35:29 [debug    ] get_control_status_failed      error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.'
+[2026-10-07 12:35:29,274: WARNING/MainProcess] 2026-10-07 12:35:29 [info     ] executing_plan_step            description='Re-open and Validate Incident State' step_index=4
+[2026-10-07 12:35:33,345: WARNING/MainProcess] 2026-10-07 12:35:33 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_started
+[2026-10-07 12:35:33,347: WARNING/MainProcess] 2026-10-07 12:35:33 [info     ] state_transition               from_state=observing reason='Observing before: Re-open and Validate Incident State' to_state=observing
+[2026-10-07 12:35:33,347: WARNING/MainProcess] 2026-10-07 12:35:33 [debug    ] observing_page
+[2026-10-07 12:35:37,089: WARNING/MainProcess] 2026-10-07 12:35:37 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 12:35:37,090: WARNING/MainProcess] 2026-10-07 12:35:37 [debug    ] building_semantic_world_state  page_type=list
+[2026-10-07 12:35:37,091: WARNING/MainProcess] 2026-10-07 12:35:37 [info     ] world_state_built              available_actions=30 blocked_actions=0 page_semantic='Record Queue List' record_state=None
+[2026-10-07 12:35:37,092: WARNING/MainProcess] 2026-10-07 12:35:37 [debug    ] observing_page
+[2026-10-07 12:35:41,044: WARNING/MainProcess] 2026-10-07 12:35:41 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 12:35:42,057: WARNING/MainProcess] 2026-10-07 12:35:42 [debug    ] observing_page
+[2026-10-07 12:35:46,179: WARNING/MainProcess] 2026-10-07 12:35:46 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 12:35:47,192: WARNING/MainProcess] 2026-10-07 12:35:47 [debug    ] observing_page
+[2026-10-07 12:35:51,102: WARNING/MainProcess] 2026-10-07 12:35:51 [info     ] observation_complete           buttons=30 console_errors=0 dom_fingerprint=bf16eeb7 fields=2 network_errors=0 page_type=list validations=0
+[2026-10-07 12:35:51,489: WARNING/MainProcess] 2026-10-07 12:35:51 [debug    ] screenshot_captured            path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\screenshots\\read_only_observation_4_95277.png'
+[2026-10-07 12:35:55,587: WARNING/MainProcess] 2026-10-07 12:35:55 [debug    ] event_publish_failed           error='Error 22 connecting to localhost:6379. The remote computer refused the network connection.' event_type=step_finished
+[2026-10-07 12:35:55,591: WARNING/MainProcess] 2026-10-07 12:35:55 [info     ] generating_final_report
+[2026-10-07 12:35:55,594: WARNING/MainProcess] 2026-10-07 12:35:55 [info     ] generating_report_summary
+[2026-10-07 12:36:13,232: INFO/MainProcess] HTTP Request: POST https://integrate.api.nvidia.com/v1/chat/completions "HTTP/1.1 200 OK"
+[2026-10-07 12:36:13,346: WARNING/MainProcess] 2026-10-07 12:36:13 [info     ] generating_report              session_id=df2be5c4-e6e3-4160-b502-84674e02b34b
+[2026-10-07 12:36:13,379: WARNING/MainProcess] 2026-10-07 12:36:13 [info     ] exit_criteria_pass             coverage=0.0 requirements_covered=1 requirements_total=0
+[2026-10-07 12:36:13,380: WARNING/MainProcess] 2026-10-07 12:36:13 [info     ] exit_criteria_evaluated        reason='All requirements covered; no open defects; all retests passed.' verdict=PASS
+[2026-10-07 12:36:14,104: WARNING/MainProcess] 2026-10-07 12:36:14 [info     ] report_generated               defects=0 report_id=RPT-3F6B07E1 status=failed
+[2026-10-07 12:36:14,113: WARNING/MainProcess] 2026-10-07 12:36:14 [info     ] report_saved                   format=markdown path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\reports\\RPT-3F6B07E1_20261007_070230.md'
+[2026-10-07 12:36:14,146: WARNING/MainProcess] 2026-10-07 12:36:14 [info     ] report_saved                   format=json path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\reports\\RPT-3F6B07E1_20261007_070230.json'
+[2026-10-07 12:36:14,245: WARNING/MainProcess] 2026-10-07 12:36:14 [info     ] xlsx_results_exported          path='C:\\Users\\Prakhar Singh\\Desktop\\Servicenow_testing\\UAT_poc\\reports\\RPT-3F6B07E1_20261007_070614.xlsx' rows=1
+[2026-10-07 12:36:14,245: WARNING/MainProcess] 2026-10-07 12:36:14 [info     ] state_transition               from_state=observing reason='Report status is failed' to_state=failed
+[2026-10-07 12:36:14,255: WARNING/MainProcess] 2026-10-07 12:36:14 [debug    ] session_saved_in_memory        session_id=df2be5c4-e6e3-4160-b502-84674e02b34b
+[2026-10-07 12:36:14,256: WARNING/MainProcess] 2026-10-07 12:36:14 [info     ] closing_browser_after_run      headless=True keep_browser_open=False session_id=df2be5c4-e6e3-4160-b502-84674e02b34b
+[2026-10-07 12:36:14,256: WARNING/MainProcess] 2026-10-07 12:36:14 [info     ] closing_browser_context
+[2026-10-07 12:36:14,616: WARNING/MainProcess] 2026-10-07 12:36:14 [info     ] agent_run_completed            actions=5 session_id=df2be5c4-e6e3-4160-b502-84674e02b34b state=failed
+[2026-10-07 12:36:15,649: INFO/MainProcess] agent.worker.tasks.execute_run[94d9e395-5ac1-4559-81b9-1da71cb6453f]: perception_evidence_saved: C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\reports\df2be5c4-e6e3-4160-b502-84674e02b34b_perception.json
+[2026-10-07 12:36:17,733: INFO/MainProcess] agent.worker.tasks.execute_run[94d9e395-5ac1-4559-81b9-1da71cb6453f]: result_snapshot_saved: C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\reports\df2be5c4-e6e3-4160-b502-84674e02b34b_result.json
+[2026-10-07 12:36:18,450: WARNING/MainProcess] 2026-10-07 12:36:18 [debug    ] session_deleted_in_memory      session_id=session:df2be5c4-e6e3-4160-b502-84674e02b34b
+[2026-10-07 12:36:18,495: INFO/MainProcess] Task agent.worker.tasks.execute_run[94d9e395-5ac1-4559-81b9-1da71cb6453f] succeeded in 233.65600000000268s: 'done'

@@ -1,0 +1,41 @@
+[
+  {
+    "run_id": "1a13d5bc-038f-49f6-bda1-2e72901e632b",
+    "status": "partial",
+    "duration_seconds": 350,
+    "findings_count": 0,
+    "defect_count": 0,
+    "goal": "Open incident INC0010041 read-only. Verify its state and priority are consistent with the Impact and Urgency values. Rep",
+    "persona": "itil_user",
+    "exit_criteria": true,
+    "action_source_telemetry": true,
+    "laya_count": 0,
+    "gemini_count": 0
+  },
+  {
+    "run_id": "3077d95e-95d1-431b-830b-a4162925ce60",
+    "status": "failed",
+    "duration_seconds": 264,
+    "findings_count": 0,
+    "defect_count": 0,
+    "goal": "Read-only inspect the Incident list. For each visible Incident, verify it has Short Description and Caller populated. Re",
+    "persona": "itil_user",
+    "exit_criteria": true,
+    "action_source_telemetry": true,
+    "laya_count": 0,
+    "gemini_count": 0
+  },
+  {
+    "run_id": "df2be5c4-e6e3-4160-b502-84674e02b34b",
+    "status": "failed",
+    "duration_seconds": 234,
+    "findings_count": 0,
+    "defect_count": 0,
+    "goal": "Read-only inspect 3 recent Incidents. For any in Resolved state, verify close_code and close_notes are populated. Report",
+    "persona": "itil_user",
+    "exit_criteria": true,
+    "action_source_telemetry": true,
+    "laya_count": 0,
+    "gemini_count": 0
+  }
+]
