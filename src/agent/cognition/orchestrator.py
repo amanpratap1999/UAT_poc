@@ -1387,11 +1387,24 @@ class CognitiveOrchestrator:
             # Read-only Incident plans are observations, never model-selected
             # browser actions. This keeps transient LLM failures from turning
             # an inspection request into an accidental mutation.
+            #
+            # BUT: if the agent is on the Incident LIST page (not yet on the
+            # target record's form), let it fall through to the decision engine
+            # so LAYA/Gemini can navigate (click on a row to open the record).
+            # The read-only bypass only applies when the agent is already on
+            # the correct record form.
             read_only_markers = (
                 "read-only", "read only", "do not change", "do not modify",
                 "do not update", "inspect only", "observe only", "no mutations",
             )
-            if any(marker in objective.lower() for marker in read_only_markers):
+            is_read_only = any(marker in objective.lower() for marker in read_only_markers)
+            # Check if we're on the target record's form (not the list page)
+            is_on_record_form = (
+                gate_result.passed
+                and gate_result.expected_record
+                and (raw_obs.record_number or "").upper() == gate_result.expected_record.upper()
+            )
+            if is_read_only and is_on_record_form:
                 expected_record = gate_result.expected_record
                 # P1-07: bounded waits/retries for required fields so a page
                 # that is still loading does NOT get misread as "field
@@ -1701,6 +1714,32 @@ class CognitiveOrchestrator:
                     latest_reflection=None,
                 )
                 action = decision.action
+            
+            # Read-only safety guard: if the goal is read-only, block any
+            # mutating action the decision engine might choose (click on
+            # a list row to navigate is OK; fill/select on a form is not).
+            if is_read_only and action:
+                action_str = str(action.action_type).lower()
+                target_str = str(action.target or "").lower()
+                is_mutating = action_str in ("fill", "select") or (
+                    action_str == "click" and any(
+                        kw in target_str
+                        for kw in ("sysverb_update", "sysverb_insert", "sysverb_delete", "submit")
+                    )
+                )
+                if is_mutating:
+                    logger.warning(
+                        "read_only_mutation_blocked",
+                        action_type=action_str,
+                        target=target_str[:80],
+                    )
+                    action = AgentAction(
+                        action_type=ActionType.WAIT,
+                        target="",
+                        value="1000",
+                        reasoning="Read-only mode: blocked mutating action, waiting instead",
+                        metadata={"read_only_blocked": True, "original_action": action_str},
+                    )
             
             self._annotate_initial_precondition(action, objective, memory)
 
