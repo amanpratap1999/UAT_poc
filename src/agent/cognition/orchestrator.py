@@ -180,8 +180,10 @@ class CognitiveOrchestrator:
                     self._transition(AgentState.EXECUTING, "Execution resumed by user")
             return str(status)
         except Exception as e:
-            logger.debug("check_controls_failed", error=str(e))
-            return "running"
+            logger.error("control_plane_unavailable", error=str(e), action="fail_closed")
+            raise RuntimeError(
+                "Control plane unavailable; autonomous execution is blocked"
+            ) from e
 
     def request_stop(self) -> None:
         self._stop_requested = True
@@ -230,7 +232,15 @@ class CognitiveOrchestrator:
             try:
                 self._state_machine.transition_to(state, reason=reason)
             except Exception as e:
-                logger.warning("state_transition_failed", error=str(e))
+                logger.error(
+                    "state_transition_failed",
+                    target_state=str(state),
+                    reason=reason,
+                    error=str(e),
+                )
+                raise RuntimeError(
+                    f"Agent state transition to '{state}' failed: {e}"
+                ) from e
 
     def _annotate_initial_precondition(
         self, action: Any, objective: str, memory: SessionMemory
@@ -989,13 +999,24 @@ class CognitiveOrchestrator:
 
             # Execute scenario via decision engine
             self._transition(AgentState.DECISION, f"Evaluating hypothesis: {hypothesis.id}")
-            decision = await self._decision_engine.decide_next_action(  # type: ignore[union-attr]
-                intent=memory.structured_intent,
-                world_state=world_state,
-                memory=memory,
-                latest_reflection=None,
-            )
-
+            try:
+                decision = await self._decision_engine.decide_next_action(  # type: ignore[union-attr]
+                    intent=memory.structured_intent,
+                    world_state=world_state,
+                    memory=memory,
+                    latest_reflection=None,
+                )
+            except Exception as decision_error:
+                from agent.decision.engine import DecisionUnavailableError
+                if isinstance(decision_error, DecisionUnavailableError):
+                    reason = f"Safe decision unavailable: {decision_error}"
+                    memory.add_failure(
+                        error_type="DecisionUnavailable",
+                        error_message=reason,
+                    )
+                    self._transition(AgentState.BLOCKED, reason)
+                    return
+                raise
             action = decision.action
             self._annotate_initial_precondition(action, objective, memory)
 
@@ -1707,12 +1728,26 @@ class CognitiveOrchestrator:
                 # independent post-action verification remain unchanged — the
                 # LAYA-chosen AgentAction flows through the exact same
                 # execution + validation path as a Gemini-chosen action.
-                decision = await self._decision_engine.decide_next_action(  # type: ignore[union-attr]
-                    intent=memory.structured_intent,
-                    world_state=world_state,
-                    memory=memory,
-                    latest_reflection=None,
-                )
+                try:
+                    decision = await self._decision_engine.decide_next_action(  # type: ignore[union-attr]
+                        intent=memory.structured_intent,
+                        world_state=world_state,
+                        memory=memory,
+                        latest_reflection=None,
+                    )
+                except Exception as decision_error:
+                    from agent.decision.engine import DecisionUnavailableError
+                    if isinstance(decision_error, DecisionUnavailableError):
+                        reason = f"Safe decision unavailable: {decision_error}"
+                        step.mark_blocked(reason)
+                        plan.skip_remaining_steps(step.step_index + 1, reason)
+                        memory.add_timeline_entry(
+                            action=f"Decision blocked: {step.description}",
+                            result=reason,
+                        )
+                        self._transition(AgentState.BLOCKED, reason)
+                        return
+                    raise
                 action = decision.action
             
             # Read-only safety guard: if the goal is read-only, block any
@@ -1815,7 +1850,16 @@ class CognitiveOrchestrator:
                 else 8
             )
             step_risk = 8 if step.risk_level in ("High", "Critical") else 5
-            if step_risk >= threshold and self._control_receiver:
+            if step_risk >= threshold:
+                if not self._control_receiver:
+                    reason = (
+                        "High-risk action requires an approval/control receiver; "
+                        "autonomous execution is blocked."
+                    )
+                    step.mark_blocked(reason)
+                    plan.skip_remaining_steps(step.step_index + 1, reason)
+                    self._transition(AgentState.BLOCKED, reason)
+                    return
                 self._transition(
                     AgentState.AWAITING_USER_INPUT,
                     "Waiting for user approval on high-risk action",
