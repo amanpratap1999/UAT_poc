@@ -112,9 +112,25 @@ class PageGate:
             )
 
         # 2. Check whether the URL appears to point at the target table.
-        if expected_table and (f"{expected_table}.do" not in observed_url and f"sow/record/{expected_table}" not in observed_url):
-            if "nav_to.do" not in observed_url and "/now/nav/" not in observed_url:
-                pass # it might still be ok if it's some other view, but typically we want the table in URL
+        if expected_table and (
+            f"{expected_table}.do" not in observed_url
+            and f"{expected_table}_list.do" not in observed_url
+            and f"sow/record/{expected_table}" not in observed_url
+            and "nav_to.do" not in observed_url
+            and "/now/nav/" not in observed_url
+        ):
+            return PageGateResult(
+                passed=False,
+                reason=(
+                    f"Observed URL does not identify expected ServiceNow table "
+                    f"'{expected_table}' for target {expected_record}."
+                ),
+                observed_url=observed_url,
+                observed_record=observed_record,
+                observed_page_type=observed_page_type,
+                expected_record=expected_record,
+                expected_table=expected_table,
+            )
 
         # 3. Mismatched record number
         if observed_record and observed_record != expected_record:
