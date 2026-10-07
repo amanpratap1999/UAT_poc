@@ -92,8 +92,6 @@ class BrowserActionSpace:
 
         # ── Buttons (click actions) ──
         for button in observation.buttons:
-            if index_counter > cls.MAX_CANDIDATES:
-                break
             if not cls._is_eligible_button(button, world_state):
                 continue
             locator = cls._locator_for_button(button)
@@ -114,8 +112,6 @@ class BrowserActionSpace:
 
         # ── Fields (fill + select actions) ──
         for field in observation.visible_fields:
-            if index_counter > cls.MAX_CANDIDATES:
-                break
             if not cls._is_eligible_field(field, world_state):
                 continue
             # Skip sensitive inputs — never expose passwords to the model
@@ -159,8 +155,6 @@ class BrowserActionSpace:
 
         # ── Interactive elements (links, tabs, etc. from the AX tree) ──
         for element in observation.interactive_elements:
-            if index_counter > cls.MAX_CANDIDATES:
-                break
             # Skip if this element is already covered by a button candidate
             # (dedup by label — simple heuristic, not perfect)
             # ElementInfo is the canonical observation model: its accessible
@@ -199,6 +193,27 @@ class BrowserActionSpace:
                 continue
             seen_locators.add(candidate.locator)
             unique_candidates.append(candidate)
+
+        # Rank before truncation so important controls are not lost when a
+        # large ServiceNow page exceeds the LAYA candidate budget.
+        plan_terms = {
+            token
+            for token in plan_step.lower().replace("/", " ").replace("-", " ").split()
+            if len(token) >= 3
+        }
+        def relevance(candidate: ActionSpaceCandidate) -> tuple[int, int]:
+            label = candidate.label.lower()
+            overlap = sum(1 for token in plan_terms if token in label)
+            exact = 1 if plan_step.strip().lower() and plan_step.strip().lower() in label else 0
+            return exact, overlap
+
+        unique_candidates.sort(
+            key=lambda candidate: (
+                -relevance(candidate)[0],
+                -relevance(candidate)[1],
+                candidate.index,
+            )
+        )
         candidates = unique_candidates[: cls.MAX_CANDIDATES]
         for new_index, candidate in enumerate(candidates, start=1):
             candidate.index = new_index
