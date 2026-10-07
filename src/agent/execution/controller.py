@@ -77,6 +77,10 @@ class ExecutionController:
             ActionType.VALIDATE_STATE: self._handle_validate,
             ActionType.VALIDATE_ERRORS: self._handle_validate,
             ActionType.EXTRACT: self._handle_extract,
+            # OBSERVE is treated like VALIDATE — a no-op that waits for
+            # page load and returns. The LLM sometimes returns "observe"
+            # when it wants the agent to just look at the current page.
+            ActionType.OBSERVE: self._handle_validate,
         }
 
     async def execute(self, action: AgentAction) -> ActionResult:

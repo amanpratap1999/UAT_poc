@@ -494,6 +494,28 @@ async def _run_agent_async(run_id: str, goal: str, tenant_id: str, test_case_id:
             if hasattr(orchestrator, "set_control_receiver"):
                 orchestrator.set_control_receiver(control_receiver)
 
+            # Fix: warm up the LAYA action policy in the WORKER process.
+            # The API process warms it at lifespan startup, but the Celery
+            # worker is a SEPARATE process with its own memory — the
+            # singleton is None here. Without this warmup, has_laya_action_policy
+            # returns False and LAYA is never used for decisions.
+            try:
+                from agent.api.v1.dependencies import get_laya_action_policy
+                policy = get_laya_action_policy(settings)
+                if policy is not None and policy.is_configured() and not policy.is_healthy():
+                    import asyncio as _asyncio
+                    logger.info("laya_action_policy_worker_warmup_starting")
+                    warm_ok = await _asyncio.wait_for(policy.warm_up(), timeout=120.0)
+                    logger.info(
+                        "laya_action_policy_worker_warmup_result",
+                        healthy=warm_ok,
+                    )
+            except Exception as laya_warmup_err:
+                logger.warning(
+                    "laya_action_policy_worker_warmup_failed",
+                    error=str(laya_warmup_err),
+                )
+
             # Hook incremental perception writes after each step AND
             # snapshot session memory to the persistent store so an
             # interrupted run (worker restart, crash) can resume without

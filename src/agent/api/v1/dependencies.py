@@ -319,6 +319,17 @@ def get_decision_engine(settings: Settings | None = None) -> DecisionEngine:
     try:
         from agent.decision.laya_adapter import LayaAdapter
         laya = LayaAdapter(settings)
+        # If LAYA_ACTION_ENABLED=true but LAYA_ENABLED (verifier) is not set,
+        # auto-enable the LayaAdapter too so it doesn't log "laya_disabled_by_config".
+        # The LayaAdapter is the VERIFICATION adapter (risk/escalation), separate
+        # from the LayaActionPolicy (browser-level decisions). Both should be active
+        # when the operator enables LAYA.
+        if not laya.is_configured() and settings.laya_action.enabled:
+            settings.laya.enabled = True
+            settings.laya.endpoint = settings.laya_action.endpoint or "local"
+            settings.laya.model = settings.laya_action.checkpoint or "laya:router"
+            laya = LayaAdapter(settings)
+            logger.info("laya_verifier_auto_enabled_by_laya_action_config")
         # Only attach if the adapter loaded its config successfully
         if laya.is_configured():
             # P1-05: warm up the model during startup

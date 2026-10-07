@@ -25,6 +25,11 @@ class ActionType(StrEnum):
     VALIDATE_FIELD = "validate_field"
     VALIDATE_STATE = "validate_state"
     VALIDATE_ERRORS = "validate_errors"
+    # OBSERVE is a common LLM output for "just look at the page" — map it
+    # to VALIDATE (which is a no-op browser action that just waits for load).
+    # Without this, the Gemini LLM returning "observe" crashes with
+    # "'observe' is not a valid ActionType" and falls back to heuristic.
+    OBSERVE = "observe"
 
 
 class AgentState(StrEnum):
