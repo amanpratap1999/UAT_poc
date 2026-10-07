@@ -319,9 +319,11 @@ async def readiness_check() -> JSONResponse:
         if hasattr(embedding_client, "startup_health_check"):
             emb_ok = await asyncio.wait_for(embedding_client.startup_health_check(), timeout=3.0)
             checks["embedding_client"] = {
-                "status": "ok" if emb_ok else "degraded",
+                "status": "ok" if emb_ok else "unhealthy",
                 "model": settings.llm.embedding_model,
             }
+            if not emb_ok:
+                is_ready = False
         else:
             checks["embedding_client"] = {
                 "status": "ok",
@@ -334,15 +336,45 @@ async def readiness_check() -> JSONResponse:
             "model": settings.llm.embedding_model,
         }
 
-    # 5. P7-LAYA: LAYA action-policy health (optional — not required for readiness)
+    # 5. LAYA action-policy readiness.
     try:
         from agent.api.v1.dependencies import get_laya_action_policy_diagnostics
-        checks["laya_action_policy"] = get_laya_action_policy_diagnostics()
+        laya_diag = get_laya_action_policy_diagnostics()
+        checks["laya_action_policy"] = laya_diag
+        if laya_diag.get("enabled") and (
+            not laya_diag.get("healthy")
+            or laya_diag.get("confidence_calibrated") is False
+        ):
+            is_ready = False
     except Exception as e:
         checks["laya_action_policy"] = {
             "enabled": False,
             "healthy": False,
             "error": str(e)[:200],
+        }
+
+    # 6. Mutation control plane readiness.
+    if settings.servicenow.allow_mutations:
+        try:
+            redis_client = aioredis.from_url(
+                settings.session.redis_url,
+                decode_responses=True,
+            )
+            try:
+                await redis_client.ping()
+                checks["mutation_control_plane"] = {"status": "ok"}
+            finally:
+                await redis_client.aclose()
+        except Exception:
+            is_ready = False
+            checks["mutation_control_plane"] = {
+                "status": "unhealthy",
+                "error": "Redis control plane unavailable",
+            }
+    else:
+        checks["mutation_control_plane"] = {
+            "status": "not_required",
+            "reason": "SERVICENOW_ALLOW_MUTATIONS=false",
         }
 
     content = {
