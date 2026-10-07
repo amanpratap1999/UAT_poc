@@ -637,6 +637,28 @@ class CognitiveOrchestrator:
             await page.wait_for_timeout(1000)
             obs_before = await self._observation_engine.observe(page)
 
+            # Never replay a mutating browser action against the same
+            # record as a generic reproduction step. Doing so can duplicate
+            # updates, submissions, or destructive operations. Until an
+            # isolated clone/test-record reproduction capability is available,
+            # classify mutation mismatches as INCONCLUSIVE at this layer.
+            action_type = str(getattr(action.action_type, "value", action.action_type)).lower()
+            target = str(getattr(action, "target", "") or "").lower()
+            is_mutation = action_type in {"fill", "select"} or (
+                action_type == "click"
+                and any(token in target for token in (
+                    "sysverb_update",
+                    "sysverb_insert",
+                    "sysverb_delete",
+                    "submit",
+                ))
+            )
+            if is_mutation:
+                return False, (
+                    "reproduction skipped for mutating action: isolated test-record "
+                    "or server-side reproduction is required; mutation replay is unsafe"
+                )
+
             # 2. Re-execute the original action exactly once.
             if self._perception_engine:
                 retry_result = await self._perception_engine.execute_with_perception(action)
