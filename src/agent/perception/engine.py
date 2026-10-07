@@ -179,6 +179,22 @@ class PerceptionDecisionEngine:
 
             perception_route = route_result.route
             if route_result.success and route_result.candidate is not None:
+                if perception_route not in ("DOM", "DOM_DISAMBIGUATED", "LEARNED") and not route_result.verified:
+                    logger.error(
+                        "unverified_perception_blocked",
+                        target=target,
+                        route=perception_route,
+                        confidence=route_result.confidence,
+                    )
+                    return ActionResult(
+                        success=False,
+                        action=action,
+                        error=(
+                            f"Perception route '{perception_route}' did not produce "
+                            "a verified executable target"
+                        ),
+                        error_type="PerceptionFailure",
+                    )
                 selected_candidate = route_result.candidate
 
                 # Cross-reference Moondream with DOM
