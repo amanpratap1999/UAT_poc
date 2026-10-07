@@ -67,6 +67,29 @@ class PageGate:
         expected_table = None
         if expected_record.startswith("INC"):
             expected_table = "incident"
+
+        # A record number alone is never sufficient evidence that the active
+        # page belongs to the requested table. Check table identity before
+        # accepting a matching observed record number.
+        if expected_table and (
+            f"{expected_table}.do" not in observed_url
+            and f"{expected_table}_list.do" not in observed_url
+            and f"sow/record/{expected_table}" not in observed_url
+            and "nav_to.do" not in observed_url
+            and "/now/nav/" not in observed_url
+        ):
+            return PageGateResult(
+                passed=False,
+                reason=(
+                    f"Observed URL does not identify expected ServiceNow table "
+                    f"'{expected_table}' for target {expected_record}."
+                ),
+                observed_url=observed_url,
+                observed_record=observed_record,
+                observed_page_type=observed_page_type,
+                expected_record=expected_record,
+                expected_table=expected_table,
+            )
         elif expected_record.startswith("CHG"):
             expected_table = "change_request"
         elif expected_record.startswith("REQ"):
@@ -104,27 +127,6 @@ class PageGate:
             return PageGateResult(
                 passed=True,
                 reason="Observed record number matches the requested target.",
-                observed_url=observed_url,
-                observed_record=observed_record,
-                observed_page_type=observed_page_type,
-                expected_record=expected_record,
-                expected_table=expected_table,
-            )
-
-        # 2. Check whether the URL appears to point at the target table.
-        if expected_table and (
-            f"{expected_table}.do" not in observed_url
-            and f"{expected_table}_list.do" not in observed_url
-            and f"sow/record/{expected_table}" not in observed_url
-            and "nav_to.do" not in observed_url
-            and "/now/nav/" not in observed_url
-        ):
-            return PageGateResult(
-                passed=False,
-                reason=(
-                    f"Observed URL does not identify expected ServiceNow table "
-                    f"'{expected_table}' for target {expected_record}."
-                ),
                 observed_url=observed_url,
                 observed_record=observed_record,
                 observed_page_type=observed_page_type,
