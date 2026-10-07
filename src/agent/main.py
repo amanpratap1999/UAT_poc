@@ -618,6 +618,7 @@ class AgentOrchestrator:
                 page_interactor=self._page_interactor,
                 recovery_engine=self._recovery_engine,
                 servicenow_config=self._settings.servicenow,
+                observation_engine=self._observation_engine,
             )
 
             # If perception dependencies are available, set up PerceptionDecisionEngine
