@@ -465,6 +465,7 @@ def get_laya_action_policy_diagnostics() -> dict[str, Any]:
         "checkpoint": stats["checkpoint"],
         "model_version": stats["model_version"],
         "is_warm": stats["is_warm"],
+        "confidence_calibrated": stats.get("confidence_calibrated", False),
         "inference_count": stats["inference_count"],
         "fallback_count": stats["fallback_count"],
         "avg_inference_latency_ms": stats["avg_inference_latency_ms"],
