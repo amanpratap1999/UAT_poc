@@ -112,3 +112,21 @@ def test_goal_text_with_no_record_number_passes(page_gate):
     result = page_gate.check(obs, intent)
     assert result.passed
     assert result.expected_record is None
+
+
+def test_wrong_table_url_is_blocked(page_gate):
+    obs = PageObservation(
+        url="https://instance.service-now.com/change_request.do?sys_id=abc",
+        page_type=PageType.FORM,
+        record_number="INC0000007",
+    )
+    intent = StructuredIntent(
+        intent_type="GeneralValidation",
+        goal="Verify incident INC0000007",
+        target_module="incident",
+    )
+
+    result = page_gate.check(obs, intent)
+
+    assert not result.passed
+    assert "expected ServiceNow table" in result.reason
