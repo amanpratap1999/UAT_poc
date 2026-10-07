@@ -200,6 +200,14 @@ class LayaActionPolicy:
         """Readiness check — model loaded and warm-up completed."""
         return self._warm and self._model is not None
 
+    @staticmethod
+    def is_confidence_calibrated() -> bool:
+        """True only after the exact checkpoint has been calibrated."""
+        import os
+        return os.getenv("LAYA_ACTION_CONFIDENCE_CALIBRATED", "false").lower() in {
+            "1", "true", "yes", "on"
+        }
+
     def get_stats(self) -> dict[str, Any]:
         """Telemetry snapshot for diagnostics (P9)."""
         avg_latency = (
@@ -214,6 +222,7 @@ class LayaActionPolicy:
             "device": self._device,
             "model_version": self._model_version,
             "is_warm": self._warm,
+            "confidence_calibrated": self.is_confidence_calibrated(),
             "inference_count": self._inference_count,
             "fallback_count": self._fallback_count,
             "avg_inference_latency_ms": round(avg_latency, 2),
@@ -413,6 +422,8 @@ class LayaActionPolicy:
                 pass
         if not self.is_healthy():
             return self._fallback(action_space, reason="model_not_healthy")
+        if not self.is_confidence_calibrated():
+            return self._fallback(action_space, reason="confidence_uncalibrated")
 
         # Reject empty action spaces — LAYA cannot choose from nothing
         if not action_space.candidates:
@@ -617,6 +628,14 @@ class LayaActionPolicy:
             "blocked": ActionType.VALIDATE,
         }
         action_type = op_to_action_type.get(operation, ActionType.WAIT)
+
+        if operation in {"done", "blocked"}:
+            return self._fallback(
+                action_space,
+                reason=f"laya_{operation}_terminal_signal",
+                elapsed_ms=elapsed_ms,
+                shadow_confidence=confidence,
+            )
 
         # LAYA chooses a browser control, but it does not generate the text
         # or option value that the planner must enter. Avoid filling with a
