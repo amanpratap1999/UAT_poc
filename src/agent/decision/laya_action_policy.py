@@ -118,7 +118,7 @@ class LayaActionPolicyConfig:
     checkpoint: str = ""  # HuggingFace repo or local path to the LAYA checkpoint
     model_subfolder: str = "typed-decisions"
     device: str = "auto"  # "auto" | "cpu" | "cuda" | "mps"
-    confidence_threshold: float = 0.65
+    confidence_threshold: float = 0.80
     inference_timeout_seconds: float = 5.0
     max_candidates: int = 250  # hard cap, mirrors jev-ultrafast
     warmup_at_startup: bool = True
