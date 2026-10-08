@@ -1427,6 +1427,47 @@ class CognitiveOrchestrator:
                     )
                     continue
 
+            # Deterministic record-target recovery: a named Incident on a list
+            # page is not an actionable record context. Do not ask an LLM/LAYA
+            # to discover a row when the requested record number is already known.
+            # Navigate through the trusted PageGate recovery path, then re-observe
+            # before allowing any model-selected action.
+            if (
+                gate_result.expected_record
+                and not raw_obs.record_number
+                and str(raw_obs.page_type.value if raw_obs.page_type else "").lower() == "list"
+                and gate_result.expected_table
+            ):
+                nav_ok = await page_gate.navigate_to_record(
+                    self._browser_manager,
+                    gate_result.expected_table,
+                    gate_result.expected_record,
+                )
+                if nav_ok:
+                    raw_obs = await self._observation_engine.observe(page)
+                    memory.add_observation(raw_obs)
+                    world_state = self._world_model.build_semantic_state(raw_obs)
+                    gate_result = page_gate.check(raw_obs, memory.structured_intent)
+
+                if not gate_result.passed:
+                    reason = f"Unable to reach requested record from list page: {gate_result.reason}"
+                    step.mark_failed(reason)
+                    memory.add_timeline_entry(
+                        action="Deterministic record navigation",
+                        result=reason,
+                    )
+                    await self._publish_event(
+                        RunEventType.STEP_FINISHED,
+                        {
+                            "step_index": step.step_index,
+                            "description": step.description,
+                            "status": "failed",
+                            "actual_result": reason,
+                            "screenshot": raw_obs.screenshot_path,
+                        },
+                    )
+                    continue
+
             # Read-only Incident plans are observations, never model-selected
             # browser actions. This keeps transient LLM failures from turning
             # an inspection request into an accidental mutation.
