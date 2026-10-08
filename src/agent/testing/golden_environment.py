@@ -46,6 +46,10 @@ class SeededDefect:
     injected_mutation: str = ""  # actual ServiceNow state mutation
     expected_postconditions: list[str] = field(default_factory=list)  # conditions that must hold at the end
     cleanup_operation: str = ""  # how to restore the test environment
+    # Optional actor override for scenarios that require a specific
+    # ServiceNow persona (for example requester-vs-itil ACL validation).
+    # The benchmark executor uses this instead of the CLI default persona.
+    required_persona: str | None = None
     # P0 (verified seeded-defect benchmark): independently checkable
     # field-level contract. Each entry maps a ServiceNow field name to the
     # (expected_value, operator) the verifier evaluates against the freshly
@@ -198,6 +202,7 @@ DEFAULT_MANIFEST = GoldenTruthManifest(
             expected_detection="Agent should detect that the requester can see incidents they should not have access to.",
             severity="critical",
             expected_condition="Requester persona should NOT see other users' incidents",
+            required_persona="requester",
             observed_condition="Requester can access another user's incident work notes",
             preconditions=["Two incidents exist with different callers", "Requester persona credentials configured"],
             injected_mutation="None — the defect is in the ACL configuration, not the record",
