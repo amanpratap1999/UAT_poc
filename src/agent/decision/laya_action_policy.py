@@ -545,6 +545,7 @@ class LayaActionPolicy:
                     "role": c.role,
                     "label": c.label,
                     "value": c.value,
+                    "options": c.options,
                 }
                 for c in candidates
             ],
@@ -567,10 +568,31 @@ class LayaActionPolicy:
                     "type": "choice",
                     "instructions": f"Choose the visible control to use for the {op} operation.",
                     "criteria": {
-                        str(c.index): f"{c.role} {c.label}; current value {c.value}"
+                        str(c.index): (
+                            f"{c.role} {c.label}; current value {c.value}"
+                            + (f"; available options: {', '.join(c.options)}" if c.options else "")
+                        )
                         for c in options
                     },
                 }
+                if op == "select":
+                    selectable = [
+                        (c.index, value)
+                        for c in options
+                        for value in c.options
+                    ]
+                    if selectable:
+                        questions["select_value"] = {
+                            "type": "choice",
+                            "instructions": (
+                                "Choose the exact visible option value that advances the goal. "
+                                "Choose only a value listed for the selected dropdown."
+                            ),
+                            "criteria": {
+                                value: value
+                                for _index, value in selectable
+                            },
+                        }
 
         def _sync_infer() -> dict[str, Any] | None:
             result = self._model.system_one(
@@ -588,6 +610,7 @@ class LayaActionPolicy:
             # answer_confidence is the comparable probability mass on the choice.
             confidence = float(op_answer.get("answer_confidence", 0.0) or 0.0)
             target_index = None
+            selected_value = ""
             if operation in _TARGET_OPERATIONS:
                 target_answer = answers.get(f"{operation}_target", {})
                 choice = str(target_answer.get("choice", ""))
@@ -599,7 +622,26 @@ class LayaActionPolicy:
                     confidence,
                     float(target_answer.get("answer_confidence", 0.0) or 0.0),
                 )
+                if operation == "select":
+                    value_answer = answers.get("select_value", {})
+                    selected_value = str(value_answer.get("choice", "") or "")
+                    candidate = next(
+                        (c for c in compatible["select"] if c.index == target_index),
+                        None,
+                    )
+                    if candidate is None or selected_value not in candidate.options:
+                        return None
+                    confidence = min(
+                        confidence,
+                        float(value_answer.get("answer_confidence", 0.0) or 0.0),
+                    )
             return {
+                "operation": operation,
+                "target_index": target_index,
+                "selected_value": selected_value,
+                "confidence": confidence,
+                "usage": result.get("usage", {}),
+            }
                 "operation": operation,
                 "target_index": target_index,
                 "confidence": confidence,
@@ -650,10 +692,10 @@ class LayaActionPolicy:
         # or option value that the planner must enter. Avoid filling with a
         # control's existing value; hand those actions to the existing LLM
         # decision path until the plan supplies a structured action value.
-        if operation in {"fill", "select"}:
+        if operation == "fill":
             return self._fallback(
                 action_space,
-                reason=f"planner_value_required:{operation}",
+                reason="planner_value_required:fill",
                 elapsed_ms=elapsed_ms,
                 shadow_confidence=confidence,
             )
@@ -668,7 +710,7 @@ class LayaActionPolicy:
             )
             if candidate:
                 target = candidate.locator
-                value = candidate.value
+                value = str(raw.get("selected_value", "") or "") if operation == "select" else candidate.value
             else:
                 # Stale index — the page changed between observation and
                 # inference. Fall back with a descriptive reason.
@@ -699,6 +741,8 @@ class LayaActionPolicy:
                 "laya_target_index": target_index,
                 "laya_confidence": confidence,
                 "laya_action_space_fingerprint": action_space.fingerprint,
+                "laya_plan_step": action_space.plan_step,
+                "laya_persona": action_space.persona,
             },
         )
         return LayaActionDecision(
@@ -796,6 +840,7 @@ class ActionSpaceCandidate:
     value: str  # current value (for fill/select)
     locator: str  # safe Playwright locator (role:/label:/text:/css:/xpath:)
     node_id: int = 0  # internal DOM node ID for freshness checks
+    options: list[str] = field(default_factory=list)  # DOM-owned values for select actions
 
 
 @dataclass
