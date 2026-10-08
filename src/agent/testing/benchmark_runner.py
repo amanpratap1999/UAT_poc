@@ -29,8 +29,8 @@ class ScenarioResult:
     """Result of executing a single golden scenario."""
     test_scenario: str  # e.g., "INC-G02"
     run_number: int  # 1, 2, or 3 (for 3-run consistency)
-    persona: str | None = None  # verified ServiceNow persona used for this run
     verdict: str  # "PASS" | "FAIL" | "BLOCKED" | "CANNOT_VERIFY"
+    persona: str | None = None  # verified ServiceNow persona used for this run
     detected_defect_id: str | None = None  # which seeded defect was detected
     detection_description: str = ""
     actions_taken: int = 0
