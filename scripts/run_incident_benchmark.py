@@ -436,6 +436,7 @@ async def run_benchmark(
                 return ScenarioResult(
                     test_scenario=scenario,
                     run_number=run_num,
+                    persona=scenario_persona,
                     verdict=verdict,
                     detected_defect_id=detected_defect_id,
                     detection_description=(
