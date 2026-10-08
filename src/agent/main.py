@@ -577,6 +577,12 @@ class AgentOrchestrator:
         
         logger.info("agent_run_started", goal=goal, session_id=self.session_id, persona=persona)
 
+        if self._settings.servicenow.require_persona_for_benchmark and not persona:
+            raise RuntimeError(
+                "INC-UAT-01: benchmark execution requires an explicit non-admin persona; "
+                "default ServiceNow credentials are not permitted."
+            )
+
         if persona:
             # Persona isolation (P1.9): use a per-run copy of the ServiceNow
             # config so concurrent multi-persona sweeps never mutate the
