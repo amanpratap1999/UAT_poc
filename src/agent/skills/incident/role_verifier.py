@@ -75,17 +75,28 @@ class RoleVerifier:
                     "/api/now/table/sys_user_has_role",
                     params={
                         "sysparm_query": f"user.user_name={username}",
-                        "sysparm_fields": "role.name",
-                        "sysparm_limit": "100",
+                        "sysparm_fields": "role,role.name,user,user.name",
+                    "sysparm_display_value": "true",
+                    "sysparm_limit": "100",
                     },
                 )
                 response.raise_for_status()
                 data = response.json()
-                actual_roles = [
-                    r.get("role", {}).get("name", "").lower()
-                    for r in data.get("result", [])
-                    if r.get("role", {}).get("name")
-                ]
+                actual_roles: list[str] = []
+                for row in data.get("result", []):
+                    dotted = str(row.get("role.name", "") or "").strip().lower()
+                    nested = row.get("role")
+                    nested_name = ""
+                    if isinstance(nested, dict):
+                        nested_name = str(
+                            nested.get("display_value")
+                            or nested.get("name")
+                            or ""
+                        ).strip().lower()
+                    role_name = dotted or nested_name
+                    if role_name:
+                        actual_roles.append(role_name)
+                actual_roles = sorted(set(actual_roles))
 
                 privileged_roles = {
                     "admin",
