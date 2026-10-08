@@ -1,3 +1,7 @@
+nvidia-cudnn-cu13==9.24.0.43 \
+    --hash=sha256:71f181cd810e90f9b6023b01186fe82d13d65f0ec098581ee201d39fad769e4b
+    # via torch
+
 cuda-bindings==13.4.2 \
     --hash=sha256:3c0415cf8fb98fbae3eb65079f151e10b9764ac2d5970027a49dc5a627c2af9d \
     --hash=sha256:e73b6ae6592194a5ba01ec1f5f4fe4c8dc05b5f90545842ba5ff996f65328553
