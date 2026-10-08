@@ -33,8 +33,8 @@ async def test_role_verifier_accepts_expected_non_privileged_role(monkeypatch):
                 200,
                 json={
                     "result": [
-                        {"role": {"name": "itil"}},
-                        {"role": {"name": "sn_incident_read"}},
+                        {"role.name": "itil", "role": {"display_value": "itil"}},
+                    {"role.name": "sn_incident_read", "role": {"display_value": "sn_incident_read"}},
                     ]
                 },
                 request=httpx.Request("GET", "https://instance.service-now.com/api/now/table/sys_user_has_role"),
@@ -74,7 +74,7 @@ async def test_role_verifier_rejects_privileged_role(monkeypatch):
         async def get(self, *args, **kwargs):
             return httpx.Response(
                 200,
-                json={"result": [{"role": {"name": "requester"}}, {"role": {"name": "admin"}}]},
+                json={"result": [{"role.name": "requester"}, {"role.name": "admin"}]},
                 request=httpx.Request("GET", "https://instance.service-now.com/api/now/table/sys_user_has_role"),
             )
 
