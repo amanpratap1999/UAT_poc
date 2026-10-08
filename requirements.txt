@@ -1,3 +1,7 @@
+nvidia-cublas==13.8.1.7 \
+    --hash=sha256:c11a27fd4379510e5b1f84b367a2514d1e52fe5cc13442117a0e0a1addee3cf2
+    # via nvidia-cudnn-cu13
+
 nvidia-cudnn-cu13==9.24.0.43 \
     --hash=sha256:71f181cd810e90f9b6023b01186fe82d13d65f0ec098581ee201d39fad769e4b
     # via torch
