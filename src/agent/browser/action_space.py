@@ -132,6 +132,7 @@ class BrowserActionSpace:
                     value=str(field.value or ""),
                     locator=locator,
                     node_id=id(field),
+                    options=list(getattr(field, "options", []) or []),
                 )
             )
             index_counter += 1
