@@ -254,9 +254,20 @@ async def run_benchmark(
 
     # Preserve the existing safety gates — these are the persona/sub-production
     # /mutation/fixture gates called out in the table. We MUST NOT relax them.
-    settings.servicenow.active_persona = persona
     settings.servicenow.require_persona_for_benchmark = True
-    settings.servicenow.verify_persona_for_benchmark()
+
+    # Validate every persona required by the manifest up front. This makes
+    # requester-vs-itil scenarios explicit instead of accidentally executing
+    # every case with one powerful persona.
+    required_personas = {persona}
+    required_personas.update(
+        d.required_persona for d in manifest.defects if d.required_persona
+    )
+    for required_persona in sorted(required_personas):
+        settings.servicenow.active_persona = required_persona
+        settings.servicenow.verify_persona_for_benchmark()
+    settings.servicenow.active_persona = persona
+
     if not settings.servicenow.is_subproduction:
         raise ValueError("Scored benchmarks require SERVICENOW_IS_SUBPRODUCTION=true.")
     if not settings.servicenow.allow_mutations:
@@ -330,6 +341,7 @@ async def run_benchmark(
                 verdict="INFRA_ERROR",
                 detection_description=f"No successfully seeded target for {defect.defect_id}.",
             )
+        scenario_persona = defect.required_persona or persona
         goal = (
             f"Incident UAT scenario {scenario}. Inspect incident "
             f"{target_number} through the assigned persona UI. Inspect its configured UAT conditions "
@@ -359,7 +371,7 @@ async def run_benchmark(
                     "/api/v1/runs",
                     json={
                         "goal": goal,
-                        "persona": persona,
+                        "persona": scenario_persona,
                     },
                     headers={"Authorization": f"Bearer {qa_api_token}"},
                 )
