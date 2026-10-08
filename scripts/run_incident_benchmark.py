@@ -247,6 +247,7 @@ async def run_benchmark(
         raise ValueError("At least three runs per scenario are required for a scored benchmark.")
 
     settings = get_settings()
+    manifest = get_default_manifest()
     requested_host = (urlparse(instance_url).hostname or "").lower()
     configured_host = (urlparse(settings.servicenow.instance_url).hostname or "").lower()
     if not requested_host or requested_host != configured_host:
@@ -272,7 +273,16 @@ async def run_benchmark(
         raise ValueError("Scored benchmarks require SERVICENOW_IS_SUBPRODUCTION=true.")
     if not settings.servicenow.allow_mutations:
         raise ValueError("Scored benchmarks require explicit SERVICENOW_ALLOW_MUTATIONS=true.")
-    if requested_host not in {host.lower() for host in settings.servicenow.allowed_instances}:
+    allowed_hosts = set()
+    for configured in settings.servicenow.allowed_instances:
+        raw_host = str(configured).strip()
+        if not raw_host:
+            continue
+        candidate = raw_host if "://" in raw_host else f"https://{raw_host}"
+        host = (urlparse(candidate).hostname or "").lower()
+        if host:
+            allowed_hosts.add(host)
+    if requested_host not in allowed_hosts:
         raise ValueError("Requested host is not listed in SERVICENOW_ALLOWED_INSTANCES.")
 
     # P0-02: probe runtime services BEFORE enqueuing any runs. A failed
@@ -290,7 +300,6 @@ async def run_benchmark(
         raise ValueError("Seed manifest instance does not match the requested instance.")
     seeded_records = seed_data.get("defects", {})
 
-    manifest = get_default_manifest()
     if len(manifest.real_defects) < 8 or len(manifest.decoys) < 3:
         raise ValueError(
             "The scored I12 benchmark requires at least 8 real defects and "
