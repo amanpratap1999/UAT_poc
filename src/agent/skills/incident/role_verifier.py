@@ -87,7 +87,20 @@ class RoleVerifier:
                     if r.get("role", {}).get("name")
                 ]
 
-                match = expected_role.lower() in actual_roles
+                privileged_roles = {
+                    "admin",
+                    "security_admin",
+                    "sn_admin",
+                    "maint",
+                }
+                privileged_present = sorted(set(actual_roles) & privileged_roles)
+                match = expected_role.lower() in actual_roles and not privileged_present
+                if privileged_present:
+                    logger.warning(
+                        "role_verification_privileged_role_detected",
+                        username=username,
+                        privileged_roles=privileged_present,
+                    )
                 logger.info(
                     "role_verification_complete",
                     username=username,
@@ -100,7 +113,10 @@ class RoleVerifier:
                     "actual_roles": actual_roles,
                     "expected_role": expected_role,
                     "username": username,
-                    "error": None,
+                    "error": (
+                        f"Privileged ServiceNow role(s) present: {privileged_present}"
+                        if privileged_present else None
+                    ),
                 }
         except Exception as e:
             logger.warning(
