@@ -67,6 +67,10 @@ class PageGate:
         expected_table = None
         if expected_record.startswith("INC"):
             expected_table = "incident"
+        elif expected_record.startswith("CHG"):
+            expected_table = "change_request"
+        elif expected_record.startswith("REQ"):
+            expected_table = "sc_request"
 
         # A record number alone is never sufficient evidence that the active
         # page belongs to the requested table. Check table identity before
@@ -90,12 +94,7 @@ class PageGate:
                 expected_record=expected_record,
                 expected_table=expected_table,
             )
-        elif expected_record.startswith("CHG"):
-            expected_table = "change_request"
-        elif expected_record.startswith("REQ"):
-            expected_table = "sc_request"
-
-        # A number appearing in a dialog URL is not proof that the Incident
+        # A number appearing in a dialog URL is not proof that the record form is active.
         # form is active. Require a record-capable page before trusting it.
         if observed_page_type in ("dialog", "dashboard", "homepage", "login"):
             return PageGateResult(
