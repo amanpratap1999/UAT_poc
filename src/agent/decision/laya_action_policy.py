@@ -642,11 +642,6 @@ class LayaActionPolicy:
                 "confidence": confidence,
                 "usage": result.get("usage", {}),
             }
-                "operation": operation,
-                "target_index": target_index,
-                "confidence": confidence,
-                "usage": result.get("usage", {}),
-            }
 
         return await asyncio.to_thread(_sync_infer)
 

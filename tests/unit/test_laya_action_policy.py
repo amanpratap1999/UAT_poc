@@ -262,18 +262,20 @@ def test_operation_to_action_type_mapping(primary_policy, sample_action_space):
         ("wait", ActionType.WAIT),
         ("scroll_down", ActionType.SCROLL),
         ("scroll_up", ActionType.SCROLL),
-        ("done", ActionType.VALIDATE),
-        ("blocked", ActionType.VALIDATE),
     ]
     for operation, expected_action_type in test_cases:
         raw = {"operation": operation, "target_index": None, "confidence": 0.8}
         decision = primary_policy._resolve_to_action(raw, sample_action_space, elapsed_ms=5.0)
         # Control operations don't need a target_index; they should resolve cleanly
-        if operation in ("wait", "scroll_down", "scroll_up", "done", "blocked"):
+        if operation in ("wait", "scroll_down", "scroll_up"):
             assert decision.action.action_type == expected_action_type, (
                 f"operation={operation} should map to {expected_action_type}"
             )
-        # Target operations need a valid target_index — tested separately
+    # done/blocked are now terminal signals that fall back (not executed directly)
+    for terminal_op in ("done", "blocked"):
+        raw = {"operation": terminal_op, "target_index": None, "confidence": 0.8}
+        decision = primary_policy._resolve_to_action(raw, sample_action_space, elapsed_ms=5.0)
+        assert decision.fallback_reason == f"laya_{terminal_op}_terminal_signal"
 
 
 def test_click_operation_requires_valid_index(primary_policy, sample_action_space):
@@ -285,13 +287,20 @@ def test_click_operation_requires_valid_index(primary_policy, sample_action_spac
     assert decision.action.target == "role:button:Update"
 
 
-def test_fill_and_select_fall_back_without_planner_value(primary_policy, sample_action_space):
-    """Never reuse a field's existing value as the requested new value."""
-    for operation, index in (("fill", 2), ("select", 3)):
-        raw = {"operation": operation, "target_index": index, "confidence": 0.85}
-        decision = primary_policy._resolve_to_action(raw, sample_action_space, elapsed_ms=5.0)
-        assert decision.fallback_reason == f"planner_value_required:{operation}"
-        assert decision.action.action_type == ActionType.WAIT
+def test_fill_falls_back_without_planner_value(primary_policy, sample_action_space):
+    """Fill operations still fall back to Gemini (LAYA can't generate text values)."""
+    raw = {"operation": "fill", "target_index": 2, "confidence": 0.85}
+    decision = primary_policy._resolve_to_action(raw, sample_action_space, elapsed_ms=5.0)
+    assert decision.fallback_reason == "planner_value_required:fill"
+    assert decision.action.action_type == ActionType.WAIT
+
+
+def test_select_uses_laya_selected_value(primary_policy, sample_action_space):
+    """Select operations now use LAYA's chosen value (DOM-owned options)."""
+    raw = {"operation": "select", "target_index": 3, "selected_value": "2", "confidence": 0.85}
+    decision = primary_policy._resolve_to_action(raw, sample_action_space, elapsed_ms=5.0)
+    assert decision.fallback_reason == ""  # select is now executable
+    assert decision.action.action_type == ActionType.SELECT
 
 
 # ── Tests: safety — model never emits selectors ──
