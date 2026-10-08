@@ -1252,6 +1252,9 @@ kestrel==0.8.1 \
     --hash=sha256:a280d2dcdf5549db86a807bd6ea35358f8d074371824769a4dbfa634b44f0060 \
     --hash=sha256:cf906a3412ff9529d3d48b080007b43acefea1803124a901e18e11a9b02f707b
     # via moondream
+kestrel-kernels-bundle-d==0.7.1; platform_system == "Linux" and platform_machine == "x86_64" \
+    --hash=sha256:dbc5549c0cefdc6c8d9ebf7bf31c7834d15d94ecd74473c50da376cc261d1573
+    # via kestrel
 kestrel-kernels==0.7.1 \
     --hash=sha256:123f39bd577e13d3713540671e87078b766799ba3690c81a2f40e11de5278ba5 \
     --hash=sha256:1fe204cea2171605984cc0788c3185a5397c07087dc4f0f4fb4ca7647228c33f \
