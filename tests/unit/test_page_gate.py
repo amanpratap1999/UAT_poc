@@ -81,7 +81,7 @@ def test_dialog_page_type_fails(page_gate):
 
 def test_goal_text_parsing_extracts_correctly(page_gate):
     obs = PageObservation(
-        url="https://instance.service-now.com/incident.do",
+        url="https://instance.service-now.com/change_request.do",
         page_type=PageType.FORM,
         record_number="CHG0000123"
     )
@@ -130,3 +130,18 @@ def test_wrong_table_url_is_blocked(page_gate):
 
     assert not result.passed
     assert "expected ServiceNow table" in result.reason
+
+def test_request_table_identity_is_enforced(page_gate):
+    obs = PageObservation(
+        url="https://instance.service-now.com/incident.do?sys_id=abc",
+        page_type=PageType.FORM,
+        record_number="REQ0000123",
+    )
+    intent = StructuredIntent(
+        intent_type="GeneralValidation",
+        goal="Verify request REQ0000123",
+        target_module="request",
+    )
+    result = page_gate.check(obs, intent)
+    assert not result.passed
+    assert result.expected_table == "sc_request"
