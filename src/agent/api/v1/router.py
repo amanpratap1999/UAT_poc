@@ -341,11 +341,15 @@ async def readiness_check() -> JSONResponse:
         from agent.api.v1.dependencies import get_laya_action_policy_diagnostics
         laya_diag = get_laya_action_policy_diagnostics()
         checks["laya_action_policy"] = laya_diag
-        if laya_diag.get("enabled") and (
-            not laya_diag.get("healthy")
-            or laya_diag.get("confidence_calibrated") is False
-        ):
+        if laya_diag.get("enabled") and not laya_diag.get("healthy"):
             is_ready = False
+        elif laya_diag.get("enabled") and laya_diag.get("confidence_calibrated") is False:
+            # Uncalibrated confidence is observable model metadata, not a
+            # service-readiness failure. LAYA still applies its configured
+            # confidence threshold and downstream validation gates.
+            checks["laya_action_policy"]["confidence_warning"] = (
+                "Model confidence is not calibrated; threshold and post-action validation remain active."
+            )
     except Exception as e:
         checks["laya_action_policy"] = {
             "enabled": False,
