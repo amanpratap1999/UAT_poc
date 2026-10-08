@@ -230,6 +230,28 @@ async def test_inference_error_falls_back(primary_policy, sample_action_space):
     assert "inference_error" in decision.fallback_reason
 
 
+
+@pytest.mark.asyncio
+async def test_primary_mode_allows_warm_laya_without_calibration(primary_policy, sample_action_space, monkeypatch):
+    """Uncalibrated confidence is telemetry; threshold and validation remain the gates."""
+    monkeypatch.delenv("LAYA_ACTION_CONFIDENCE_CALIBRATED", raising=False)
+    primary_policy._infer = AsyncMock(return_value=LayaActionDecision(
+        action=MagicMock(
+            action_type=ActionType.CLICK,
+            target="role:button:Update",
+            value="",
+            metadata={},
+        ),
+        operation="click",
+        target_index=1,
+        confidence=0.90,
+        model_version="test:v1",
+    ))
+    decision = await primary_policy.choose_action(sample_action_space)
+    assert decision.fallback_reason == ""
+    assert decision.provider == "laya"
+    assert decision.operation == "click"
+
 # ── Tests: operation → ActionType mapping ──
 
 
