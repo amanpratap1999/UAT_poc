@@ -584,6 +584,31 @@ class AgentOrchestrator:
             self._settings = self._settings.model_copy(deep=True)
             self._settings.servicenow.active_persona = persona
 
+            # Benchmark persona proof: when benchmark mode is enabled, verify
+            # both local persona configuration and the actual ServiceNow role
+            # before opening the browser. A declared role string alone is not
+            # authoritative evidence of role separation.
+            if self._settings.servicenow.require_persona_for_benchmark:
+                self._settings.servicenow.verify_persona_for_benchmark()
+                expected_role = self._settings.servicenow.get_persona_role()
+                if expected_role:
+                    from agent.skills.incident.role_verifier import RoleVerifier
+                    role_result = await RoleVerifier().verify_role(
+                        self._settings.servicenow,
+                        expected_role,
+                    )
+                    if not role_result.get("match"):
+                        raise RuntimeError(
+                            "INC-UAT-04: ServiceNow persona role verification failed: "
+                            f"expected={expected_role!r}, "
+                            f"actual={role_result.get('actual_roles', [])}, "
+                            f"error={role_result.get('error')}"
+                        )
+                    self._memory.add_timeline_entry(
+                        action=f"Verified ServiceNow persona role: {expected_role}",
+                        result="role_verified",
+                    )
+
         self._memory.goal = goal
         self._memory.persona = persona
         await self._save_session()
