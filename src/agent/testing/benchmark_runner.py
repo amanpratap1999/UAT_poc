@@ -226,9 +226,17 @@ class IncidentBenchmarkRunner:
                     # Real defect: agent should detect it
                     if detected == defect.defect_id:
                         metrics.true_positives += 1
-                    elif detected is not None and detected in real_defect_ids:
-                        # Detected a different real defect → misclassification
+                    elif detected is not None:
+                        # Any incorrect defect label means the expected defect
+                        # was missed (FN) and an incorrect report was produced.
+                        # Keep misclassification separate for diagnosis while
+                        # preserving honest precision/recall.
                         metrics.misclassifications += 1
+                        metrics.false_negatives += 1
+                        if detected in decoy_ids:
+                            metrics.decoy_false_positives += 1
+                        else:
+                            metrics.false_positives += 1
                         logger.warning(
                             "misclassification",
                             scenario=scenario,
@@ -236,20 +244,17 @@ class IncidentBenchmarkRunner:
                             expected=defect.defect_id,
                             detected=detected,
                         )
-                    elif detected is not None and detected in decoy_ids:
-                        # Reported a decoy as a defect → false positive
-                        metrics.false_positives += 1
-                    elif detected is None:
+                    else:
                         # Missed the real defect → false negative
                         metrics.false_negatives += 1
-                    else:
-                        # Reported something not in the manifest → false positive
-                        metrics.false_positives += 1
 
-        # Compute consistency (INC-UAT-10)
-        unique_scenarios = set(scenario_verdicts.keys())
-        metrics.total_scenarios = len(unique_scenarios)
-        for scenario, verdicts in scenario_verdicts.items():
+        # Compute consistency (INC-UAT-10). Every manifest scenario stays
+        # in the denominator, including scenarios that were blocked or hit
+        # infrastructure errors.
+        manifest_scenarios = {d.test_scenario for d in self._manifest.defects}
+        metrics.total_scenarios = len(manifest_scenarios)
+        for scenario in sorted(manifest_scenarios):
+            verdicts = scenario_verdicts.get(scenario, [])
             if len(verdicts) == runs_per_scenario and len(set(verdicts)) == 1:
                 metrics.consistent_scenarios += 1
             else:
