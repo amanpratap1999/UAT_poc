@@ -9,7 +9,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
 
     services:
       postgres:
@@ -69,8 +69,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install -e ".[dev]"
+          pip install -e ".[dev,laya]"
           pip install pytest pytest-asyncio pytest-cov
+
+      - name: Verify LAYA package
+        run: |
+          python -c "import laya; print('LAYA import OK:', getattr(laya, '__version__', 'unknown'))"
 
       - name: Install Playwright browsers
         run: |
