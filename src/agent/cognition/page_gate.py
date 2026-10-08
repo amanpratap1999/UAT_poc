@@ -187,7 +187,7 @@ class PageGate:
             # Fix: use the configured ServiceNow instance URL from settings
             # (the trusted source), and reject if the parsed netloc is
             # not in the allowed_instances list.
-            from urllib.parse import urlparse
+            from urllib.parse import quote, urlparse
 
             # Lazy-import to avoid circular imports and to keep the
             # page_gate module independent of the settings module for
@@ -201,11 +201,17 @@ class PageGate:
             parsed = urlparse(instance_url)
             base_url = f"{parsed.scheme}://{parsed.netloc}"
 
-            # Defense-in-depth: verify the configured host is in the
-            # allowed_instances list (matches the safety gate in
-            # ExecutionController for action validation).
-            allowed_hosts = {str(h).strip().lower().rstrip(".") for h in
-                             settings.servicenow.allowed_instances}
+            # Defense-in-depth: normalize both bare hostnames and full URLs
+            # in the allowlist to the same canonical hostname representation.
+            allowed_hosts: set[str] = set()
+            for configured in settings.servicenow.allowed_instances:
+                raw_host = str(configured).strip()
+                if not raw_host:
+                    continue
+                candidate = raw_host if "://" in raw_host else f"https://{raw_host}"
+                parsed_allowed = urlparse(candidate)
+                if parsed_allowed.netloc:
+                    allowed_hosts.add(parsed_allowed.netloc.lower().rstrip("."))
             if allowed_hosts and parsed.netloc.lower().rstrip(".") not in allowed_hosts:
                 logger.warning(
                     "page_gate_instance_not_in_allowlist",
@@ -214,7 +220,14 @@ class PageGate:
                 )
                 return False
 
-            target_url = f"{base_url}/nav_to.do?uri={table}.do%3Fsysparm_query=number={number}"
+            # Encode the nested nav_to URI as a single value. Leaving the
+            # inner '=' unescaped can make ServiceNow parse the URI query
+            # incorrectly on some instances and strand the agent on the list.
+            inner_uri = quote(
+                f"{table}.do?sysparm_query=number={number}",
+                safe="",
+            )
+            target_url = f"{base_url}/nav_to.do?uri={inner_uri}"
             logger.info("page_gate_navigating", target_url=target_url, instance=base_url)
 
             await page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
