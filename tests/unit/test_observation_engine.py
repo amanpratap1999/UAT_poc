@@ -191,3 +191,50 @@ async def test_observe_rejects_known_crashed_page() -> None:
         await engine.observe(page)
 
     browser_manager.is_page_healthy.assert_called_once_with(page)
+
+
+@pytest.mark.asyncio
+async def test_observe_requested_fields_uses_targeted_dom_reads() -> None:
+    page = _make_mock_page()
+    page.frames = []
+    page.main_frame = None
+
+    engine = ObservationEngine()
+    engine._detect_page_type = AsyncMock(return_value=PageType.FORM)  # type: ignore[method-assign]
+    engine._extract_record_number = AsyncMock(return_value="INC0000007")  # type: ignore[method-assign]
+    engine._extract_current_state = AsyncMock(return_value="2")  # type: ignore[method-assign]
+
+    empty = MagicMock()
+    empty.count = AsyncMock(return_value=0)
+
+    element = AsyncMock()
+    element.evaluate.return_value = "input"
+    element.get_attribute.side_effect = lambda attr: {
+        "type": "text",
+        "name": "incident.caller_id",
+        "id": "incident.caller_id",
+        "aria-label": "Caller",
+        "readonly": None,
+    }.get(attr)
+    element.input_value.return_value = "Joe Employee"
+    element.inner_text.return_value = "Joe Employee"
+    element.first = element
+
+    caller_locator = MagicMock()
+    caller_locator.count = AsyncMock(return_value=1)
+    caller_locator.first = element
+
+    def locator_for(selector: str):
+        if selector == "input[name='incident.caller_id']:visible":
+            return caller_locator
+        return empty
+
+    page.locator.side_effect = locator_for
+
+    observation = await engine.observe_requested_fields(page, ("caller",))
+
+    assert observation.page_type == PageType.FORM
+    assert observation.record_number == "INC0000007"
+    assert [(field.name, field.value) for field in observation.visible_fields] == [
+        ("Caller", "Joe Employee")
+    ]
