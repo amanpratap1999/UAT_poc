@@ -13,6 +13,10 @@ mkdir -p /tmp/uat-poc
 export UAT_RUNTIME_MODE=local
 export UAT_PROCESS_ROLE=api
 export BROWSER_HEADLESS=true
+# Keep headless ServiceNow rendering inside a predictable memory envelope.
+export BROWSER_VIEWPORT_WIDTH=1440
+export BROWSER_VIEWPORT_HEIGHT=900
+export BROWSER_SHOW_MOUSE_CURSOR=false
 export OPENBLAS_NUM_THREADS=1
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
@@ -58,6 +62,9 @@ fi
 
 export UAT_PROCESS_ROLE=worker
 export BROWSER_HEADLESS=true
+export BROWSER_VIEWPORT_WIDTH=1440
+export BROWSER_VIEWPORT_HEIGHT=900
+export BROWSER_SHOW_MOUSE_CURSOR=false
 export OPENBLAS_NUM_THREADS=1
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
