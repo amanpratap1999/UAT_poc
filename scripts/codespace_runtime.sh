@@ -63,12 +63,73 @@ export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export TOKENIZERS_PARALLELISM=false
 
-if ! pgrep -f '[c]elery -A agent.core.celery_app worker' >/dev/null 2>&1; then
+WORKER_PID_FILE="/tmp/uat-poc/worker.pid"
+WORKER_LOG="/tmp/uat-poc/worker.log"
+
+worker_cmdline_ok() {
+    local pid="$1"
+    [ -r "/proc/$pid/cmdline" ] || return 1
+    tr '\0' ' ' < "/proc/$pid/cmdline" | grep -F "celery -A agent.core.celery_app worker" >/dev/null 2>&1
+}
+
+worker_log_owned() {
+    local pid="$1"
+    [ -e "/proc/$pid/fd/1" ] || return 1
+    [ -e "/proc/$pid/fd/2" ] || return 1
+    local stdout_target stderr_target
+    stdout_target="$(readlink -f "/proc/$pid/fd/1" 2>/dev/null || true)"
+    stderr_target="$(readlink -f "/proc/$pid/fd/2" 2>/dev/null || true)"
+    [ "$stdout_target" = "$WORKER_LOG" ] && [ "$stderr_target" = "$WORKER_LOG" ]
+}
+
+managed_worker_pid=""
+if [ -f "$WORKER_PID_FILE" ]; then
+    candidate="$(cat "$WORKER_PID_FILE" 2>/dev/null || true)"
+    if [[ "$candidate" =~ ^[0-9]+$ ]] && kill -0 "$candidate" 2>/dev/null && worker_cmdline_ok "$candidate" && worker_log_owned "$candidate"; then
+        managed_worker_pid="$candidate"
+    else
+        rm -f "$WORKER_PID_FILE"
+    fi
+fi
+
+if [ -n "$managed_worker_pid" ]; then
+    echo "Local Celery worker is already running (PID $managed_worker_pid)."
+else
+    unmanaged_worker=""
+    while read -r pid; do
+        if [ -n "$pid" ] && worker_cmdline_ok "$pid"; then
+            unmanaged_worker="$pid"
+            break
+        fi
+    done < <(pgrep -f '[c]elery -A agent.core.celery_app worker' || true)
+
+    if [ -n "$unmanaged_worker" ]; then
+        echo "Found an existing unmanaged Celery worker (PID $unmanaged_worker)." >&2
+        echo "It is not owned by $WORKER_PID_FILE and/or is not attached to $WORKER_LOG." >&2
+        echo "Stop that PID before restarting this runtime; no second worker will be started." >&2
+        exit 1
+    fi
+
+    : > "$WORKER_LOG"
     echo "Starting local Celery worker..."
     nohup celery -A agent.core.celery_app worker --loglevel=info --pool=solo \
-        > /tmp/uat-poc/worker.log 2>&1 &
-else
-    echo "Local Celery worker is already running."
+        > "$WORKER_LOG" 2>&1 &
+    worker_pid=$!
+    echo "$worker_pid" > "$WORKER_PID_FILE"
+
+    for _ in $(seq 1 15); do
+        if kill -0 "$worker_pid" 2>/dev/null && worker_cmdline_ok "$worker_pid" && worker_log_owned "$worker_pid"; then
+            echo "Local Celery worker started (PID $worker_pid)."
+            break
+        fi
+        if ! kill -0 "$worker_pid" 2>/dev/null; then
+            echo "Celery worker exited during startup. See $WORKER_LOG." >&2
+            rm -f "$WORKER_PID_FILE"
+            exit 1
+        fi
+        sleep 1
+    done
 fi
+
 
 echo "Local services are started. No ServiceNow run or repository push was performed."
