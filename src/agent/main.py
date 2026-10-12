@@ -761,19 +761,18 @@ class AgentOrchestrator:
                 if violating_steps:
                     from agent.domain.plan import ExecutionPlan
                     safe_plan = ExecutionPlan(goal=goal)
+                    # One navigation/inspection step plus one explicit
+                    # evidence step is sufficient. The prior three-step plan
+                    # repeated the same read-only observation three times,
+                    # increasing runtime without adding new evidence.
                     safe_plan.add_step(
                         "Open Target Incident Record",
                         "Requested Incident is displayed in the form",
                         requirement_id="AC-WF08-01",
                     )
                     safe_plan.add_step(
-                        "Observe Requested Incident Fields",
-                        "Requested values are read from the visible form",
-                        requirement_id="AC-WF08-01",
-                    )
-                    safe_plan.add_step(
-                        "Report Evidence Without Saving",
-                        "Evidence is recorded and no ServiceNow mutation is performed",
+                        "Inspect and Report Incident Fields Without Saving",
+                        "Caller, assignment group, state, priority, impact and urgency are observed and evidence is recorded without ServiceNow mutation",
                         requirement_id="AC-WF08-02",
                     )
                     logger.warning(
