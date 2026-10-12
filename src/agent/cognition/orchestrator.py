@@ -364,7 +364,18 @@ class CognitiveOrchestrator:
                 # Always reacquire the active Page. A renderer crash invalidates
                 # the old handle even though Playwright may still expose it.
                 page = self._browser_manager.get_page()
-                obs = await self._observation_engine.observe(page)
+                if requested_fields:
+                    lightweight = getattr(
+                        self._observation_engine,
+                        "observe_requested_fields",
+                        None,
+                    )
+                    if callable(lightweight):
+                        obs = await lightweight(page, requested_fields)
+                    else:
+                        obs = await self._observation_engine.observe(page)
+                else:
+                    obs = await self._observation_engine.observe(page)
             except Exception as e:
                 logger.warning(
                     "observe_with_retries_attempt_failed",
@@ -1319,6 +1330,40 @@ class CognitiveOrchestrator:
         pre_mutation_snapshot: Any = None
         page_gate = PageGate()
 
+        read_only_markers = (
+            "read-only",
+            "read only",
+            "do not change",
+            "do not modify",
+            "do not update",
+            "inspect only",
+            "observe only",
+            "no mutations",
+        )
+        is_read_only_objective = any(
+            marker in objective.lower() for marker in read_only_markers
+        )
+        read_only_requested_fields = (
+            tuple(
+                field_name
+                for field_name in (
+                    "caller",
+                    "assignment group",
+                    "state",
+                    "priority",
+                    "impact",
+                    "urgency",
+                )
+                if re.search(
+                    rf"{re.escape(field_name)}",
+                    objective,
+                    re.IGNORECASE,
+                )
+            )
+            if is_read_only_objective
+            else ()
+        )
+
         for step in plan.steps:
             if self._lock_manager:
                 rec_num = (memory.current_record or {}).get("number")
@@ -1411,6 +1456,7 @@ class CognitiveOrchestrator:
             # 2. Observation Before
             self._transition(AgentState.OBSERVING, f"Observing before: {step.description}")
             raw_obs = await self._observe_with_retries(
+                requested_fields=read_only_requested_fields,
                 max_attempts=2,
                 delay_seconds=0.5,
             )
@@ -1445,6 +1491,7 @@ class CognitiveOrchestrator:
                         raw_obs = await self._observe_with_retries(
                             expected_record=gate_result.expected_record,
                             expected_table=gate_result.expected_table,
+                            requested_fields=read_only_requested_fields,
                             max_attempts=3,
                             delay_seconds=1.0,
                         )
@@ -1540,11 +1587,7 @@ class CognitiveOrchestrator:
             # so LAYA/Gemini can navigate (click on a row to open the record).
             # The read-only bypass only applies when the agent is already on
             # the correct record form.
-            read_only_markers = (
-                "read-only", "read only", "do not change", "do not modify",
-                "do not update", "inspect only", "observe only", "no mutations",
-            )
-            is_read_only = any(marker in objective.lower() for marker in read_only_markers)
+            is_read_only = is_read_only_objective
             # Check if we're on the target record's form (not the list page)
             is_on_record_form = (
                 gate_result.passed
