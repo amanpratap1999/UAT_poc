@@ -220,19 +220,40 @@ class PageGate:
                 )
                 return False
 
-            # Encode the nested nav_to URI as a single value. Leaving the
-            # inner '=' unescaped can make ServiceNow parse the URI query
-            # incorrectly on some instances and strand the agent on the list.
-            inner_uri = quote(
-                f"{table}.do?sysparm_query=number={number}",
-                safe="",
+            # ServiceNow's nav_to.do route can resolve a table query into
+            # Unified Navigation/home instead of opening the requested form.
+            # Use the table list as the deterministic discovery surface, then
+            # click the exact requested record link in the rendered UI.
+            if table.endswith("_request") or table == "change_request":
+                list_path = f"{table}_list.do"
+            else:
+                list_path = f"{table}_list.do"
+
+            query = quote(f"number={number}", safe="")
+            target_url = f"{base_url}/{list_path}?sysparm_query={query}"
+            logger.info(
+                "page_gate_navigating_to_list",
+                target_url=target_url,
+                instance=base_url,
+                expected_record=number,
             )
-            target_url = f"{base_url}/nav_to.do?uri={inner_uri}"
-            logger.info("page_gate_navigating", target_url=target_url, instance=base_url)
 
             await page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
-            # brief pause to let SNOW render
-            await page.wait_for_timeout(2000)
+            await page.wait_for_timeout(1500)
+
+            # Exact anchor text avoids clicking a navigation/header element that
+            # merely contains the incident number as part of another string.
+            record_link = page.locator(
+                f"xpath=//a[normalize-space()='{number}']"
+            ).first
+            await record_link.wait_for(state="visible", timeout=10000)
+            await record_link.click(timeout=10000)
+            await page.wait_for_timeout(1500)
+            logger.info(
+                "page_gate_record_link_clicked",
+                expected_record=number,
+                target_url=target_url,
+            )
             return True
         except Exception as e:
             logger.warning("page_gate_navigation_failed", error=str(e))
