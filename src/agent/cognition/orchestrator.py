@@ -1403,8 +1403,17 @@ class CognitiveOrchestrator:
 
             # 2. Observation Before
             self._transition(AgentState.OBSERVING, f"Observing before: {step.description}")
-            page = self._browser_manager.get_page()  # type: ignore[union-attr]
-            raw_obs = await self._observation_engine.observe(page)  # type: ignore[union-attr]
+            raw_obs = await self._observe_with_retries(
+                max_attempts=2,
+                delay_seconds=0.5,
+            )
+            if raw_obs is None:
+                reason = "Unable to obtain a live browser observation before executing the plan step."
+                step.mark_failed(reason)
+                memory.add_timeline_entry(action="Initial observation", result=reason)
+                plan.skip_remaining_steps(step.step_index + 1, reason)
+                self._transition(AgentState.BLOCKED, reason)
+                return
             memory.add_observation(raw_obs)
             world_state = self._world_model.build_semantic_state(raw_obs)
 
@@ -1426,12 +1435,16 @@ class CognitiveOrchestrator:
                     )
                     if nav_ok:
                         # PageGate may have changed/recreated the active target.
-                        page = self._browser_manager.get_page()
-                        raw_obs = await self._observation_engine.observe(page)
-                        memory.add_observation(raw_obs)
-                        world_state = self._world_model.build_semantic_state(raw_obs)
-                        # Re-check gate
-                        gate_result = page_gate.check(raw_obs, memory.structured_intent)
+                        raw_obs = await self._observe_with_retries(
+                            expected_record=gate_result.expected_record,
+                            max_attempts=3,
+                            delay_seconds=1.0,
+                        )
+                        if raw_obs is not None:
+                            memory.add_observation(raw_obs)
+                            world_state = self._world_model.build_semantic_state(raw_obs)
+                            # Re-check gate
+                            gate_result = page_gate.check(raw_obs, memory.structured_intent)
                 
                 if not gate_result.passed:
                     reason = f"Page context verification failed: {gate_result.reason}"
@@ -1481,11 +1494,15 @@ class CognitiveOrchestrator:
                     gate_result.expected_record,
                 )
                 if nav_ok:
-                    page = self._browser_manager.get_page()
-                    raw_obs = await self._observation_engine.observe(page)
-                    memory.add_observation(raw_obs)
-                    world_state = self._world_model.build_semantic_state(raw_obs)
-                    gate_result = page_gate.check(raw_obs, memory.structured_intent)
+                    raw_obs = await self._observe_with_retries(
+                        expected_record=gate_result.expected_record,
+                        max_attempts=3,
+                        delay_seconds=1.0,
+                    )
+                    if raw_obs is not None:
+                        memory.add_observation(raw_obs)
+                        world_state = self._world_model.build_semantic_state(raw_obs)
+                        gate_result = page_gate.check(raw_obs, memory.structured_intent)
 
                 if not gate_result.passed:
                     reason = f"Unable to reach requested record from list page: {gate_result.reason}"
