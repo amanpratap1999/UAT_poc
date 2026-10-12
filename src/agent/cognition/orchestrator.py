@@ -360,6 +360,9 @@ class CognitiveOrchestrator:
 
         for attempt in range(max_attempts):
             try:
+                # Always reacquire the active Page. A renderer crash invalidates
+                # the old handle even though Playwright may still expose it.
+                page = self._browser_manager.get_page()
                 obs = await self._observation_engine.observe(page)
             except Exception as e:
                 logger.warning(
@@ -367,7 +370,25 @@ class CognitiveOrchestrator:
                     attempt=attempt + 1,
                     error=str(e),
                 )
-                if attempt < max_attempts - 1:
+                is_crash = any(
+                    marker in str(e).lower()
+                    for marker in ("target crashed", "page crashed", "renderer")
+                )
+                if is_crash and attempt < max_attempts - 1:
+                    recover = getattr(self._browser_manager, "recover_page", None)
+                    if callable(recover):
+                        try:
+                            await recover(
+                                reason=f"observation attempt {attempt + 1} failed: {e}"
+                            )
+                        except Exception as recovery_error:
+                            logger.warning(
+                                "observe_with_retries_recovery_failed",
+                                attempt=attempt + 1,
+                                error=str(recovery_error),
+                            )
+                    await asyncio.sleep(delay_seconds)
+                elif attempt < max_attempts - 1:
                     await asyncio.sleep(delay_seconds)
                 continue
             last_obs = obs
@@ -1404,7 +1425,8 @@ class CognitiveOrchestrator:
                         gate_result.expected_record,
                     )
                     if nav_ok:
-                        # Re-observe after navigation
+                        # PageGate may have changed/recreated the active target.
+                        page = self._browser_manager.get_page()
                         raw_obs = await self._observation_engine.observe(page)
                         memory.add_observation(raw_obs)
                         world_state = self._world_model.build_semantic_state(raw_obs)
@@ -1459,6 +1481,7 @@ class CognitiveOrchestrator:
                     gate_result.expected_record,
                 )
                 if nav_ok:
+                    page = self._browser_manager.get_page()
                     raw_obs = await self._observation_engine.observe(page)
                     memory.add_observation(raw_obs)
                     world_state = self._world_model.build_semantic_state(raw_obs)
@@ -1505,6 +1528,28 @@ class CognitiveOrchestrator:
             )
             if is_read_only and is_on_record_form:
                 expected_record = gate_result.expected_record
+                if raw_obs is None:
+                    reason = (
+                        "Unable to obtain a live browser observation for the target "
+                        "record after bounded recovery attempts."
+                    )
+                    step.mark_failed(reason)
+                    memory.verification_calls += 1
+                    memory.add_timeline_entry(
+                        action=f"Read-only observation: {step.description}",
+                        result=reason,
+                    )
+                    await self._publish_event(
+                        RunEventType.STEP_FINISHED,
+                        {
+                            "step_index": step.step_index,
+                            "description": step.description,
+                            "status": "failed",
+                            "actual_result": reason,
+                            "screenshot": None,
+                        },
+                    )
+                    continue
                 # P1-07: bounded waits/retries for required fields so a page
                 # that is still loading does NOT get misread as "field
                 # absent" or "wrong value". We re-observe the page up to 3
@@ -1513,7 +1558,14 @@ class CognitiveOrchestrator:
                 # as BLOCKED with evidence, NOT a functional defect.
                 raw_obs = await self._observe_with_retries(
                     expected_record=expected_record,
-                    requested_fields=("state", "priority"),
+                    requested_fields=(
+                        "caller",
+                        "assignment group",
+                        "state",
+                        "priority",
+                        "impact",
+                        "urgency",
+                    ),
                     max_attempts=3,
                     delay_seconds=1.0,
                 )
@@ -1555,8 +1607,19 @@ class CognitiveOrchestrator:
                 # presence, which does not establish correctness).
                 requested_fields = [
                     field_name
-                    for field_name in ("state", "priority")
-                    if re.search(rf"\b{field_name}\b", objective, re.IGNORECASE)
+                    for field_name in (
+                        "caller",
+                        "assignment group",
+                        "state",
+                        "priority",
+                        "impact",
+                        "urgency",
+                    )
+                    if re.search(
+                        rf"\b{re.escape(field_name)}\b",
+                        objective,
+                        re.IGNORECASE,
+                    )
                 ]
                 # P0-04 (D1, D6): pull authoritative expected values from
                 # the imported test case's acceptance_criteria list rather
@@ -1711,6 +1774,7 @@ class CognitiveOrchestrator:
                     reasoning="Read-only request: captured the current observation without browser actions.",
                     metadata={"observation_only": True},
                 )
+                memory.verification_calls += 1
                 result = ActionResult(
                     success=validation.overall_passed,
                     action=action,
