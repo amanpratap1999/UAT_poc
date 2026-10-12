@@ -147,10 +147,19 @@ def test_request_table_identity_is_enforced(page_gate):
     assert result.expected_table == "sc_request"
 
 @pytest.mark.asyncio
-async def test_navigate_to_record_uses_configured_instance_and_encoded_uri(monkeypatch, page_gate):
+async def test_navigate_to_record_uses_configured_instance_and_clicks_exact_record_link(monkeypatch, page_gate):
     from types import SimpleNamespace
 
-    page = SimpleNamespace(goto=AsyncMock(), wait_for_timeout=AsyncMock())
+    record_link = SimpleNamespace(
+        wait_for=AsyncMock(),
+        click=AsyncMock(),
+    )
+    locator = SimpleNamespace(first=record_link)
+    page = SimpleNamespace(
+        goto=AsyncMock(),
+        wait_for_timeout=AsyncMock(),
+        locator=Mock(return_value=locator),
+    )
     browser = SimpleNamespace(get_page=lambda: page)
     settings = SimpleNamespace(
         servicenow=SimpleNamespace(
@@ -163,7 +172,12 @@ async def test_navigate_to_record_uses_configured_instance_and_encoded_uri(monke
     assert await page_gate.navigate_to_record(browser, "incident", "INC0000007")
     target = page.goto.await_args.args[0]
     assert target == (
-        "https://instance.service-now.com/nav_to.do?"
-        "uri=incident.do%3Fsysparm_query%3Dnumber%3DINC0000007"
+        "https://instance.service-now.com/incident_list.do?"
+        "sysparm_query=number%3DINC0000007"
     )
+    page.locator.assert_called_once_with(
+        "xpath=//a[normalize-space()='INC0000007']"
+    )
+    record_link.wait_for.assert_awaited_once_with(state="visible", timeout=10000)
+    record_link.click.assert_awaited_once_with(timeout=10000)
 
