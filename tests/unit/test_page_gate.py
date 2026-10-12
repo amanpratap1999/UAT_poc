@@ -181,3 +181,36 @@ async def test_navigate_to_record_uses_configured_instance_and_clicks_exact_reco
     record_link.wait_for.assert_awaited_once_with(state="visible", timeout=10000)
     record_link.click.assert_awaited_once_with(timeout=10000)
 
+
+
+@pytest.mark.asyncio
+async def test_navigate_to_record_prefers_browser_manager_navigation(monkeypatch, page_gate):
+    from types import SimpleNamespace
+
+    record_link = SimpleNamespace(
+        wait_for=AsyncMock(),
+        click=AsyncMock(),
+    )
+    locator = SimpleNamespace(first=record_link)
+    page = SimpleNamespace(
+        wait_for_timeout=AsyncMock(),
+        locator=Mock(return_value=locator),
+    )
+    browser = SimpleNamespace(
+        get_page=lambda: page,
+        navigate=AsyncMock(),
+        set_navigation_target=Mock(),
+    )
+    settings = SimpleNamespace(
+        servicenow=SimpleNamespace(
+            instance_url="https://instance.service-now.com/",
+            allowed_instances=["https://instance.service-now.com"],
+        )
+    )
+    monkeypatch.setattr("agent.core.config.get_settings", lambda: settings)
+
+    assert await page_gate.navigate_to_record(browser, "incident", "INC0000007")
+    browser.navigate.assert_awaited_once_with(
+        "https://instance.service-now.com/incident_list.do?sysparm_query=number%3DINC0000007"
+    )
+    record_link.click.assert_awaited_once_with(timeout=10000)
