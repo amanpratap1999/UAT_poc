@@ -325,6 +325,27 @@ class ReportingEngine:
                 open_minor_defects=minor_defects,
                 unverified_items=unverified,
             )
+            # Exit criteria must never claim PASS when the run itself
+            # ended in an error/blocked/failed state. The deterministic
+            # requirement engine may have no acceptance-criteria denominator
+            # for ad-hoc runs, so reconcile its verdict with the authoritative
+            # run outcome before exposing sign-off data.
+            if report.status == "error" and exit_result.verdict == "PASS":
+                exit_result.verdict = "INFRA_ERROR"
+                exit_result.reason = (
+                    "Run ended with an execution error; sign-off cannot be "
+                    "declared until the agent/infrastructure error is resolved."
+                )
+            elif report.status == "blocked" and exit_result.verdict == "PASS":
+                exit_result.verdict = "BLOCKED"
+                exit_result.reason = (
+                    "Run was blocked before successful completion; sign-off cannot be declared."
+                )
+            elif report.status == "failed" and exit_result.verdict == "PASS":
+                exit_result.verdict = "FAIL"
+                exit_result.reason = (
+                    "Run failed before successful completion; sign-off cannot be declared."
+                )
             report.exit_criteria = exit_result.to_dict()
             # The top-level report status is the result clients and runners
             # commonly consume. Never leave it as PASSED when the stricter
