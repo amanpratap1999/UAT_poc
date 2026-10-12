@@ -95,3 +95,19 @@ async def test_page_crash_recovery_recreates_page_in_same_context(monkeypatch) -
     assert recovered is new_page
     assert manager._page is new_page
     assert old_page.is_closed()
+
+
+
+def test_is_page_healthy_rejects_known_renderer_crash() -> None:
+    manager = BrowserManager(
+        browser_config=BrowserConfig(headless=True),
+        servicenow_config=ServiceNowConfig(),
+    )
+    page = SimpleNamespace(is_closed=lambda: False)
+    manager._page = page
+    manager._page_crashed = False
+
+    assert manager.is_page_healthy(page)
+
+    manager._page_crashed = True
+    assert not manager.is_page_healthy(page)
