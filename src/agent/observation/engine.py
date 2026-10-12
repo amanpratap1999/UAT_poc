@@ -352,6 +352,23 @@ class ObservationEngine:
         if placeholder:
             return placeholder.strip()  # type: ignore[no-any-return]
 
+        # ServiceNow can render form controls without a conventional
+        # <label for="..."> element (for example in partially hydrated
+        # workspace/classic shells). Preserve the control as evidence instead
+        # of silently dropping it when label lookup fails.
+        element_name = await element.get_attribute("name")
+        if element_name:
+            fallback = re.sub(r"^incident\.", "", element_name, flags=re.IGNORECASE)
+            fallback = fallback.replace("_", " ").replace(".", " ").strip()
+            if fallback:
+                return fallback.title()
+
+        if element_id:
+            fallback = re.sub(r"^incident\.", "", element_id, flags=re.IGNORECASE)
+            fallback = fallback.replace("_", " ").replace(".", " ").strip()
+            if fallback:
+                return fallback.title()
+
         return ""
 
     async def _is_field_mandatory(self, page: Any, element: Any, label: str) -> bool:
@@ -530,6 +547,9 @@ class ObservationEngine:
         state_selectors = [
             "select[name$='.state']",
             "select[id$='.state']",
+            "input[name$='.state']",
+            "input[id$='.state']",
+            "[role='combobox'][aria-label*='state' i]",
             "[id^='sys_readonly.'][id$='.state']",
             "[id*='state'] option[selected]",
         ]
@@ -601,7 +621,22 @@ class ObservationEngine:
                                 )
                             )
                             if is_sensitive_field(field_identity):
-                                return None
+                                # When a rendered form does not expose the number input, the
+        # ServiceNow record URL itself can still provide deterministic
+        # evidence after an exact record-link navigation. Restrict this
+        # fallback to form-like URLs and known INC/CHG/REQ tokens.
+        try:
+            url = page.url or ""
+            url_lower = url.lower()
+            if ".do" in url_lower and "sys_id=" in url_lower:
+                decoded = url.replace("%3D", "=").replace("%3d", "=")
+                match = re.search(r"\b(INC\d+|CHG\d+|REQ\d+)\b", decoded, re.IGNORECASE)
+                if match:
+                    return match.group(1).upper()
+        except Exception:
+            pass
+
+        return None
                             value = redact_string(await first.input_value())
                             if value and re.match(r"[A-Z]{3,}\d+", value):
                                 return value  # type: ignore[no-any-return]
