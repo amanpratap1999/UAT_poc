@@ -126,6 +126,166 @@ class ObservationEngine:
         )
         return observation
 
+    async def observe_requested_fields(
+        self,
+        page: Page,
+        requested_fields: tuple[str, ...],
+    ) -> PageObservation:
+        """Lightweight read-only observation for named ServiceNow fields.
+
+        The full observer touches many DOM surfaces (buttons, tabs, messages,
+        interactive elements and visible text). On heavy ServiceNow forms that
+        broad traversal can trigger renderer instability. Read-only inspection
+        only needs the requested controls plus record identity, so keep this
+        path intentionally narrow.
+        """
+        self._ensure_page_alive(page)
+        url = page.url
+        title = await page.title()
+        page_type = await self._detect_page_type(page, url, title)
+        ctx = self._get_active_context(page)
+        contexts = [ctx]
+        if page not in contexts:
+            contexts.append(page)
+
+        selector_map: dict[str, tuple[str, ...]] = {
+            "caller": (
+                "input[name='incident.caller_id']:visible",
+                "input[id='incident.caller_id']:visible",
+                "input[id^='sys_readonly.'][id$='.caller_id']:visible",
+                "[role='combobox'][aria-label*='caller' i]:visible",
+            ),
+            "assignment group": (
+                "input[name='incident.assignment_group']:visible",
+                "input[id='incident.assignment_group']:visible",
+                "input[id^='sys_readonly.'][id$='.assignment_group']:visible",
+                "[role='combobox'][aria-label*='assignment group' i]:visible",
+            ),
+            "state": (
+                "select[name='incident.state']:visible",
+                "select[id='incident.state']:visible",
+                "input[name='incident.state']:visible",
+                "input[id='incident.state']:visible",
+                "[role='combobox'][aria-label*='state' i]:visible",
+                "[id^='sys_readonly.'][id$='.state']:visible",
+            ),
+            "priority": (
+                "select[name='incident.priority']:visible",
+                "select[id='incident.priority']:visible",
+                "input[name='incident.priority']:visible",
+                "input[id='incident.priority']:visible",
+                "[role='combobox'][aria-label*='priority' i]:visible",
+                "[id^='sys_readonly.'][id$='.priority']:visible",
+            ),
+            "impact": (
+                "select[name='incident.impact']:visible",
+                "select[id='incident.impact']:visible",
+                "input[name='incident.impact']:visible",
+                "input[id='incident.impact']:visible",
+                "[role='combobox'][aria-label*='impact' i]:visible",
+                "[id^='sys_readonly.'][id$='.impact']:visible",
+            ),
+            "urgency": (
+                "select[name='incident.urgency']:visible",
+                "select[id='incident.urgency']:visible",
+                "input[name='incident.urgency']:visible",
+                "input[id='incident.urgency']:visible",
+                "[role='combobox'][aria-label*='urgency' i]:visible",
+                "[id^='sys_readonly.'][id$='.urgency']:visible",
+            ),
+        }
+
+        fields: list[FieldInfo] = []
+        for field_name in requested_fields:
+            canonical = field_name.strip().lower()
+            if canonical not in selector_map:
+                continue
+            found = False
+            for context in contexts:
+                for selector in selector_map[canonical]:
+                    try:
+                        locator = context.locator(selector)
+                        if await locator.count() == 0:
+                            continue
+                        element = locator.first
+                        tag = (await element.evaluate("el => el.tagName.toLowerCase()")).lower()
+                        input_type = await element.get_attribute("type") or "text"
+                        field_type = "select" if tag == "select" else input_type
+                        element_name = await element.get_attribute("name") or ""
+                        element_id = await element.get_attribute("id") or ""
+                        identity = " ".join(
+                            x for x in (element_name, element_id, await element.get_attribute("aria-label") or "")
+                            if x
+                        )
+                        if input_type == "password" or is_sensitive_field(identity):
+                            value = "[REDACTED]"
+                        elif tag == "select":
+                            checked = element.locator("option:checked").first
+                            value = (await checked.inner_text()).strip() if await checked.count() else await element.input_value()
+                        else:
+                            value = await element.input_value()
+                            if not value:
+                                value = (await element.inner_text()).strip()
+                        value = redact_string(value)
+                        is_mandatory = await self._is_field_mandatory(context, element, canonical)
+                        is_readonly = await element.get_attribute("readonly") is not None
+                        fields.append(
+                            FieldInfo(
+                                name=canonical.title(),
+                                field_type=field_type,
+                                value=value,
+                                is_mandatory=is_mandatory,
+                                is_readonly=is_readonly,
+                                is_visible=True,
+                            )
+                        )
+                        found = True
+                        break
+                    except Exception:
+                        continue
+                if found:
+                    break
+            if not found:
+                logger.debug("requested_field_not_observed", field=canonical)
+
+        self._ensure_page_alive(page)
+        record_number = await self._extract_record_number(page)
+        self._ensure_page_alive(page)
+        current_state = await self._extract_current_state(page)
+        self._ensure_page_alive(page)
+
+        dom_fingerprint = self._compute_dom_fingerprint(
+            url,
+            title,
+            [],
+            fields,
+        )
+        logger.info(
+            "requested_fields_observation_complete",
+            fields=len(fields),
+            requested=len(requested_fields),
+            page_type=page_type.value,
+            record_number=record_number or "",
+        )
+        return PageObservation(
+            url=url,
+            title=title,
+            page_type=page_type,
+            current_state=current_state,
+            record_number=record_number,
+            visible_fields=fields,
+            mandatory_fields=[f.name for f in fields if f.is_mandatory],
+            buttons=[],
+            tabs=[],
+            validation_messages=[],
+            notification_messages=[],
+            interactive_elements=[],
+            console_errors=self._browser_manager.get_new_console_errors() if self._browser_manager else [],
+            network_errors=self._browser_manager.get_network_errors() if self._browser_manager else [],
+            dom_fingerprint=dom_fingerprint,
+            visible_text_summary="",
+        )
+
     def _ensure_page_alive(self, page: Page) -> None:
         """Reject partial observations from a crashed Playwright target."""
         if self._browser_manager is None:
