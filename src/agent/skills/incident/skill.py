@@ -142,7 +142,9 @@ class IncidentSkill(BaseSkill):
         )
         plan = ExecutionPlan(goal=intent.goal)
 
-        goal_lower = intent.goal.lower()
+        # Include the raw prompt because intent normalization can omit
+        # explicit safety language such as "do not modify" from intent.goal.
+        goal_lower = f"{intent.goal}\n{intent.raw_prompt}".lower()
 
         # Explicit read-only intent takes precedence over incidental mentions
         # of "state", "lifecycle", or "resolve" in the requested fields. A
