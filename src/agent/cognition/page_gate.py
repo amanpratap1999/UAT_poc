@@ -231,6 +231,9 @@ class PageGate:
 
             query = quote(f"number={number}", safe="")
             target_url = f"{base_url}/{list_path}?sysparm_query={query}"
+            if hasattr(browser_manager, "set_navigation_target"):
+                browser_manager.set_navigation_target(target_url)
+
             logger.info(
                 "page_gate_navigating_to_list",
                 target_url=target_url,
