@@ -28,7 +28,7 @@ from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_API_PORT = int(os.getenv("UAT_API_PORT", "8000"))
-TERMINAL_STATUSES = {"completed", "failed", "blocked", "cancelled", "error"}
+TERMINAL_STATUSES = {"completed", "failed", "blocked", "cancelled", "error", "partial"}
 
 
 def _normalise_base(value: str) -> str:
