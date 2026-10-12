@@ -142,3 +142,39 @@ async def test_extract_password_fields(engine: ObservationEngine) -> None:
     assert fields[0].name == "Password"
     assert fields[0].field_type == "password"
     assert fields[0].value == "[REDACTED]"
+
+
+@pytest.mark.asyncio
+async def test_field_label_falls_back_to_servicenow_name(engine: ObservationEngine) -> None:
+    element = MagicMock()
+    element.get_attribute = AsyncMock(
+        side_effect=lambda attr: {
+            "aria-label": None,
+            "id": "incident.assignment_group",
+            "name": "incident.assignment_group",
+            "placeholder": None,
+        }.get(attr)
+    )
+    page = MagicMock()
+
+    label = await engine._get_field_label(page, element)
+
+    assert label == "Assignment Group"
+
+
+@pytest.mark.asyncio
+async def test_record_number_falls_back_to_form_url(engine: ObservationEngine) -> None:
+    page = MagicMock()
+    page.url = (
+        "https://test.service-now.com/incident.do?sys_id=abc"
+        "&sysparm_record_list=number%3DINC0000007"
+    )
+    empty_locator = MagicMock()
+    empty_locator.count = AsyncMock(return_value=0)
+    page.locator = MagicMock(return_value=empty_locator)
+    page.frames = []
+    page.main_frame = None
+
+    record_number = await engine._extract_record_number(page)
+
+    assert record_number == "INC0000007"
