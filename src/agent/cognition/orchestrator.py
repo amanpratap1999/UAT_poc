@@ -1455,8 +1455,24 @@ class CognitiveOrchestrator:
 
             # 2. Observation Before
             self._transition(AgentState.OBSERVING, f"Observing before: {step.description}")
+            step_description_lower = step.description.strip().lower()
+            is_record_open_step = (
+                is_read_only_objective
+                and (
+                    step_description_lower.startswith("open target incident record")
+                    or step_description_lower.startswith("navigate to target incident")
+                )
+            )
+            # Navigation only needs record/page identity. Field extraction is
+            # intentionally deferred to the dedicated inspection step so a
+            # partially-hydrated ServiceNow form cannot make navigation fail.
+            step_requested_fields = (
+                ()
+                if is_record_open_step
+                else read_only_requested_fields
+            )
             raw_obs = await self._observe_with_retries(
-                requested_fields=read_only_requested_fields,
+                requested_fields=step_requested_fields,
                 max_attempts=2,
                 delay_seconds=0.5,
             )
@@ -1594,7 +1610,95 @@ class CognitiveOrchestrator:
                 and gate_result.expected_record
                 and (raw_obs.record_number or "").upper() == gate_result.expected_record.upper()
             )
-            if is_read_only and is_on_record_form:
+
+            # The first read-only step has a single responsibility: establish
+            # the exact target record through the trusted PageGate path.
+            # Once that record is active, mark navigation successful and move
+            # directly to the field-inspection step. Do not invoke LAYA/Gemini
+            # for a deterministic navigation task.
+            if is_record_open_step and is_on_record_form:
+                observation_screenshot = raw_obs.screenshot_path
+                if not observation_screenshot and self._browser_manager:
+                    try:
+                        observation_screenshot = str(
+                            await self._browser_manager.take_screenshot(
+                                f"read_only_record_open_{step.step_index}"
+                            )
+                        )
+                    except Exception as screenshot_error:
+                        logger.warning(
+                            "read_only_record_open_screenshot_failed",
+                            error=str(screenshot_error),
+                        )
+                step.observed_values = {
+                    "record_number": raw_obs.record_number,
+                    "page_type": raw_obs.page_type.value,
+                    "url": raw_obs.url,
+                }
+                action = AgentAction(
+                    action_type=ActionType.VALIDATE,
+                    target=raw_obs.record_number or gate_result.expected_record,
+                    reasoning="Read-only navigation: trusted PageGate established the requested Incident record.",
+                    metadata={"navigation_only": True, "observation_only": True},
+                )
+                validation = ValidationResult(
+                    action_description=f"Read-only navigation: {step.description}"
+                )
+                validation.add_check(
+                    ValidationCheck(
+                        check_name="target_record_opened",
+                        description="The requested ServiceNow record is active in the browser form.",
+                        passed=True,
+                        expected=gate_result.expected_record,
+                        actual=raw_obs.record_number or "unknown",
+                        evidence={
+                            "url": raw_obs.url,
+                            "page_type": raw_obs.page_type.value,
+                            "screenshot": observation_screenshot,
+                        },
+                    )
+                )
+                result = ActionResult(
+                    success=True,
+                    action=action,
+                    screenshot_path=observation_screenshot,
+                    details={"observation_only": True, "navigation_only": True},
+                )
+                memory.verification_calls += 1
+                memory.add_completed_step(
+                    action=action,
+                    result=result,
+                    observation_before=raw_obs,
+                    observation_after=raw_obs,
+                    validation=validation,
+                )
+                memory.add_timeline_entry(
+                    action=f"Read-only navigation: {step.description}",
+                    result=validation.to_summary(),
+                )
+                step.mark_success()
+                await self._publish_event(
+                    RunEventType.STEP_FINISHED,
+                    {
+                        "step_index": step.step_index,
+                        "description": step.description,
+                        "status": "success",
+                        "actual_result": validation.to_summary(),
+                        "observed_values": step.observed_values,
+                        "screenshot": observation_screenshot,
+                    },
+                )
+                continue
+
+            # Only the dedicated read-only field-inspection step should require
+            # the six requested values. Other read-only steps may establish page
+            # context but must not be forced through field-level validation.
+            is_field_inspection_step = (
+                is_read_only
+                and bool(read_only_requested_fields)
+                and not is_record_open_step
+            )
+            if is_field_inspection_step and is_on_record_form:
                 expected_record = gate_result.expected_record
                 if raw_obs is None:
                     reason = (
