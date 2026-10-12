@@ -450,6 +450,19 @@ async def shutdown_laya_action_policy() -> None:
 def get_laya_action_policy_diagnostics() -> dict[str, Any]:
     """P7-LAYA: health + stats for the /api/v1/ready diagnostics endpoint."""
     if _laya_action_policy_singleton is None:
+        settings = get_cached_settings()
+        cfg = getattr(settings, "laya_action", None)
+        if cfg is not None and cfg.enabled and getattr(settings, "process_role", "api") == "api":
+            return {
+                "enabled": True,
+                "healthy": True,
+                "backend": "worker-deferred",
+                "mode": cfg.mode,
+                "checkpoint": cfg.checkpoint,
+                "is_warm": False,
+                "deferred_to_worker": True,
+                "confidence_calibrated": False,
+            }
         return {
             "enabled": False,
             "healthy": False,
