@@ -621,31 +621,38 @@ class ObservationEngine:
                                 )
                             )
                             if is_sensitive_field(field_identity):
-                                # When a rendered form does not expose the number input, the
-        # ServiceNow record URL itself can still provide deterministic
-        # evidence after an exact record-link navigation. Restrict this
-        # fallback to form-like URLs and known INC/CHG/REQ tokens.
+                                continue
+                            value = redact_string(await first.input_value())
+                            if value and re.match(r"[A-Z]{3,}\d+", value):
+                                return value  # type: ignore[no-any-return]
+                        except Exception:
+                            try:
+                                text = redact_string((await locator.first.inner_text()).strip())
+                            except Exception:
+                                text = ""
+                            if text and re.match(r"[A-Z]{3,}\d+", text):
+                                return text  # type: ignore[no-any-return]
+                except Exception:
+                    continue
+
+        # When a rendered form does not expose the number input, the
+        # ServiceNow record URL can still provide deterministic evidence after
+        # an exact record-link navigation. Restrict this fallback to form-like
+        # URLs and known ServiceNow record tokens.
         try:
             url = page.url or ""
             url_lower = url.lower()
             if ".do" in url_lower and "sys_id=" in url_lower:
                 decoded = url.replace("%3D", "=").replace("%3d", "=")
-                match = re.search(r"\b(INC\d+|CHG\d+|REQ\d+)\b", decoded, re.IGNORECASE)
+                match = re.search(
+                    r"\b(INC\d+|CHG\d+|REQ\d+)\b",
+                    decoded,
+                    re.IGNORECASE,
+                )
                 if match:
                     return match.group(1).upper()
         except Exception:
             pass
-
-        return None
-                            value = redact_string(await first.input_value())
-                            if value and re.match(r"[A-Z]{3,}\d+", value):
-                                return value  # type: ignore[no-any-return]
-                        except Exception:
-                            text = redact_string((await locator.first.inner_text()).strip())
-                            if text and re.match(r"[A-Z]{3,}\d+", text):
-                                return text  # type: ignore[no-any-return]
-                except Exception:
-                    continue
 
         return None
 
