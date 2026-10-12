@@ -507,13 +507,13 @@ async def _run_agent_async(run_id: str, goal: str, tenant_id: str, test_case_id:
                     logger.info("laya_action_policy_worker_warmup_starting")
                     warm_ok = await _asyncio.wait_for(policy.warm_up(), timeout=120.0)
                     logger.info(
-                        "laya_action_policy_worker_warmup_result",
-                        healthy=warm_ok,
+                        "laya_action_policy_worker_warmup_result healthy=%s",
+                        warm_ok,
                     )
             except Exception as laya_warmup_err:
                 logger.warning(
-                    "laya_action_policy_worker_warmup_failed",
-                    error=str(laya_warmup_err),
+                    "laya_action_policy_worker_warmup_failed error=%s",
+                    str(laya_warmup_err),
                 )
 
             # Hook incremental perception writes after each step AND
