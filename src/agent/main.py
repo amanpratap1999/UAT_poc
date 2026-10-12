@@ -529,6 +529,9 @@ class AgentOrchestrator:
                 incident_list_url = f"{instance_url}/incident_list.do?sysparm_query=active=true"
                 try:
                     await self._browser_manager.navigate(incident_list_url)
+                    # BrowserManager may recreate the Page after a renderer
+                    # failure; always use the current live handle after navigation.
+                    page = self._browser_manager.get_page()
                     await page.wait_for_timeout(2000)
                     logger.info("navigated_to_incident_list")
                 except Exception as nav_err:
