@@ -135,7 +135,10 @@ class PerceptionDecisionEngine:
         
         if not screenshot_bytes:
             try:
-                screenshot_bytes = await page.screenshot(type="png")
+                screenshot_bytes = await page.screenshot(
+                    type="png",
+                    timeout=8000,
+                )
             except Exception as e:
                 logger.error("vision_screenshot_failed", error=str(e))
 
