@@ -94,6 +94,35 @@ def reset_browser_globals() -> None:
     _GLOBAL_CONTEXT = None
 
 
+BROWSER_STARTUP_TIMEOUT_SECONDS = 45.0
+
+
+async def _close_global_browser_state() -> None:
+    """Best-effort shutdown of global Playwright/Chromium state."""
+    global _GLOBAL_PLAYWRIGHT, _GLOBAL_BROWSER, _GLOBAL_CONTEXT
+    context = _GLOBAL_CONTEXT
+    browser = _GLOBAL_BROWSER
+    playwright = _GLOBAL_PLAYWRIGHT
+    _GLOBAL_CONTEXT = None
+    _GLOBAL_BROWSER = None
+    _GLOBAL_PLAYWRIGHT = None
+
+    try:
+        if context is not None:
+            await asyncio.wait_for(context.close(), timeout=10.0)
+    except Exception as e:
+        logger.debug("global_context_close_failed", error=str(e))
+    try:
+        if browser is not None:
+            await asyncio.wait_for(browser.close(), timeout=10.0)
+    except Exception as e:
+        logger.debug("global_browser_close_failed", error=str(e))
+    try:
+        if playwright is not None:
+            await asyncio.wait_for(playwright.stop(), timeout=10.0)
+    except Exception as e:
+        logger.debug("global_playwright_stop_failed", error=str(e))
+
 def _should_ignore_https_errors() -> bool:
     """INC-UAT-14 (Minor): only ignore HTTPS errors in local development mode.
 
@@ -206,6 +235,18 @@ class BrowserManager:
     async def launch(self) -> None:
         """Launch the browser with configured settings, keeping process warm across runs."""
         global _GLOBAL_PLAYWRIGHT, _GLOBAL_BROWSER, _GLOBAL_CONTEXT
+        # Codespace/worker runs are deliberately single-run browser lifecycles.
+        # A warm global Chromium process can become unresponsive while still
+        # reporting is_connected()=True, causing the next run to hang before
+        # browser_launched. Start each worker run from a clean process state.
+        if os.getenv("UAT_PROCESS_ROLE", "").strip().lower() == "worker" and (
+            _GLOBAL_PLAYWRIGHT is not None
+            or _GLOBAL_BROWSER is not None
+            or _GLOBAL_CONTEXT is not None
+        ):
+            logger.info("worker_browser_state_reset_before_run")
+            await _close_global_browser_state()
+
         # Audit issue I32 (P1): health-check the global browser before reusing it.
         # If the Chromium process has died (crash, OOM kill, container restart),
         # _GLOBAL_BROWSER.is_connected() returns False and the previous code
@@ -223,7 +264,10 @@ class BrowserManager:
             self._screenshot_dir.mkdir(parents=True, exist_ok=True)
 
             if not _GLOBAL_PLAYWRIGHT:
-                _GLOBAL_PLAYWRIGHT = await async_playwright().start()
+                _GLOBAL_PLAYWRIGHT = await asyncio.wait_for(
+                    async_playwright().start(),
+                    timeout=BROWSER_STARTUP_TIMEOUT_SECONDS,
+                )
 
             # Keep Chromium bounded for low-memory UAT runtimes (native Windows/Codespaces).
             # Avoid background helpers that add little value to deterministic UAT execution.
@@ -257,10 +301,20 @@ class BrowserManager:
                     if launch_args:
                         persistent_kwargs["args"] = launch_args
                     assert self._playwright is not None
-                    _GLOBAL_CONTEXT = await self._playwright.chromium.launch_persistent_context(**persistent_kwargs)
+                    _GLOBAL_CONTEXT = await asyncio.wait_for(
+                        self._playwright.chromium.launch_persistent_context(**persistent_kwargs),
+                        timeout=BROWSER_STARTUP_TIMEOUT_SECONDS,
+                    )
                 self._context = _GLOBAL_CONTEXT
                 pages = self._context.pages
-                self._page = pages[0] if pages else await self._context.new_page()
+                self._page = (
+                    pages[0]
+                    if pages
+                    else await asyncio.wait_for(
+                        self._context.new_page(),
+                        timeout=BROWSER_STARTUP_TIMEOUT_SECONDS,
+                    )
+                )
             else:
                 launch_kwargs: dict[str, Any] = {
                     "headless": self._browser_config.headless,
@@ -271,18 +325,27 @@ class BrowserManager:
                 
                 if not _GLOBAL_BROWSER:
                     assert self._playwright is not None
-                    _GLOBAL_BROWSER = await self._playwright.chromium.launch(**launch_kwargs)
+                    _GLOBAL_BROWSER = await asyncio.wait_for(
+                        self._playwright.chromium.launch(**launch_kwargs),
+                        timeout=BROWSER_STARTUP_TIMEOUT_SECONDS,
+                    )
                 
                 assert self._browser is not None
-                self._context = await self._browser.new_context(
-                    viewport={
-                        "width": self._browser_config.viewport_width,
-                        "height": self._browser_config.viewport_height,
-                    },
-                    # INC-UAT-14 (Minor): ignore_https_errors disabled except local dev.
-                    ignore_https_errors=_should_ignore_https_errors(),
+                self._context = await asyncio.wait_for(
+                    self._browser.new_context(
+                        viewport={
+                            "width": self._browser_config.viewport_width,
+                            "height": self._browser_config.viewport_height,
+                        },
+                        # INC-UAT-14 (Minor): ignore_https_errors disabled except local dev.
+                        ignore_https_errors=_should_ignore_https_errors(),
+                    ),
+                    timeout=BROWSER_STARTUP_TIMEOUT_SECONDS,
                 )
-                self._page = await self._context.new_page()
+                self._page = await asyncio.wait_for(
+                    self._context.new_page(),
+                    timeout=BROWSER_STARTUP_TIMEOUT_SECONDS,
+                )
 
             # Set default timeout
             self._page.set_default_timeout(self._browser_config.timeout)
@@ -310,7 +373,7 @@ class BrowserManager:
             ) from e
 
     async def close(self) -> None:
-        """Close browser context/page, keeping process warm."""
+        """Close the browser context/page; worker runs also terminate Chromium."""
         logger.info("closing_browser_context")
         try:
             if self._page:
@@ -318,7 +381,10 @@ class BrowserManager:
             if self._context:
                 if self._context != _GLOBAL_CONTEXT:
                     await self._context.close()
-            # Do NOT close _GLOBAL_BROWSER or _GLOBAL_PLAYWRIGHT to keep them warm
+            # Worker runs are isolated to one browser lifecycle. Do not retain
+            # a potentially stale Chromium process across Celery tasks.
+            if os.getenv("UAT_PROCESS_ROLE", "").strip().lower() == "worker":
+                await _close_global_browser_state()
         except Exception as e:
             logger.warning("browser_close_error", error=str(e))
         finally:
