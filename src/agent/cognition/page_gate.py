@@ -241,7 +241,11 @@ class PageGate:
                 expected_record=number,
             )
 
-            await page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
+            if hasattr(browser_manager, "navigate"):
+                await browser_manager.navigate(target_url)
+                page = browser_manager.get_page()
+            else:
+                await page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
             await page.wait_for_timeout(1500)
 
             # Exact anchor text avoids clicking a navigation/header element that
