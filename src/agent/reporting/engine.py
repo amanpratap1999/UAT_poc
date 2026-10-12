@@ -320,7 +320,11 @@ class ReportingEngine:
             authoritative_total = len(normalized_ac)
             exit_result = exit_engine.evaluate(
                 requirements_total=authoritative_total,
-                requirements_covered=len(report.requirement_ids_covered),
+                requirements_covered=(
+                    min(len(report.requirement_ids_covered), authoritative_total)
+                    if authoritative_total > 0
+                    else 0
+                ),
                 open_major_defects=major_defects,
                 open_minor_defects=minor_defects,
                 unverified_items=unverified,
