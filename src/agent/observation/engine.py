@@ -55,6 +55,7 @@ class ObservationEngine:
             A complete PageObservation of the current page.
         """
         logger.debug("observing_page")
+        self._ensure_page_alive(page)
 
         url = page.url
         title = await page.title()
@@ -62,13 +63,21 @@ class ObservationEngine:
 
         # Extract structured data in parallel where safe
         fields = await self._extract_fields(page)
+        self._ensure_page_alive(page)
         buttons = await self._extract_buttons(page)
+        self._ensure_page_alive(page)
         tabs = await self._extract_tabs(page)
+        self._ensure_page_alive(page)
         validation_msgs = await self._extract_validation_messages(page)
+        self._ensure_page_alive(page)
         notifications = await self._extract_notifications(page)
+        self._ensure_page_alive(page)
         current_state = await self._extract_current_state(page)
+        self._ensure_page_alive(page)
         record_number = await self._extract_record_number(page)
+        self._ensure_page_alive(page)
         interactive_elements = await self._extract_interactive_elements(page)
+        self._ensure_page_alive(page)
         mandatory_fields = [f.name for f in fields if f.is_mandatory]
 
         # Multi-modal: console errors and network errors from BrowserManager
@@ -116,6 +125,16 @@ class ObservationEngine:
             dom_fingerprint=dom_fingerprint[:8],
         )
         return observation
+
+    def _ensure_page_alive(self, page: Page) -> None:
+        """Reject partial observations from a crashed Playwright target."""
+        if self._browser_manager is None:
+            return
+        checker = getattr(self._browser_manager, "is_page_healthy", None)
+        if callable(checker) and not bool(checker(page)):
+            raise RuntimeError(
+                "Browser page renderer is no longer healthy; observation evidence is invalid."
+            )
 
     def _get_active_context(self, page: Page) -> Any:
         """Return active content frame (e.g. gsft_main) or main page."""
