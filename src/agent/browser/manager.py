@@ -604,6 +604,7 @@ class BrowserManager:
             ignore_https_errors=_should_ignore_https_errors(),
         )
         self._page = await self._context.new_page()
+        await self._prepare_page(self._page)
         logger.info(
             "persona_context_created",
             persona=persona_name,
