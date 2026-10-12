@@ -178,3 +178,16 @@ async def test_record_number_falls_back_to_form_url(engine: ObservationEngine) -
     record_number = await engine._extract_record_number(page)
 
     assert record_number == "INC0000007"
+
+
+@pytest.mark.asyncio
+async def test_observe_rejects_known_crashed_page() -> None:
+    page = _make_mock_page()
+    browser_manager = MagicMock()
+    browser_manager.is_page_healthy.return_value = False
+    engine = ObservationEngine(browser_manager=browser_manager)
+
+    with pytest.raises(RuntimeError, match="renderer"):
+        await engine.observe(page)
+
+    browser_manager.is_page_healthy.assert_called_once_with(page)
