@@ -663,6 +663,14 @@ class Settings(BaseSubConfig):
         validation_alias=AliasChoices("UAT_RUNTIME_MODE", "runtime_mode"),
         description="Application runtime mode: 'local' (host machine) or 'docker' (container)",
     )
+    process_role: Literal["api", "worker", "standalone"] = Field(
+        default="api",
+        validation_alias=AliasChoices("UAT_PROCESS_ROLE", "process_role"),
+        description=(
+            "Runtime process role. API processes defer local LAYA model loading "
+            "to the Celery worker to reduce duplicate resident memory."
+        ),
+    )
 
     # Sub-configurations
     llm: LLMConfig = Field(default_factory=LLMConfig)
