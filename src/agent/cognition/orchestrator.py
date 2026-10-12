@@ -328,6 +328,7 @@ class CognitiveOrchestrator:
         self,
         expected_record: str | None = None,
         requested_fields: tuple[str, ...] = (),
+        expected_table: str | None = None,
         max_attempts: int = 3,
         delay_seconds: float = 1.0,
     ):
@@ -381,6 +382,12 @@ class CognitiveOrchestrator:
                             await recover(
                                 reason=f"observation attempt {attempt + 1} failed: {e}"
                             )
+                            if expected_record and expected_table:
+                                await PageGate().navigate_to_record(
+                                    self._browser_manager,
+                                    expected_table,
+                                    expected_record,
+                                )
                         except Exception as recovery_error:
                             logger.warning(
                                 "observe_with_retries_recovery_failed",
@@ -1437,6 +1444,7 @@ class CognitiveOrchestrator:
                         # PageGate may have changed/recreated the active target.
                         raw_obs = await self._observe_with_retries(
                             expected_record=gate_result.expected_record,
+                            expected_table=gate_result.expected_table,
                             max_attempts=3,
                             delay_seconds=1.0,
                         )
@@ -1575,6 +1583,7 @@ class CognitiveOrchestrator:
                 # as BLOCKED with evidence, NOT a functional defect.
                 raw_obs = await self._observe_with_retries(
                     expected_record=expected_record,
+                    expected_table=gate_result.expected_table,
                     requested_fields=(
                         "caller",
                         "assignment group",
