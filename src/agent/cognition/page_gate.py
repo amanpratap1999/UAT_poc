@@ -256,6 +256,8 @@ class PageGate:
             await record_link.wait_for(state="visible", timeout=10000)
             await record_link.click(timeout=10000)
             await page.wait_for_timeout(1500)
+            if hasattr(browser_manager, "remember_current_url"):
+                browser_manager.remember_current_url()
             logger.info(
                 "page_gate_record_link_clicked",
                 expected_record=number,
