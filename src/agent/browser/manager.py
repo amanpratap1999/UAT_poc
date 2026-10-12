@@ -224,6 +224,13 @@ class BrowserManager:
         self._network_errors: list[str] = []
         self._last_console_index: int = 0
 
+        # Renderer/page health tracking. Playwright may keep a Page handle
+        # after Chromium has crashed its renderer, so an explicit crash flag
+        # is needed to stop repeated operations on a dead target.
+        self._page_crashed: bool = False
+        self._last_known_url: str = ""
+        self._last_navigation_target: str = ""
+
     @property
     def _playwright(self) -> Playwright | None:
         return _GLOBAL_PLAYWRIGHT
@@ -280,7 +287,13 @@ class BrowserManager:
                 "--disable-extensions",
                 "--disable-sync",
                 "--disable-dev-shm-usage",
+                # Bound renderer fan-out for low-memory Codespaces.
+                "--renderer-process-limit=2",
             ]
+            if self._browser_config.headless:
+                # ServiceNow's heavy forms are more stable in this runtime
+                # when Chromium's GPU path is disabled.
+                launch_args.append("--disable-gpu")
             if not self._browser_config.headless:
                 launch_args.insert(0, "--start-maximized")
 
@@ -347,17 +360,7 @@ class BrowserManager:
                     timeout=BROWSER_STARTUP_TIMEOUT_SECONDS,
                 )
 
-            # Set default timeout
-            self._page.set_default_timeout(self._browser_config.timeout)
-
-            # Inject visual cursor if show_mouse_cursor is True
-            if self._browser_config.show_mouse_cursor:
-                await self._context.add_init_script(VISUAL_CURSOR_SCRIPT)
-
-            # Attach log and network listeners
-            self._page.on("console", self._on_console_message)
-            self._page.on("pageerror", self._on_page_error)
-            self._page.on("response", self._on_response)
+            await self._prepare_page(self._page)
 
             # Ensure headed browser window is visible and on top on Windows
             if not self._browser_config.headless:
@@ -371,6 +374,99 @@ class BrowserManager:
                 f"Failed to launch browser: {e}",
                 details={"headless": self._browser_config.headless},
             ) from e
+
+    async def _prepare_page(self, page: Page) -> None:
+        """Configure a newly-created page and attach lifecycle listeners."""
+        self._page = page
+        self._page_crashed = False
+        self._last_known_url = ""
+        self._last_navigation_target = ""
+        page.set_default_timeout(self._browser_config.timeout)
+
+        # Cursor injection is useful only in a real headed interactive run.
+        if self._browser_config.show_mouse_cursor and not self._browser_config.headless:
+            assert self._context is not None
+            await self._context.add_init_script(VISUAL_CURSOR_SCRIPT)
+
+        page.on("console", self._on_console_message)
+        page.on("pageerror", self._on_page_error)
+        page.on("response", self._on_response)
+        page.on("crash", self._on_page_crash)
+        page.on("framenavigated", self._on_frame_navigated)
+
+        with suppress(Exception):
+            current_url = page.url
+            if current_url and not current_url.startswith("about:blank"):
+                self._last_known_url = current_url
+
+    def set_navigation_target(self, url: str) -> None:
+        """Remember the last trusted navigation target for crash recovery."""
+        self._last_navigation_target = str(url or "").strip()
+
+    def is_page_healthy(self, page: Page | None = None) -> bool:
+        """Return False when the active renderer/page is known to be dead."""
+        candidate = page or self._page
+        if candidate is None or self._page_crashed:
+            return False
+        try:
+            if candidate.is_closed():
+                return False
+        except Exception:
+            return False
+        return True
+
+    async def recover_page(self, reason: str = "browser target crashed") -> Page:
+        """Recover a crashed renderer while preserving the authenticated context."""
+        target_url = self._last_known_url or self._last_navigation_target
+        logger.warning(
+            "recovering_browser_page",
+            reason=reason,
+            target_url=target_url,
+        )
+
+        browser_connected = False
+        try:
+            browser_connected = bool(self._browser and self._browser.is_connected())
+        except Exception:
+            browser_connected = False
+
+        # Prefer page-only recovery so the authenticated BrowserContext and
+        # ServiceNow cookies survive the renderer crash.
+        if self._context is not None and browser_connected:
+            old_page = self._page
+            with suppress(Exception):
+                if old_page is not None:
+                    await old_page.close()
+
+            try:
+                new_page = await asyncio.wait_for(
+                    self._context.new_page(),
+                    timeout=BROWSER_STARTUP_TIMEOUT_SECONDS,
+                )
+                await self._prepare_page(new_page)
+                if target_url and not target_url.startswith("about:blank"):
+                    self.set_navigation_target(target_url)
+                    await new_page.goto(
+                        target_url,
+                        wait_until="domcontentloaded",
+                        timeout=self._browser_config.timeout,
+                    )
+                    await self.wait_for_load()
+                logger.info("browser_page_recovered", target_url=target_url)
+                return new_page
+            except Exception as e:
+                logger.warning(
+                    "browser_page_recovery_failed",
+                    error=str(e),
+                    target_url=target_url,
+                )
+
+        # Last resort: recreate the entire browser stack.
+        await self.close()
+        await self.launch()
+        if target_url and not target_url.startswith("about:blank"):
+            await self.navigate(target_url)
+        return self.get_page()
 
     async def close(self) -> None:
         """Close the browser context/page; worker runs also terminate Chromium."""
@@ -522,6 +618,7 @@ class BrowserManager:
         logger.info("navigating", url=url)
         for attempt in range(2):
             page = self.get_page()
+            self.set_navigation_target(url)
             # Avoid reloading an already-active record URL. LLM fallback
             # decisions can legitimately rediscover the current page after a
             # deterministic PageGate recovery; reloading the same heavy
@@ -556,12 +653,13 @@ class BrowserManager:
                 if attempt > 0 or not _is_browser_target_crash(exc):
                     raise
                 logger.warning(
-                    "navigation_page_crashed_relaunching",
+                    "navigation_page_crashed_recovering",
                     url=url,
                     error=str(exc),
                 )
-                await self.close()
-                await self.launch()
+                await self.recover_page(
+                    reason=f"navigation target crashed: {exc}",
+                )
 
     async def take_screenshot(self, name: str = "screenshot", hide_cursor: bool = True) -> str:
         """Capture a screenshot and save to disk.
@@ -793,6 +891,28 @@ class BrowserManager:
         self._console_logs.append(entry)
         if msg.type == "error":
             logger.debug("console_error", message=msg.text)
+
+    def _on_page_crash(self, page: Page) -> None:
+        """Record an explicit Chromium renderer crash."""
+        self._page_crashed = True
+        with suppress(Exception):
+            url = page.url
+            if url and not url.startswith("about:blank"):
+                self._last_known_url = url
+        logger.warning(
+            "browser_page_crashed",
+            url=self._last_known_url or self._last_navigation_target,
+        )
+
+    def _on_frame_navigated(self, frame: Any) -> None:
+        """Track the main-frame URL used to recreate a crashed page."""
+        try:
+            if self._page is not None and frame == self._page.main_frame:
+                url = frame.url
+                if url and not url.startswith("about:blank"):
+                    self._last_known_url = url
+        except Exception:
+            pass
 
     def _on_page_error(self, error: Exception) -> None:
         """Capture uncaught JavaScript errors."""
