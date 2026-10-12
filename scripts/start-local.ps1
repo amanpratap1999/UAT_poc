@@ -12,7 +12,8 @@ param(
     [switch]$Foreground,
     [switch]$SkipInitDb,
     [switch]$NoBrowser,
-    [switch]$SkipReadinessCheck
+    [switch]$SkipReadinessCheck,
+    [switch]$AgentOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -128,14 +129,22 @@ if (Test-Path $ApiPidFile) {
 }
 
 $apiProcess = $null
+$env:UAT_PROCESS_ROLE="api"
+$env:OPENBLAS_NUM_THREADS="1"
+$env:OMP_NUM_THREADS="1"
+$env:MKL_NUM_THREADS="1"
+$env:TOKENIZERS_PARALLELISM="false"
 if ($VisibleWindows) {
-    $apiCmd = "`$env:OPENBLAS_NUM_THREADS='1'; `$env:OMP_NUM_THREADS='1'; `$env:PYTHONPATH='$SrcDir'; `$env:UAT_RUNTIME_MODE='local'; `$env:UAT_ENV_FILE='$EnvLocal'; & '$PythonExe' -m uvicorn agent.main:app --host 127.0.0.1 --port $ApiPort --reload 2>&1 | Tee-Object -FilePath '$ApiLog'"
+    $apiCmd = "`$env:OPENBLAS_NUM_THREADS='1'; `$env:OMP_NUM_THREADS='1'; `$env:PYTHONPATH='$SrcDir'; `$env:UAT_RUNTIME_MODE='local'; `$env:UAT_ENV_FILE='$EnvLocal'; & '$PythonExe' -m uvicorn agent.main:app --host 127.0.0.1 --port $ApiPort 2>&1 | Tee-Object -FilePath '$ApiLog'"
     $apiProcess = Start-Process powershell -ArgumentList "-NoExit", "-Command", $apiCmd -PassThru
 } else {
     $env:OPENBLAS_NUM_THREADS="1"
     $env:OMP_NUM_THREADS="1"
+    $env:MKL_NUM_THREADS="1"
+    $env:TOKENIZERS_PARALLELISM="false"
+    $env:UAT_PROCESS_ROLE="api"
     $apiProcess = Start-Process -FilePath $PythonExe `
-        -ArgumentList "-m", "uvicorn", "agent.main:app", "--host", "127.0.0.1", "--port", "$ApiPort", "--reload" `
+        -ArgumentList "-m", "uvicorn", "agent.main:app", "--host", "127.0.0.1", "--port", "$ApiPort" `
         -RedirectStandardOutput $ApiLog `
         -RedirectStandardError (Join-Path $LogsDir "api.err.local.log") `
         -WindowStyle Hidden `
@@ -202,13 +211,18 @@ $WorkerLog = Join-Path $LogsDir "worker.local.log"
 $WorkerPidFile = Join-Path $RuntimeDir "worker.pid"
 
 $workerProcess = $null
+$env:UAT_PROCESS_ROLE="worker"
+$env:OPENBLAS_NUM_THREADS="1"
+$env:OMP_NUM_THREADS="1"
+$env:MKL_NUM_THREADS="1"
+$env:TOKENIZERS_PARALLELISM="false"
 if ($VisibleWindows) {
     # P1.6: Celery Concurrency Documentation
     # Playwright headed browsers are stateful and tightly coupled to the OS GUI session. 
     # Using thread/gevent pools will cause asyncio/event loop conflicts with Playwright.
     # Using prefork (multiprocessing) on Windows causes issues with GUI focus and zombie Chromium processes.
     # Therefore, --pool=solo is enforced to ensure 1:1 binding between the worker process and the browser window.
-    $workerCmd = "`$env:OPENBLAS_NUM_THREADS='1'; `$env:OMP_NUM_THREADS='1'; `$env:PYTHONPATH='$SrcDir'; `$env:UAT_RUNTIME_MODE='local'; `$env:UAT_ENV_FILE='$EnvLocal'; & '$PythonExe' -m celery -A agent.core.celery_app worker --loglevel=info --pool=solo 2>&1 | Tee-Object -FilePath '$WorkerLog'"
+    $workerCmd = "`$env:OPENBLAS_NUM_THREADS='1'; `$env:OMP_NUM_THREADS='1'; `$env:MKL_NUM_THREADS='1'; `$env:TOKENIZERS_PARALLELISM='false'; `$env:UAT_PROCESS_ROLE='worker'; `$env:PYTHONPATH='$SrcDir'; `$env:UAT_RUNTIME_MODE='local'; `$env:UAT_ENV_FILE='$EnvLocal'; & '$PythonExe' -m celery -A agent.core.celery_app worker --loglevel=info --pool=solo 2>&1 | Tee-Object -FilePath '$WorkerLog'"
     $workerProcess = Start-Process powershell -ArgumentList "-NoExit", "-Command", $workerCmd -PassThru
 } else {
     $env:OPENBLAS_NUM_THREADS="1"
@@ -232,6 +246,8 @@ if ($workerProcess.HasExited) {
 $workerProcess.Id | Out-File -FilePath $WorkerPidFile -Encoding ascii -Force
 Write-Host "  Celery worker process started with PID: $($workerProcess.Id)" -ForegroundColor Green
 
+# 7. Start React/Vite Frontend locally unless agent-only mode is requested.
+if (-not $AgentOnly) {
 # 7. Start React/Vite Frontend locally
 Write-Host "`n[4/4] Starting Frontend dev server (http://127.0.0.1:5173)..." -ForegroundColor Yellow
 $FrontendLog = Join-Path $LogsDir "frontend.local.log"
@@ -261,11 +277,15 @@ if ($frontendProcess.HasExited) {
 $frontendProcess.Id | Out-File -FilePath $FrontendPidFile -Encoding ascii -Force
 Write-Host "  Frontend process started with PID: $($frontendProcess.Id)" -ForegroundColor Green
 
+
+} else {
+    Write-Host "`n[4/4] Skipping Frontend (-AgentOnly) to reduce memory usage." -ForegroundColor Yellow
+}
 # 9. Store PIDs JSON record
 $pidsData = @{
     api = $apiProcess.Id
     worker = $workerProcess.Id
-    frontend = $frontendProcess.Id
+    frontend = if ($frontendProcess) { $frontendProcess.Id } else { $null }
     started_at = (Get-Date).ToString("o")
 } | ConvertTo-Json
 
