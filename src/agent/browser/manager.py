@@ -230,6 +230,9 @@ class BrowserManager:
         self._page_crashed: bool = False
         self._last_known_url: str = ""
         self._last_navigation_target: str = ""
+        # Recover crashed ServiceNow forms through the last trusted discovery
+        # surface (filtered list) instead of reloading the crashing form URL.
+        self._recovery_url: str = ""
 
     @property
     def _playwright(self) -> Playwright | None:
@@ -289,6 +292,7 @@ class BrowserManager:
                 "--disable-dev-shm-usage",
                 # Bound renderer fan-out for low-memory Codespaces.
                 "--renderer-process-limit=2",
+                "--blink-settings=imagesEnabled=false",
             ]
             if self._browser_config.headless:
                 # ServiceNow's heavy forms are more stable in this runtime
@@ -360,6 +364,10 @@ class BrowserManager:
                     timeout=BROWSER_STARTUP_TIMEOUT_SECONDS,
                 )
 
+            if self._browser_config.headless and self._context is not None:
+                with suppress(Exception):
+                    await self._context.route("**/*", self._route_low_memory_resources)
+
             await self._prepare_page(self._page)
 
             # Ensure headed browser window is visible and on top on Windows
@@ -379,8 +387,6 @@ class BrowserManager:
         """Configure a newly-created page and attach lifecycle listeners."""
         self._page = page
         self._page_crashed = False
-        self._last_known_url = ""
-        self._last_navigation_target = ""
         page.set_default_timeout(self._browser_config.timeout)
 
         # Cursor injection is useful only in a real headed interactive run.
@@ -400,8 +406,25 @@ class BrowserManager:
                 self._last_known_url = current_url
 
     def set_navigation_target(self, url: str) -> None:
-        """Remember the last trusted navigation target for crash recovery."""
-        self._last_navigation_target = str(url or "").strip()
+        """Remember the latest explicit navigation target."""
+        normalized = str(url or "").strip()
+        self._last_navigation_target = normalized
+        self._recovery_url = normalized
+
+    def set_recovery_target(self, url: str) -> None:
+        """Set a safe recovery/discovery URL independent of the current form."""
+        self._recovery_url = str(url or "").strip()
+
+    async def _route_low_memory_resources(self, route: Any) -> None:
+        """Discard heavy media resources while retaining HTML/CSS/JS/API."""
+        try:
+            if route.request.resource_type in {"image", "font", "media"}:
+                await route.abort()
+            else:
+                await route.continue_()
+        except Exception:
+            with suppress(Exception):
+                await route.continue_()
 
     def remember_current_url(self) -> None:
         """Persist the active page URL for renderer-crash recovery."""
@@ -426,7 +449,7 @@ class BrowserManager:
 
     async def recover_page(self, reason: str = "browser target crashed") -> Page:
         """Recover a crashed renderer while preserving the authenticated context."""
-        target_url = self._last_navigation_target or self._last_known_url
+        target_url = self._recovery_url or self._last_navigation_target or self._last_known_url
         logger.warning(
             "recovering_browser_page",
             reason=reason,
