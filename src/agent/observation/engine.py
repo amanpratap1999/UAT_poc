@@ -251,8 +251,14 @@ class ObservationEngine:
         self._ensure_page_alive(page)
         record_number = await self._extract_record_number(page)
         self._ensure_page_alive(page)
-        current_state = await self._extract_current_state(page)
-        self._ensure_page_alive(page)
+        current_state = next(
+            (
+                field.value
+                for field in fields
+                if field.name.strip().lower() == "state"
+            ),
+            None,
+        )
 
         dom_fingerprint = self._compute_dom_fingerprint(
             url,
