@@ -111,3 +111,23 @@ def test_is_page_healthy_rejects_known_renderer_crash() -> None:
 
     manager._page_crashed = True
     assert not manager.is_page_healthy(page)
+
+
+@pytest.mark.asyncio
+async def test_headless_page_preparation_does_not_inject_cursor(monkeypatch) -> None:
+    manager = BrowserManager(
+        browser_config=BrowserConfig(headless=True, show_mouse_cursor=True),
+        servicenow_config=ServiceNowConfig(),
+    )
+
+    calls = []
+    class _Context:
+        async def add_init_script(self, script):
+            calls.append(script)
+
+    page = _RecoverablePage("about:blank")
+    manager._context = _Context()  # type: ignore[assignment]
+
+    await manager._prepare_page(page)  # type: ignore[arg-type]
+
+    assert calls == []
