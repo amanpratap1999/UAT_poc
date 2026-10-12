@@ -522,6 +522,20 @@ class BrowserManager:
         logger.info("navigating", url=url)
         for attempt in range(2):
             page = self.get_page()
+            # Avoid reloading an already-active record URL. LLM fallback
+            # decisions can legitimately rediscover the current page after a
+            # deterministic PageGate recovery; reloading the same heavy
+            # ServiceNow form adds crash risk without changing state.
+            try:
+                current_url = page.url
+                if current_url and current_url.rstrip("/") == url.rstrip("/"):
+                    logger.info("navigation_noop_same_url", url=url)
+                    await self.wait_for_load()
+                    return
+            except Exception:
+                # A stale/closed page will be handled by the normal navigation
+                # path and crash-relaunch recovery below.
+                pass
             try:
                 try:
                     await page.goto(url, wait_until="domcontentloaded", timeout=nav_timeout)
