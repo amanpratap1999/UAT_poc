@@ -25,20 +25,11 @@ playwright install chromium || { echo "  playwright install failed"; FAIL=1; }
 playwright install-deps chromium || { echo "  playwright install-deps failed"; FAIL=1; }
 
 # 2. Start services (best-effort — postgres cluster may need init)
-echo "[2/4] Starting postgres + redis..."
-# Initialize the postgres cluster if it doesn't exist (Debian/Ubuntu convention)
-if [ ! -d /var/lib/postgresql/15/main ] && [ -d /usr/lib/postgresql/15/bin ]; then
-    sudo mkdir -p /var/lib/postgresql/15/main
-    sudo chown -R postgres:postgres /var/lib/postgresql/15
-    sudo -u postgres /usr/lib/postgresql/15/bin/initdb -D /var/lib/postgresql/15/main 2>&1 | tail -5 || true
-fi
-sudo pg_ctlcluster 15 main start 2>/dev/null || sudo service postgresql start 2>/dev/null || true
-sleep 2
-sudo -u postgres psql -c "CREATE DATABASE servicenow_qa;" 2>/dev/null || true
-sudo -u postgres psql -d servicenow_qa -c "CREATE EXTENSION IF NOT EXISTS vector;" 2>/dev/null || true
-sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres';" 2>/dev/null || true
-sudo service redis-server start 2>/dev/null || sudo redis-server --daemonize yes 2>/dev/null || true
-sleep 1
+echo "[2/4] Skipping PostgreSQL + Redis startup for memory-safe UI-only Codespace runtime..."
+# The intended live run uses SQLite + SESSION_STORE_TYPE=memory. Starting
+# PostgreSQL/Redis here adds resident processes and may trigger a sudo
+# password prompt in Codespaces. If a future run explicitly needs Redis or
+# PostgreSQL, start those services manually after the environment is configured.
 
 # 3. Preserve user configuration; never overwrite credentials or assert roles.
 echo "[3/4] Checking local configuration..."
