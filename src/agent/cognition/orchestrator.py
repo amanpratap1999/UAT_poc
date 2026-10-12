@@ -1425,7 +1425,19 @@ class CognitiveOrchestrator:
                             "screenshot": None,
                         },
                     )
-                    continue
+                    # An unrecoverable page-context failure is a hard
+                    # safety boundary. Do not advance to the next plan step and
+                    # repeatedly attempt the same navigation on a potentially
+                    # unstable ServiceNow page.
+                    plan.skip_remaining_steps(
+                        step.step_index + 1,
+                        f"Skipped: page context could not be established ({gate_result.reason})",
+                    )
+                    self._transition(
+                        AgentState.BLOCKED,
+                        reason,
+                    )
+                    return
 
             # Deterministic record-target recovery: a named Incident on a list
             # page is not an actionable record context. Do not ask an LLM/LAYA
