@@ -18,6 +18,22 @@ export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export TOKENIZERS_PARALLELISM=false
 
+# The target UI-only validation uses SQLite + in-memory session storage in the
+# normal .env.local. Stop heavyweight local backing services when they are not
+# required; this materially reduces Codespace resident memory.
+if [ -f .env.local ]; then
+    DB_URL="$(grep -E '^DATABASE_URL=' .env.local | tail -1 | cut -d= -f2- || true)"
+    SESSION_STORE="$(grep -E '^SESSION_STORE_TYPE=' .env.local | tail -1 | cut -d= -f2- || true)"
+    case "$DB_URL" in
+        sqlite:*)
+            sudo service postgresql stop >/dev/null 2>&1 || true
+            ;;
+    esac
+    if [ "$SESSION_STORE" = "memory" ]; then
+        sudo service redis-server stop >/dev/null 2>&1 || true
+    fi
+fi
+
 if ! curl -fsS http://127.0.0.1:8000/api/v1/health >/dev/null 2>&1; then
     echo "Starting local API (LAYA model deferred to worker)..."
     nohup python -m uvicorn agent.main:app --host 0.0.0.0 --port 8000 \
