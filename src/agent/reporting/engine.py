@@ -330,7 +330,13 @@ class ReportingEngine:
             # requirement engine may have no acceptance-criteria denominator
             # for ad-hoc runs, so reconcile its verdict with the authoritative
             # run outcome before exposing sign-off data.
-            if report.status == "error" and exit_result.verdict == "PASS":
+            if report.status == "partial" and exit_result.verdict == "PASS":
+                exit_result.verdict = "FAIL"
+                exit_result.reason = (
+                    "Run completed with partial validation results; at least one "
+                    "validation did not pass, so sign-off cannot be declared."
+                )
+            elif report.status == "error" and exit_result.verdict == "PASS":
                 exit_result.verdict = "INFRA_ERROR"
                 exit_result.reason = (
                     "Run ended with an execution error; sign-off cannot be "
