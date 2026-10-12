@@ -225,13 +225,20 @@ class BrowserManager:
             if not _GLOBAL_PLAYWRIGHT:
                 _GLOBAL_PLAYWRIGHT = await async_playwright().start()
 
-            launch_args: list[str] = []
+            # Keep Chromium bounded for low-memory UAT runtimes (native Windows/Codespaces).
+            # Avoid background helpers that add little value to deterministic UAT execution.
+            launch_args: list[str] = [
+                "--no-first-run",
+                "--no-default-browser-check",
+                "--disable-background-networking",
+                "--disable-component-update",
+                "--disable-default-apps",
+                "--disable-extensions",
+                "--disable-sync",
+                "--disable-dev-shm-usage",
+            ]
             if not self._browser_config.headless:
-                launch_args = [
-                    "--start-maximized",
-                    "--no-first-run",
-                    "--no-default-browser-check",
-                ]
+                launch_args.insert(0, "--start-maximized")
 
             if self._browser_config.user_data_dir:
                 if not _GLOBAL_CONTEXT:
@@ -505,7 +512,11 @@ class BrowserManager:
                 });
             }""")
         try:
-            await page.screenshot(path=str(filepath), full_page=False)
+            await page.screenshot(
+                path=str(filepath),
+                full_page=False,
+                timeout=min(8000, max(1000, int(self._browser_config.timeout))),
+            )
         finally:
             with suppress(Exception):
                 await page.evaluate("""() => {
