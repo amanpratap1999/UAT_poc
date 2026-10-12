@@ -598,22 +598,37 @@ class AgentOrchestrator:
                 self._settings.servicenow.verify_persona_for_benchmark()
                 expected_role = self._settings.servicenow.get_persona_role()
                 if expected_role:
-                    from agent.skills.incident.role_verifier import RoleVerifier
-                    role_result = await RoleVerifier().verify_role(
-                        self._settings.servicenow,
-                        expected_role,
-                    )
-                    if not role_result.get("match"):
-                        raise RuntimeError(
-                            "INC-UAT-04: ServiceNow persona role verification failed: "
-                            f"expected={expected_role!r}, "
-                            f"actual={role_result.get('actual_roles', [])}, "
-                            f"error={role_result.get('error')}"
+                    # UI-only ServiceNow personas may authenticate in the web UI
+                    # but lack REST access to sys_user_has_role. In UI-only mode,
+                    # the browser session is the authorization boundary.
+                    if not getattr(self._settings.servicenow, "api_oracle_enabled", True):
+                        logger.info(
+                            "servicenow_role_verification_table_api_disabled",
+                            persona=persona,
+                            expected_role=expected_role,
+                            reason="UI is the source of truth for this run",
                         )
-                    self._memory.add_timeline_entry(
-                        action=f"Verified ServiceNow persona role: {expected_role}",
-                        result="role_verified",
-                    )
+                        self._memory.add_timeline_entry(
+                            action=f"Configured ServiceNow persona role: {expected_role} (UI role visibility: not independently observable)",
+                            result="role_unobservable_ui_mode",
+                        )
+                    else:
+                        from agent.skills.incident.role_verifier import RoleVerifier
+                        role_result = await RoleVerifier().verify_role(
+                            self._settings.servicenow,
+                            expected_role,
+                        )
+                        if not role_result.get("match"):
+                            raise RuntimeError(
+                                "INC-UAT-04: ServiceNow persona role verification failed: "
+                                f"expected={expected_role!r}, "
+                                f"actual={role_result.get('actual_roles', [])}, "
+                                f"error={role_result.get('error')}"
+                            )
+                        self._memory.add_timeline_entry(
+                            action=f"Verified ServiceNow persona role: {expected_role}",
+                            result="role_verified",
+                        )
 
         self._memory.goal = goal
         self._memory.persona = persona
@@ -702,7 +717,68 @@ class AgentOrchestrator:
             elif not self._memory.plan:
                 plan = await self._planner.create_plan(goal, combined_context)
                 self._memory.plan = plan
-            
+
+            # Defense-in-depth: an explicitly read-only request must never
+            # enter the cognitive loop with mutation steps, even if an LLM
+            # planner path ignores the user's negative constraints.
+            read_only_source = f"{goal}\n{getattr(structured_intent, 'raw_prompt', '')}".lower()
+            read_only_markers = (
+                "read-only",
+                "read only",
+                "do not change",
+                "do not modify",
+                "do not update",
+                "inspect only",
+                "observe only",
+                "no mutations",
+            )
+            mutation_markers = (
+                "set state",
+                "update state",
+                "click update",
+                "persist",
+                "save record",
+                "submit",
+                "insert",
+                "delete",
+                "create incident",
+                "fill ",
+                "populate ",
+                "assign ",
+                "move state",
+            )
+            if self._memory.plan and any(marker in read_only_source for marker in read_only_markers):
+                violating_steps = [
+                    step.description
+                    for step in self._memory.plan.steps
+                    if any(marker in step.description.lower() for marker in mutation_markers)
+                    or any(marker in step.expected_outcome.lower() for marker in mutation_markers)
+                    or any(marker in " ".join(step.actions).lower() for marker in mutation_markers)
+                ]
+                if violating_steps:
+                    from agent.domain.plan import ExecutionPlan
+                    safe_plan = ExecutionPlan(goal=goal)
+                    safe_plan.add_step(
+                        "Open Target Incident Record",
+                        "Requested Incident is displayed in the form",
+                        requirement_id="AC-WF08-01",
+                    )
+                    safe_plan.add_step(
+                        "Observe Requested Incident Fields",
+                        "Requested values are read from the visible form",
+                        requirement_id="AC-WF08-01",
+                    )
+                    safe_plan.add_step(
+                        "Report Evidence Without Saving",
+                        "Evidence is recorded and no ServiceNow mutation is performed",
+                        requirement_id="AC-WF08-02",
+                    )
+                    logger.warning(
+                        "read_only_mutation_plan_replaced",
+                        violating_steps=violating_steps,
+                    )
+                    self._memory.plan = safe_plan
+
             plan = self._memory.plan
             if plan:
                 self._memory.add_timeline_entry(
@@ -1022,29 +1098,33 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.warning("embedding_startup_probe_failed", error=str(e))
 
-    # P7-LAYA: warm up the local LAYA action-policy model at startup so
-    # the first decision isn't slow. The policy is a process singleton
-    # (see get_laya_action_policy in dependencies.py). Warm-up is
-    # non-blocking and non-fatal — if it fails, the DecisionEngine
-    # uses the existing Gemini path unchanged.
+    # Only the worker/standalone process warms the local LAYA action-policy
+    # checkpoint. The API process otherwise loads an unnecessary second copy
+    # of the model and can push low-memory hosts into OOM.
     try:
-        from agent.api.v1.dependencies import get_laya_action_policy
-        policy = get_laya_action_policy(settings)
-        if policy is not None and policy.is_configured():
-            startup_warmup_timeout = max(
-                150.0,
-                settings.laya_action.inference_timeout_seconds + 30.0,
-            )
-            warm_ok = await asyncio.wait_for(
-                policy.warm_up(),
-                timeout=startup_warmup_timeout,
-            )
+        if getattr(settings, "process_role", "api") in ("worker", "standalone"):
+            from agent.api.v1.dependencies import get_laya_action_policy
+            policy = get_laya_action_policy(settings)
+            if policy is not None and policy.is_configured():
+                startup_warmup_timeout = max(
+                    150.0,
+                    settings.laya_action.inference_timeout_seconds + 30.0,
+                )
+                warm_ok = await asyncio.wait_for(
+                    policy.warm_up(),
+                    timeout=startup_warmup_timeout,
+                )
+                logger.info(
+                    "laya_action_policy_startup_probe",
+                    healthy=warm_ok,
+                    checkpoint=settings.laya_action.checkpoint,
+                    mode=settings.laya_action.mode,
+                    device=policy._device if hasattr(policy, "_device") else "unknown",
+                )
+        else:
             logger.info(
-                "laya_action_policy_startup_probe",
-                healthy=warm_ok,
-                checkpoint=settings.laya_action.checkpoint,
-                mode=settings.laya_action.mode,
-                device=policy._device if hasattr(policy, "_device") else "unknown",
+                "laya_action_policy_startup_deferred",
+                process_role=getattr(settings, "process_role", "api"),
             )
     except asyncio.TimeoutError:
         logger.warning("laya_action_policy_warmup_timeout")
