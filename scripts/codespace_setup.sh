@@ -20,7 +20,7 @@ sudo apt-get install -y -qq \
   postgresql \
   postgresql-contrib \
   || { echo "  apt install failed"; FAIL=1; }
-pip install -e . || { echo "  pip install -e . failed"; FAIL=1; }
+pip install -e '.[dev,laya]' || { echo "  pip install -e '.[dev,laya]' failed"; FAIL=1; }
 playwright install chromium || { echo "  playwright install failed"; FAIL=1; }
 playwright install-deps chromium || { echo "  playwright install-deps failed"; FAIL=1; }
 
