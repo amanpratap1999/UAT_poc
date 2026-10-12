@@ -627,6 +627,9 @@ class BrowserManager:
             ignore_https_errors=_should_ignore_https_errors(),
         )
         self._page = await self._context.new_page()
+        if self._browser_config.headless:
+            with suppress(Exception):
+                await self._context.route("**/*", self._route_low_memory_resources)
         await self._prepare_page(self._page)
         logger.info(
             "persona_context_created",
