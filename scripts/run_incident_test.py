@@ -153,7 +153,13 @@ async def main() -> None:
     # One itil account cannot demonstrate role separation — surface a
     # mismatch as a setup error rather than letting a requester-scoped
     # test silently run with elevated privileges.
-    if not args.skip_role_verification:
+    if not args.skip_role_verification and not settings.servicenow.api_oracle_enabled:
+        print(
+            "[*] UI-only mode: skipping ServiceNow Table API role verification. "
+            "Role visibility will be treated as unobservable; authorization is "
+            "exercised through the real ServiceNow browser UI."
+        )
+    elif not args.skip_role_verification:
         print(f"[*] Verifying role for persona: {persona}")
         role_check = await _verify_persona_role(
             settings=settings,
