@@ -1063,6 +1063,9 @@ class CognitiveOrchestrator:
 
             # B. OBSERVATION AFTER EXECUTION
             self._transition(AgentState.OBSERVING, "Post-action observation")
+            # A browser navigation may relaunch Chromium on a target crash.
+            # Reacquire the active page instead of observing a stale handle.
+            page = self._browser_manager.get_page()  # type: ignore[union-attr]
             raw_obs_after = await self._observation_engine.observe(page)  # type: ignore[union-attr]
             world_state_after = self._world_model.build_semantic_state(raw_obs_after)
 
@@ -2013,6 +2016,11 @@ class CognitiveOrchestrator:
 
             # 6. Observation After
             self._transition(AgentState.OBSERVING, f"Observing after: {step.description}")
+            # ExecutionController/BrowserManager may transparently relaunch
+            # Chromium after a page crash. Never reuse the Page object captured
+            # before action execution; reacquire the manager's active page so
+            # post-action observation targets the live browser instance.
+            page = self._browser_manager.get_page()  # type: ignore[union-attr]
             raw_obs_after = await self._observation_engine.observe(page)  # type: ignore[union-attr]
             world_state_after = self._world_model.build_semantic_state(raw_obs_after)
 
