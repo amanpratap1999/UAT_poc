@@ -150,16 +150,28 @@ class ObservationEngine:
 
         selector_map: dict[str, tuple[str, ...]] = {
             "caller": (
+                # ServiceNow reference fields expose the user-facing value
+                # through sys_display.<table>.<field>, while the underlying
+                # incident.<field> control may remain hidden.
+                "input[id='sys_display.incident.caller_id']:visible",
+                "input[name='sys_display.incident.caller_id']:visible",
+                "[id^='sys_display.'][id$='.caller_id']:visible",
                 "input[name='incident.caller_id']:visible",
                 "input[id='incident.caller_id']:visible",
                 "input[id^='sys_readonly.'][id$='.caller_id']:visible",
                 "[role='combobox'][aria-label*='caller' i]:visible",
+                "[aria-label='Caller']:visible",
             ),
             "assignment group": (
+                # Same reference-widget pattern as Caller.
+                "input[id='sys_display.incident.assignment_group']:visible",
+                "input[name='sys_display.incident.assignment_group']:visible",
+                "[id^='sys_display.'][id$='.assignment_group']:visible",
                 "input[name='incident.assignment_group']:visible",
                 "input[id='incident.assignment_group']:visible",
                 "input[id^='sys_readonly.'][id$='.assignment_group']:visible",
                 "[role='combobox'][aria-label*='assignment group' i]:visible",
+                "[aria-label='Assignment group']:visible",
             ),
             "state": (
                 "select[name='incident.state']:visible",
@@ -221,14 +233,31 @@ class ObservationEngine:
                             value = "[REDACTED]"
                         elif tag == "select":
                             checked = element.locator("option:checked").first
-                            value = (await checked.inner_text()).strip() if await checked.count() else await element.input_value()
-                        else:
+                            value = (
+                                (await checked.inner_text()).strip()
+                                if await checked.count()
+                                else await element.input_value()
+                            )
+                        elif tag in {"input", "textarea"}:
+                            # Reference controls use a normal input for the
+                            # display value; fall back to text if a custom
+                            # widget has no input_value surface.
                             value = await element.input_value()
                             if not value:
                                 value = (await element.inner_text()).strip()
+                        else:
+                            # Read-only ServiceNow widgets may expose the
+                            # visible value as a span/div/link rather than an
+                            # input. Preserve the evidence instead of dropping
+                            # the field because input_value() is unsupported.
+                            value = (await element.inner_text()).strip()
                         value = redact_string(value)
                         is_mandatory = await self._is_field_mandatory(context, element, canonical)
-                        is_readonly = await element.get_attribute("readonly") is not None
+                        is_readonly = (
+                            await element.get_attribute("readonly") is not None
+                            or (await element.get_attribute("aria-readonly") or "").lower() == "true"
+                            or await element.get_attribute("disabled") is not None
+                        )
                         fields.append(
                             FieldInfo(
                                 name=canonical.title(),
