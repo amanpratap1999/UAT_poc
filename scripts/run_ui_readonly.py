@@ -58,7 +58,7 @@ def _api_candidates() -> list[tuple[str, bool]]:
 
     explicit = os.getenv("UAT_API_BASE_URL", "").strip()
     if explicit:
-        candidates.append((_normalise_base(explicit), explicit.startswith("https://"))
+        candidates.append((_normalise_base(explicit), explicit.startswith("https://")))
 
     candidates.extend(
         [
