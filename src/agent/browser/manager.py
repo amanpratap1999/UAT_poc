@@ -403,6 +403,15 @@ class BrowserManager:
         """Remember the last trusted navigation target for crash recovery."""
         self._last_navigation_target = str(url or "").strip()
 
+    def remember_current_url(self) -> None:
+        """Persist the active page URL for renderer-crash recovery."""
+        with suppress(Exception):
+            if self._page is not None:
+                url = self._page.url
+                if url and not url.startswith("about:blank"):
+                    self._last_known_url = url
+                    self._last_navigation_target = url
+
     def is_page_healthy(self, page: Page | None = None) -> bool:
         """Return False when the active renderer/page is known to be dead."""
         candidate = page or self._page
@@ -417,7 +426,7 @@ class BrowserManager:
 
     async def recover_page(self, reason: str = "browser target crashed") -> Page:
         """Recover a crashed renderer while preserving the authenticated context."""
-        target_url = self._last_known_url or self._last_navigation_target
+        target_url = self._last_navigation_target or self._last_known_url
         logger.warning(
             "recovering_browser_page",
             reason=reason,
