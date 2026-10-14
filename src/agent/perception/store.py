@@ -119,7 +119,13 @@ class RedisRecoveryStore(RecoveryStore):
             return None
 
     async def delete_mapping(self, mapping_id: str) -> None:
-        # In this simplistic design, we'd need a secondary index to delete by mapping_id
-        # For Redis, since we key by target/fingerprint, deletion by ID is non-trivial without SCAN
-        # But we mostly rely on TTL for cleanup. We can leave it as a pass or implement a scan.
-        pass
+        """Redis keys by target/fingerprint, not by mapping_id.
+
+        Deletion by mapping_id would require a SCAN across all keys —
+        not worth the cost. Rely on TTL for cleanup instead.
+        Explicitly raise so callers don't silently assume deletion happened.
+        """
+        raise NotImplementedError(
+            "RedisRecoveryStore keys by target/fingerprint; deletion by mapping_id "
+            "is not supported — rely on TTL for cleanup"
+        )

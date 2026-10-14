@@ -81,7 +81,7 @@ def test_dialog_page_type_fails(page_gate):
 
 def test_goal_text_parsing_extracts_correctly(page_gate):
     obs = PageObservation(
-        url="https://instance.service-now.com/incident.do",
+        url="https://instance.service-now.com/change_request.do",
         page_type=PageType.FORM,
         record_number="CHG0000123"
     )
@@ -112,3 +112,75 @@ def test_goal_text_with_no_record_number_passes(page_gate):
     result = page_gate.check(obs, intent)
     assert result.passed
     assert result.expected_record is None
+
+
+def test_wrong_table_url_is_blocked(page_gate):
+    obs = PageObservation(
+        url="https://instance.service-now.com/change_request.do?sys_id=abc",
+        page_type=PageType.FORM,
+        record_number="INC0000007",
+    )
+    intent = StructuredIntent(
+        intent_type="GeneralValidation",
+        goal="Verify incident INC0000007",
+        target_module="incident",
+    )
+
+    result = page_gate.check(obs, intent)
+
+    assert not result.passed
+    assert "expected ServiceNow table" in result.reason
+
+def test_request_table_identity_is_enforced(page_gate):
+    obs = PageObservation(
+        url="https://instance.service-now.com/incident.do?sys_id=abc",
+        page_type=PageType.FORM,
+        record_number="REQ0000123",
+    )
+    intent = StructuredIntent(
+        intent_type="GeneralValidation",
+        goal="Verify request REQ0000123",
+        target_module="request",
+    )
+    result = page_gate.check(obs, intent)
+    assert not result.passed
+    assert result.expected_table == "sc_request"
+
+@pytest.mark.asyncio
+async def test_navigate_to_record_uses_configured_instance_and_encoded_uri(monkeypatch, page_gate):
+    from types import SimpleNamespace
+
+    page = SimpleNamespace(goto=AsyncMock(), wait_for_timeout=AsyncMock())
+    browser = SimpleNamespace(get_page=lambda: page)
+    settings = SimpleNamespace(
+        servicenow=SimpleNamespace(
+            instance_url="https://instance.service-now.com/",
+            allowed_instances=["https://instance.service-now.com"],
+        )
+    )
+    monkeypatch.setattr("agent.core.config.get_settings", lambda: settings)
+
+    assert await page_gate.navigate_to_record(browser, "incident", "INC0000007")
+    target = page.goto.await_args.args[0]
+    assert target == "https://instance.service-now.com/incident.do?sysparm_query=number=INC0000007"
+
+
+@pytest.mark.asyncio
+async def test_navigate_to_record_with_sys_id(monkeypatch, page_gate):
+    from types import SimpleNamespace
+
+    page = SimpleNamespace(goto=AsyncMock(), wait_for_timeout=AsyncMock())
+    browser = SimpleNamespace(get_page=lambda: page)
+    settings = SimpleNamespace(
+        servicenow=SimpleNamespace(
+            instance_url="https://instance.service-now.com/",
+            allowed_instances=["https://instance.service-now.com"],
+        )
+    )
+    monkeypatch.setattr("agent.core.config.get_settings", lambda: settings)
+
+    assert await page_gate.navigate_to_record(
+        browser, "incident", "INC0000007", sys_id="1234567890abcdef1234567890abcdef"
+    )
+    target = page.goto.await_args.args[0]
+    assert target == "https://instance.service-now.com/incident.do?sys_id=1234567890abcdef1234567890abcdef"

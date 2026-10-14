@@ -89,6 +89,7 @@ class ObservationEngine:
         observation = PageObservation(
             url=url,
             title=title,
+            page_title=title,
             page_type=page_type,
             current_state=current_state,
             record_number=record_number,
@@ -217,13 +218,17 @@ class ObservationEngine:
             except Exception:
                 pass
 
-            # Check for dialogs
+            # Check for visible dialogs. ServiceNow shells may keep hidden
+            # navigation dialogs mounted while the active record form is open.
             try:
-                dialog_count = await ctx.locator(
-                    "[role='dialog'], .modal.show, .glide_popup"
-                ).count()
-                if dialog_count > 0:
-                    return PageType.DIALOG
+                dialogs = ctx.locator("[role='dialog'], .modal.show, .glide_popup")
+                dialog_count = await dialogs.count()
+                for dialog_index in range(min(dialog_count, 10)):
+                    try:
+                        if await dialogs.nth(dialog_index).is_visible():
+                            return PageType.DIALOG
+                    except Exception:
+                        continue
             except Exception:
                 pass
 
@@ -264,7 +269,7 @@ class ObservationEngine:
                 )
                 count = await field_elements.count()
 
-                for i in range(min(count, 50)):
+                for i in range(min(count, 150)):
                     element = field_elements.nth(i)
                     try:
                         is_visible = await element.is_visible()
@@ -286,6 +291,10 @@ class ObservationEngine:
                             
                             if input_type == "password" or is_sensitive_field(label) or is_sensitive_field(element_id) or is_sensitive_field(element_name):
                                 value = "[REDACTED]"
+                            elif tag == "select":
+                                opt_text = await element.evaluate("el => el.options[el.selectedIndex]?.text || ''")
+                                opt_val = await element.input_value()
+                                value = opt_text if opt_text else opt_val
                             else:
                                 value = await element.input_value()
                         except Exception:
@@ -327,9 +336,17 @@ class ObservationEngine:
 
         # Try associated label via id
         element_id = await element.get_attribute("id")
+        element_name = await element.get_attribute("name")
         if element_id:
             try:
                 label_el = page.locator(f"label[for='{element_id}']")
+                if await label_el.count() > 0:
+                    return (await label_el.first.inner_text()).strip()  # type: ignore[no-any-return]
+            except Exception:
+                pass
+
+            try:
+                label_el = page.locator(f"[id='label.{element_id}']")
                 if await label_el.count() > 0:
                     return (await label_el.first.inner_text()).strip()  # type: ignore[no-any-return]
             except Exception:
@@ -347,6 +364,13 @@ class ObservationEngine:
         placeholder = await element.get_attribute("placeholder")
         if placeholder:
             return placeholder.strip()  # type: ignore[no-any-return]
+
+        # ServiceNow fallback: table.field_name e.g. incident.impact -> impact
+        for attr in [element_id, element_name]:
+            if attr and "." in attr:
+                candidate = attr.split(".")[-1].replace("_", " ").strip()
+                if candidate and not candidate.startswith("sys_") and not candidate.isdigit():
+                    return candidate
 
         return ""
 
@@ -403,6 +427,10 @@ class ObservationEngine:
                         if not label or len(label) > 100:
                             continue
 
+                        # Filter out ServiceNow column options and table header buttons
+                        if "column options" in label.lower() or await btn.evaluate("el => !!el.closest('th')"):
+                            continue
+
                         is_enabled = await btn.is_enabled()
                         tag = await btn.evaluate("el => el.tagName.toLowerCase()")
 
@@ -413,6 +441,27 @@ class ObservationEngine:
                                 button_type="submit" if tag == "submit" else "button",
                             )
                         )
+                    except Exception:
+                        continue
+
+                # Also extract record links from ServiceNow list tables
+                record_links = context.locator(
+                    "a.linked.formlink:visible, a.formlink:visible, a[href*='incident.do']:visible"
+                )
+                rec_count = await record_links.count()
+                for i in range(min(rec_count, 15)):
+                    rec = record_links.nth(i)
+                    try:
+                        rec_label = (await rec.inner_text()).strip()
+                        if rec_label and len(rec_label) <= 100:
+                            if not any(b.label == rec_label for b in buttons):
+                                buttons.append(
+                                    ButtonInfo(
+                                        label=rec_label,
+                                        is_enabled=True,
+                                        button_type="link",
+                                    )
+                                )
                     except Exception:
                         continue
 
@@ -483,8 +532,17 @@ class ObservationEngine:
                     locator = context.locator(selector)
                     count = await locator.count()
                     for i in range(count):
-                        text = (await locator.nth(i).inner_text()).strip()
-                        if text and text not in messages:
+                        el = locator.nth(i)
+                        text = (await el.inner_text()).strip()
+                        if not text:
+                            continue
+                        if selector == "[role='alert']":
+                            cls = (await el.get_attribute("class") or "").lower()
+                            if any(k in cls for k in ("info", "success")):
+                                continue
+                            if text.startswith("Info Message") or text.startswith("Success Message"):
+                                continue
+                        if text not in messages:
                             messages.append(text)
                 except Exception:
                     continue
@@ -711,15 +769,27 @@ class ObservationEngine:
         """Extract headings (h1-h3) and key visible text for LLM context."""
         ctx = self._get_active_context(page)
         try:
-            headings = await ctx.evaluate("""() => {
-                const els = document.querySelectorAll('h1, h2, h3, [role="heading"]');
-                return Array.from(els)
-                    .map(el => el.textContent?.trim())
+            summary = await ctx.evaluate(r"""() => {
+                const headings = Array.from(document.querySelectorAll('h1, h2, h3, [role="heading"]'))
+                    .map(el => el.textContent ? el.textContent.trim() : '')
                     .filter(t => t && t.length > 0 && t.length < 200)
-                    .slice(0, 10);
+                    .slice(0, 5);
+                const rows = Array.from(document.querySelectorAll('table.list_table tr, table.list2_table tr'))
+                    .slice(1, 9)
+                    .map(tr => {
+                        const numLink = tr.querySelector('a.linked.formlink, a[href*="incident.do"]');
+                        const num = numLink && numLink.textContent ? numLink.textContent.trim() : '';
+                        const cells = Array.from(tr.querySelectorAll('td')).map(td => td.textContent ? td.textContent.trim() : '').filter(Boolean);
+                        if (num) {
+                            return 'Record ' + num + ': ' + cells.slice(0, 11).join(' | ');
+                        }
+                        return cells.slice(0, 11).join(' | ');
+                    })
+                    .filter(Boolean);
+                return [...headings, ...rows].join('\n');
             }""")
-            if headings:
-                return " | ".join(headings)
+            if summary:
+                return str(summary)
         except Exception:
             pass
         return ""

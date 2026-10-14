@@ -1,0 +1,299 @@
+[
+  {
+    "run_id": "3b84918d-f9bc-4e63-8220-b98fc3a7124f",
+    "status": "cancelled",
+    "duration_seconds": null,
+    "findings_count": 0,
+    "defect_count": 0,
+    "goal": "Read-only inspect 3 recent Incidents. For any in Resolved state, verify close_code and close_notes are populated. Report",
+    "persona": null,
+    "exit_criteria": null,
+    "action_source_telemetry": {}
+  },
+  {
+    "run_id": "3be0c81e-4612-4657-a759-5c3d42873d17",
+    "status": "failed",
+    "duration_seconds": 180,
+    "findings_count": 0,
+    "defect_count": 0,
+    "goal": "Read-only inspect the Incident list. For each visible Incident, verify it has Short Description and Caller populated. Re",
+    "persona": "itil_user",
+    "exit_criteria": {
+      "verdict": "PASS",
+      "reason": "All requirements covered; no open defects; all retests passed.",
+      "requirements_covered": 4,
+      "requirements_total": 0,
+      "coverage_percentage": 0.0,
+      "open_major_defects": 0,
+      "open_minor_defects": 0,
+      "unverified_items": 0,
+      "retest_passed": 0,
+      "retest_failed": 0,
+      "blockers": []
+    },
+    "action_source_telemetry": {
+      "per_action": [
+        {
+          "step_index": 0,
+          "source": "unknown",
+          "confidence": 0.0,
+          "inference_latency_ms": 0.0,
+          "fallback_reason": "",
+          "model_version": "",
+          "action_type": "validate",
+          "target": ""
+        },
+        {
+          "step_index": 1,
+          "source": "unknown",
+          "confidence": 0.0,
+          "inference_latency_ms": 0.0,
+          "fallback_reason": "",
+          "model_version": "",
+          "action_type": "validate",
+          "target": ""
+        },
+        {
+          "step_index": 2,
+          "source": "unknown",
+          "confidence": 0.0,
+          "inference_latency_ms": 0.0,
+          "fallback_reason": "",
+          "model_version": "",
+          "action_type": "validate",
+          "target": ""
+        },
+        {
+          "step_index": 3,
+          "source": "unknown",
+          "confidence": 0.0,
+          "inference_latency_ms": 0.0,
+          "fallback_reason": "",
+          "model_version": "",
+          "action_type": "validate",
+          "target": ""
+        },
+        {
+          "step_index": 4,
+          "source": "unknown",
+          "confidence": 0.0,
+          "inference_latency_ms": 0.0,
+          "fallback_reason": "",
+          "model_version": "",
+          "action_type": "validate",
+          "target": ""
+        },
+        {
+          "step_index": 5,
+          "source": "unknown",
+          "confidence": 0.0,
+          "inference_latency_ms": 0.0,
+          "fallback_reason": "",
+          "model_version": "",
+          "action_type": "validate",
+          "target": ""
+        }
+      ],
+      "summary": {
+        "source_counts": {
+          "laya": 0,
+          "gemini": 0,
+          "heuristic": 0,
+          "unknown": 6
+        },
+        "laya_count": 0,
+        "gemini_count": 0,
+        "heuristic_count": 0,
+        "laya_avg_confidence": 0.0,
+        "laya_avg_latency_ms": 0.0,
+        "laya_total_inference_ms": 0,
+        "laya_model_versions": [],
+        "laya_fallback_reasons": {},
+        "total_model_calls": {
+          "gemini_planning": 0,
+          "laya_action": 0,
+          "moondream_vision": 0,
+          "gemini_vision": 0,
+          "verification": 0
+        },
+        "total_duration_seconds": 0.0,
+        "estimated_cost_usd": null,
+        "cost_estimate_note": "Unavailable: provider token usage and pricing were not captured for every model call."
+      }
+    }
+  },
+  {
+    "run_id": "dee2c338-3144-4de1-9009-3fe5a6c82a4e",
+    "status": "partial",
+    "duration_seconds": 105,
+    "findings_count": 0,
+    "defect_count": 0,
+    "goal": "Open incident INC0010041 read-only. Verify its state and priority are consistent with the Impact and Urgency values. Rep",
+    "persona": "itil_user",
+    "exit_criteria": {
+      "verdict": "PASS",
+      "reason": "All requirements covered; no open defects; all retests passed.",
+      "requirements_covered": 1,
+      "requirements_total": 0,
+      "coverage_percentage": 0.0,
+      "open_major_defects": 0,
+      "open_minor_defects": 0,
+      "unverified_items": 0,
+      "retest_passed": 0,
+      "retest_failed": 0,
+      "blockers": []
+    },
+    "action_source_telemetry": {
+      "per_action": [
+        {
+          "step_index": 0,
+          "source": "unknown",
+          "confidence": 0.0,
+          "inference_latency_ms": 0.0,
+          "fallback_reason": "",
+          "model_version": "",
+          "action_type": "validate",
+          "target": "INC0010041"
+        },
+        {
+          "step_index": 1,
+          "source": "unknown",
+          "confidence": 0.0,
+          "inference_latency_ms": 0.0,
+          "fallback_reason": "",
+          "model_version": "",
+          "action_type": "validate",
+          "target": ""
+        }
+      ],
+      "summary": {
+        "source_counts": {
+          "laya": 0,
+          "gemini": 0,
+          "heuristic": 0,
+          "unknown": 2
+        },
+        "laya_count": 0,
+        "gemini_count": 0,
+        "heuristic_count": 0,
+        "laya_avg_confidence": 0.0,
+        "laya_avg_latency_ms": 0.0,
+        "laya_total_inference_ms": 0,
+        "laya_model_versions": [],
+        "laya_fallback_reasons": {},
+        "total_model_calls": {
+          "gemini_planning": 0,
+          "laya_action": 0,
+          "moondream_vision": 0,
+          "gemini_vision": 0,
+          "verification": 0
+        },
+        "total_duration_seconds": 0.0,
+        "estimated_cost_usd": null,
+        "cost_estimate_note": "Unavailable: provider token usage and pricing were not captured for every model call."
+      }
+    }
+  },
+  {
+    "run_id": "ee8d9c10-7534-42bc-8956-602b39a10786",
+    "status": "error",
+    "duration_seconds": 100,
+    "findings_count": 0,
+    "defect_count": 0,
+    "goal": "Open incident INC0010041 read-only. Verify its state and priority are consistent with the Impact and Urgency values. Rep",
+    "persona": "itil_user",
+    "exit_criteria": {
+      "verdict": "PASS",
+      "reason": "All requirements covered; no open defects; all retests passed.",
+      "requirements_covered": 2,
+      "requirements_total": 0,
+      "coverage_percentage": 0.0,
+      "open_major_defects": 0,
+      "open_minor_defects": 0,
+      "unverified_items": 0,
+      "retest_passed": 0,
+      "retest_failed": 0,
+      "blockers": []
+    },
+    "action_source_telemetry": {
+      "per_action": [],
+      "summary": {
+        "source_counts": {
+          "laya": 0,
+          "gemini": 0,
+          "heuristic": 0,
+          "unknown": 0
+        },
+        "laya_count": 0,
+        "gemini_count": 0,
+        "heuristic_count": 0,
+        "laya_avg_confidence": 0.0,
+        "laya_avg_latency_ms": 0.0,
+        "laya_total_inference_ms": 0,
+        "laya_model_versions": [],
+        "laya_fallback_reasons": {},
+        "total_model_calls": {
+          "gemini_planning": 0,
+          "laya_action": 0,
+          "moondream_vision": 0,
+          "gemini_vision": 0,
+          "verification": 0
+        },
+        "total_duration_seconds": 0.0,
+        "estimated_cost_usd": null,
+        "cost_estimate_note": "Unavailable: provider token usage and pricing were not captured for every model call."
+      }
+    }
+  },
+  {
+    "run_id": "1f58c609-2a3f-47bd-b616-612ebf1f4a76",
+    "status": "error",
+    "duration_seconds": 3,
+    "findings_count": 0,
+    "defect_count": 0,
+    "goal": "Read-only inspect 3 recent Incidents. For any in Resolved state, verify close_code and close_notes are populated. Report",
+    "persona": "itil_user",
+    "exit_criteria": {
+      "verdict": "PASS",
+      "reason": "All requirements covered; no open defects; all retests passed.",
+      "requirements_covered": 0,
+      "requirements_total": 0,
+      "coverage_percentage": 0.0,
+      "open_major_defects": 0,
+      "open_minor_defects": 0,
+      "unverified_items": 0,
+      "retest_passed": 0,
+      "retest_failed": 0,
+      "blockers": []
+    },
+    "action_source_telemetry": {
+      "per_action": [],
+      "summary": {
+        "source_counts": {
+          "laya": 0,
+          "gemini": 0,
+          "heuristic": 0,
+          "unknown": 0
+        },
+        "laya_count": 0,
+        "gemini_count": 0,
+        "heuristic_count": 0,
+        "laya_avg_confidence": 0.0,
+        "laya_avg_latency_ms": 0.0,
+        "laya_total_inference_ms": 0,
+        "laya_model_versions": [],
+        "laya_fallback_reasons": {},
+        "total_model_calls": {
+          "gemini_planning": 0,
+          "laya_action": 0,
+          "moondream_vision": 0,
+          "gemini_vision": 0,
+          "verification": 0
+        },
+        "total_duration_seconds": 0.0,
+        "estimated_cost_usd": null,
+        "cost_estimate_note": "Unavailable: provider token usage and pricing were not captured for every model call."
+      }
+    }
+  }
+]

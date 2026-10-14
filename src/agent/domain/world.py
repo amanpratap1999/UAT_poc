@@ -36,6 +36,7 @@ class SemanticWorldState(BaseModel):
     validation_errors: list[str] = Field(default_factory=list)
     notifications: list[str] = Field(default_factory=list)
     form_completeness_score: float = Field(default=1.0, ge=0.0, le=1.0)
+    visible_content: str = ""
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     def to_compact_cognitive_summary(self) -> str:
@@ -67,6 +68,9 @@ class SemanticWorldState(BaseModel):
 
         if self.validation_errors:
             lines.append(f"Validation Errors: {'; '.join(self.validation_errors)}")
+
+        if self.visible_content:
+            lines.append(f"Visible Content:\n{self.visible_content}")
 
         return "\n".join(lines)
 

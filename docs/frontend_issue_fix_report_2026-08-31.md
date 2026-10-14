@@ -70,7 +70,7 @@ and frontend suite (32/32, `tsc -b` clean).
   read-only and `PATCH /api/v1/findings/:id` does not exist — but the
   endpoint was implemented in the final stabilization pass and is live.
 - **Root cause:** The frontend was written before the backend endpoint
-  landed (documented in `docs/final_stabilization_report.md` as fix #2) and
+  landed in the stabilization pass as fix #2 and
   never updated.
 - **Fix:** Notice replaced with an accurate tip; `FindingsTable` now has a
   detail/override panel — select a row to see the full description and

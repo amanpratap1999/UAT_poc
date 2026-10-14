@@ -1,7 +1,8 @@
 #!/bin/bash
 # Safe-to-fail setup script — runs as postCreateCommand.
-# Installs deps (apt + pip + playwright), starts system services (postgres + redis),
-# generates .env.local, inits DB. NEVER triggers a test run, NEVER pushes to git.
+# Installs local dependencies and starts local services. It never writes
+# ServiceNow credentials, invents a persona/role, bootstraps a default account,
+# executes a ServiceNow run, or pushes repository changes.
 set -u  # undefined var = error, but DO NOT use set -e (too aggressive for postCreate)
 
 echo "=== Codespace Setup (postCreate) ==="
@@ -39,59 +40,21 @@ sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres';" 2>/dev/null 
 sudo service redis-server start 2>/dev/null || sudo redis-server --daemonize yes 2>/dev/null || true
 sleep 1
 
-# 3. Generate .env.local from Codespaces secrets (injected as env vars)
-echo "[3/4] Generating .env.local..."
-python3 << 'PYEOF' || { echo "  .env.local generation failed"; FAIL=1; }
-import json, os
-password = os.environ.get('SERVICENOW_PASSWORD', '')
-nvidia_key = os.environ.get('NVIDIA_API_KEY', '')
-moondream_key = os.environ.get('MOONDREAM_API_KEY', '')
-gemini_key = os.environ.get('GEMINI_API_KEY', '')
-personas = json.dumps({'prakhar.s1': {'username': 'prakhar.s1', 'password': password, 'role': 'itil'}})
-env = f'''SERVICENOW_INSTANCE_URL=https://aelumconsultingpvtltddemo3.service-now.com
-SERVICENOW_USERNAME=prakhar.s1
-SERVICENOW_PASSWORD={password}
-SERVICENOW_IS_SUBPRODUCTION=true
-SERVICENOW_ALLOW_MUTATIONS=true
-SERVICENOW_ALLOWED_INSTANCES=aelumconsultingpvtltddemo3.service-now.com
-SERVICENOW_PERSONAS={personas}
-SERVICENOW_ACTIVE_PERSONA=prakhar.s1
-SERVICENOW_REQUIRE_PERSONA_FOR_BENCHMARK=true
-SERVICENOW_ORACLE_PERSONA_CONSTRAINED=true
-LLM_PROVIDER=nvidia
-LLM_BASE_URL=https://integrate.api.nvidia.com/v1
-LLM_MODEL=nvidia/nemotron-3-ultra-550b-a55b
-OPENAI_API_KEY={nvidia_key}
-MOONDREAM_API_KEY={moondream_key}
-GEMINI_API_KEY={gemini_key}
-JWT_SECRET_KEY=codespace-jwt-secret-32-chars-min
-JWT_ALGORITHM=HS256
-DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/servicenow_qa
-REDIS_URL=redis://127.0.0.1:6379/0
-SESSION_STORE_TYPE=redis
-CELERY_BROKER_URL=redis://127.0.0.1:6379/0
-CELERY_RESULT_BACKEND=redis://127.0.0.1:6379/1
-BROWSER_HEADLESS=true
-BROWSER_KEEP_BROWSER_OPEN=false
-UAT_RUNTIME_MODE=local
-ENVIRONMENT=development
-LOG_LEVEL=INFO
-'''
-with open('.env.local', 'w') as f:
-    f.write(env)
-print('  .env.local generated')
-PYEOF
+# 3. Preserve user configuration; never overwrite credentials or assert roles.
+echo "[3/4] Checking local configuration..."
+if [ ! -f .env.local ]; then
+    echo "  .env.local is absent. Copy .env.local.example and configure it privately."
+fi
 
-# 4. Init DB + bootstrap admin (non-fatal)
-echo "[4/4] Init DB + bootstrap admin..."
-python scripts/init_db.py || echo "  DB init failed (non-fatal)"
-python scripts/bootstrap_admin.py --username qa-admin --password 'QuickStart123!' || echo "  Admin bootstrap failed (non-fatal)"
+# 4. Initialize the local application database only. No user is bootstrapped.
+echo "[4/4] Initializing local database..."
+python scripts/init_db.py || echo "  DB init skipped or failed (non-fatal)"
 
 echo ""
 echo "=== Setup Complete (FAIL=$FAIL) ==="
 if [ "$FAIL" -ne 0 ]; then
   echo "Some setup steps failed. Container will still start so you can debug."
 fi
-echo "Container is ready. Runtime script will start API + worker on container start."
+echo "Container is ready. Runtime script starts only the local API + worker."
 # Always exit 0 — never let postCreateCommand fail the container build
 exit 0

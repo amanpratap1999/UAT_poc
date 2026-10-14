@@ -1,0 +1,109 @@
+Starting uvicorn...
+INFO:     Started server process [22864]
+INFO:     Waiting for application startup.
+2026-10-07T06:44:24.223448Z [info     ] application_started                      version=1.0.0
+HTTP Request: POST https://integrate.api.nvidia.com/v1/embeddings "HTTP/1.1 403 Forbidden"
+2026-10-07T06:44:24.997631Z [warning  ] embedding_model_health_check_failed      action=circuit_breaker_opened_fallback_to_in_memory error="Error code: 403 - {'status': 403, 'title': 'Forbidden', 'detail': 'Authorization failed'}" model=nvidia/nemotron-3-embed-1b
+2026-10-07T06:44:24.997631Z [info     ] embedding_startup_probe_result           healthy=False model=nvidia/nemotron-3-embed-1b
+2026-10-07T06:44:25.008093Z [info     ] laya_action_policy_attached              checkpoint= device=auto mode=primary
+2026-10-07T06:44:25.053210Z [info     ] laya_action_policy_loaded_router         backend=laya.Router
+HTTP Request: GET https://huggingface.co/api/models/convaiinnovations/laya/revision/main "HTTP/1.1 200 OK"
+Fetching 5 files:   0%|          | 0/5 [00:00<?, ?it/s]Fetching 5 files: 100%|██████████| 5/5 [00:00<00:00, 468.00it/s]
+C:\Users\Prakhar Singh\Desktop\Servicenow_testing\UAT_poc\.venv\Lib\site-packages\laya\router.py:926: RuntimeWarning: laya: this checkpoint ships invalid temperatures or values outside [0.5, 5]; using choice:11+=0.10058280825614929 -> 0.5. Treat confidence from the affected entries as uncalibrated.
+  return Agent(repo, **kwargs)
+2026-10-07T06:44:56.675828Z [info     ] laya_action_policy_warmup_success        checkpoint= device=auto-router model_version=laya:router
+2026-10-07T06:44:56.687840Z [info     ] laya_action_policy_startup_probe         checkpoint= device=auto-router healthy=True mode=primary
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:56727 - "GET /api/v1/health HTTP/1.1" 200 OK
+HTTP Request: POST https://integrate.api.nvidia.com/v1/embeddings "HTTP/1.1 403 Forbidden"
+2026-10-07T06:45:13.098652Z [warning  ] embedding_model_health_check_failed      action=circuit_breaker_opened_fallback_to_in_memory error="Error code: 403 - {'status': 403, 'title': 'Forbidden', 'detail': 'Authorization failed'}" model=nvidia/nemotron-3-embed-1b
+INFO:     127.0.0.1:56727 - "GET /api/v1/ready HTTP/1.1" 200 OK
+2026-10-07T06:45:25.374710Z [info     ] auth_login_success                       client_ip=127.0.0.1 username=qa-admin
+INFO:     127.0.0.1:56732 - "POST /api/v1/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55777 - "POST /api/v1/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63176 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55760 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55767 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63662 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54007 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54015 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51260 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63816 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63828 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63832 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63843 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63847 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64841 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64847 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64857 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64862 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64868 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64873 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52066 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52068 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52070 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52074 - "POST /api/v1/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52081 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52086 - "GET /api/v1/runs/f9c2e305-313c-4270-a42c-760fd7fad6ff HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52088 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60391 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59088 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52459 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63856 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54586 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64086 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62293 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59420 - "POST /api/v1/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59425 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59678 - "GET /api/v1/runs/3077d95e-95d1-431b-830b-a4162925ce60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49670 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49673 - "GET /api/v1/runs/3077d95e-95d1-431b-830b-a4162925ce60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56364 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50533 - "GET /api/v1/runs/3077d95e-95d1-431b-830b-a4162925ce60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50540 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50544 - "GET /api/v1/runs/3077d95e-95d1-431b-830b-a4162925ce60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50548 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55650 - "GET /api/v1/runs/3077d95e-95d1-431b-830b-a4162925ce60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61518 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61523 - "GET /api/v1/runs/3077d95e-95d1-431b-830b-a4162925ce60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61528 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61536 - "GET /api/v1/runs/3077d95e-95d1-431b-830b-a4162925ce60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61546 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55210 - "GET /api/v1/runs/3077d95e-95d1-431b-830b-a4162925ce60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58160 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55152 - "GET /api/v1/runs/3077d95e-95d1-431b-830b-a4162925ce60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55162 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55166 - "GET /api/v1/runs/3077d95e-95d1-431b-830b-a4162925ce60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55182 - "GET /api/v1/runs/3077d95e-95d1-431b-830b-a4162925ce60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55198 - "GET /api/v1/runs/3077d95e-95d1-431b-830b-a4162925ce60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62038 - "GET /api/v1/runs/3077d95e-95d1-431b-830b-a4162925ce60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62043 - "GET /api/v1/runs/3077d95e-95d1-431b-830b-a4162925ce60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62050 - "GET /api/v1/runs/3077d95e-95d1-431b-830b-a4162925ce60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62054 - "GET /api/v1/runs/3077d95e-95d1-431b-830b-a4162925ce60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63261 - "POST /api/v1/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63270 - "GET /api/v1/runs/35dad069-b9f5-4bb8-bed7-2a2034503cc1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63274 - "GET /api/v1/runs/35dad069-b9f5-4bb8-bed7-2a2034503cc1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49942 - "POST /api/v1/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58633 - "GET /api/v1/runs/df2be5c4-e6e3-4160-b502-84674e02b34b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58640 - "GET /api/v1/runs/df2be5c4-e6e3-4160-b502-84674e02b34b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62975 - "GET /api/v1/runs/df2be5c4-e6e3-4160-b502-84674e02b34b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49763 - "GET /api/v1/runs/df2be5c4-e6e3-4160-b502-84674e02b34b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52576 - "GET /api/v1/runs/df2be5c4-e6e3-4160-b502-84674e02b34b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52584 - "GET /api/v1/runs/df2be5c4-e6e3-4160-b502-84674e02b34b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57896 - "GET /api/v1/runs/df2be5c4-e6e3-4160-b502-84674e02b34b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57902 - "GET /api/v1/runs/df2be5c4-e6e3-4160-b502-84674e02b34b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57914 - "GET /api/v1/runs/df2be5c4-e6e3-4160-b502-84674e02b34b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57917 - "GET /api/v1/runs/df2be5c4-e6e3-4160-b502-84674e02b34b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60617 - "GET /api/v1/runs/df2be5c4-e6e3-4160-b502-84674e02b34b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50306 - "GET /api/v1/runs/df2be5c4-e6e3-4160-b502-84674e02b34b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50312 - "GET /api/v1/runs/df2be5c4-e6e3-4160-b502-84674e02b34b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50316 - "GET /api/v1/runs/df2be5c4-e6e3-4160-b502-84674e02b34b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50320 - "GET /api/v1/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50323 - "GET /api/v1/runs/df2be5c4-e6e3-4160-b502-84674e02b34b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50326 - "GET /api/v1/runs/35dad069-b9f5-4bb8-bed7-2a2034503cc1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50328 - "GET /api/v1/runs/3077d95e-95d1-431b-830b-a4162925ce60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58440 - "GET /api/v1/runs/1a13d5bc-038f-49f6-bda1-2e72901e632b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58442 - "GET /api/v1/runs/3077d95e-95d1-431b-830b-a4162925ce60 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58445 - "GET /api/v1/runs/df2be5c4-e6e3-4160-b502-84674e02b34b HTTP/1.1" 200 OK

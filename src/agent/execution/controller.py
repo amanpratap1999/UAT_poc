@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import contextlib
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from agent.core.config import ServiceNowConfig, get_settings
 from agent.core.exceptions import (
@@ -51,11 +51,13 @@ class ExecutionController:
         recovery_engine: RecoveryEngine | None = None,
         servicenow_config: ServiceNowConfig | None = None,
         action_policy: ActionPolicy | None = None,
+        observation_engine: Any | None = None,
     ) -> None:
         self._browser = browser_manager
         self._interactor = page_interactor
         self._recovery = recovery_engine
         self._servicenow_config = servicenow_config or get_settings().servicenow
+        self._observation_engine = observation_engine
         self._policy = action_policy or ActionPolicy(config=get_settings().security)
         # P2-09: idempotency cache — prevents duplicate actions on retry.
         # Keyed by action.metadata["idempotency_key"]. Only successful
@@ -77,6 +79,10 @@ class ExecutionController:
             ActionType.VALIDATE_STATE: self._handle_validate,
             ActionType.VALIDATE_ERRORS: self._handle_validate,
             ActionType.EXTRACT: self._handle_extract,
+            # OBSERVE is treated like VALIDATE — a no-op that waits for
+            # page load and returns. The LLM sometimes returns "observe"
+            # when it wants the agent to just look at the current page.
+            ActionType.OBSERVE: self._handle_validate,
         }
 
     async def execute(self, action: AgentAction) -> ActionResult:
@@ -86,12 +92,28 @@ class ExecutionController:
         Captures timing and screenshots. On failure, attempts recovery
         before returning the error result.
 
+        P5-LAYA: when the action carries ``metadata["laya_source"] == True``,
+        the controller verifies the action-space fingerprint is still valid
+        against the current page before dispatching. If the page changed
+        between observation and execution (stale action space), the action
+        is rejected with a ``StalePage`` error so the orchestrator can
+        re-observe and retry via the Gemini path on the next iteration.
+        This mirrors jev-ultrafast's "never act on a stale candidate list"
+        safety property.
+
         Args:
-            action: The structured action from the planner.
+            action: The structured action from the planner or LAYA policy.
 
         Returns:
             An ActionResult with success/failure, timing, and evidence.
         """
+        # P5-LAYA: freshness check for LAYA-chosen actions
+        metadata = action.metadata or {}
+        if metadata.get("laya_source"):
+            freshness_error = await self._check_laya_action_freshness(action)
+            if freshness_error:
+                return freshness_error
+
         try:
             action_enum = ActionType(action.action_type)
             handler = self._handlers.get(action_enum)
@@ -130,6 +152,13 @@ class ExecutionController:
                     error="Mutations are denied on production instances. Set SERVICENOW_IS_SUBPRODUCTION=true.",
                     duration_ms=0,
                 )
+            if not getattr(self._servicenow_config, "active_persona", None):
+                return ActionResult(
+                    success=False,
+                    action=action,
+                    error="Mutations require an explicit active ServiceNow persona.",
+                    duration_ms=0,
+                )
             if not getattr(self._servicenow_config, "allow_mutations", False):
                 return ActionResult(
                     success=False,
@@ -158,6 +187,27 @@ class ExecutionController:
                     logger.warning("invalid_allowlist_entry_ignored", entry=inst)
                     continue
                 canonical_allowed.add(inst_clean)
+
+            try:
+                current_page_url = await self._browser.get_url()
+                current_page_hostname = (urlparse(current_page_url).hostname or "").strip().lower()
+            except Exception as page_err:
+                return ActionResult(
+                    success=False,
+                    action=action,
+                    error=f"Could not verify active browser host before mutation: {page_err}",
+                    duration_ms=0,
+                )
+            if not current_page_hostname or current_page_hostname != hostname:
+                return ActionResult(
+                    success=False,
+                    action=action,
+                    error=(
+                        f"Active browser host '{current_page_hostname}' does not match "
+                        f"configured ServiceNow host '{hostname}'."
+                    ),
+                    duration_ms=0,
+                )
 
             if not hostname or hostname not in canonical_allowed:
                 return ActionResult(
@@ -474,6 +524,114 @@ class ExecutionController:
         """Handle extract actions — read data from the page."""
         # Extraction is done through observation; this is a passthrough
         await self._browser.wait_for_load()
+
+    # -----------------------------------------------------------------------
+    # P5-LAYA: LAYA action freshness + resolution
+    # -----------------------------------------------------------------------
+
+    async def _check_laya_action_freshness(self, action: AgentAction) -> ActionResult | None:
+        """Strictly verify the live page against the LAYA action-space fingerprint."""
+        metadata = action.metadata or {}
+        expected_fp = metadata.get("laya_action_space_fingerprint")
+        if not expected_fp:
+            return ActionResult(
+                success=False,
+                action=action,
+                error="LAYA action is missing an action-space fingerprint.",
+                error_type="StalePage",
+            )
+        if self._observation_engine is None:
+            return ActionResult(
+                success=False,
+                action=action,
+                error="LAYA action cannot execute without an observation engine.",
+                error_type="StalePage",
+            )
+        try:
+            page = self._browser.get_page()
+            current_observation = await self._observation_engine.observe(page)
+            from agent.browser.action_space import BrowserActionSpace
+            current_space = BrowserActionSpace.from_observation(
+                current_observation,
+                plan_step=metadata.get("laya_plan_step", ""),
+                persona=metadata.get("laya_persona", ""),
+            )
+            if current_space is None or current_space.fingerprint != expected_fp:
+                logger.warning(
+                    "laya_action_space_stale",
+                    expected_fingerprint=expected_fp,
+                    actual_fingerprint=current_space.fingerprint if current_space else None,
+                )
+                return ActionResult(
+                    success=False,
+                    action=action,
+                    error="LAYA action-space fingerprint is stale; page must be re-observed.",
+                    error_type="StalePage",
+                )
+            target_index = metadata.get("laya_target_index")
+            if target_index is not None:
+                candidate = next((x for x in current_space.candidates if x.index == target_index), None)
+                if candidate is None or candidate.locator != action.target:
+                    return ActionResult(
+                        success=False,
+                        action=action,
+                        error="LAYA target index no longer maps to the selected locator.",
+                        error_type="StalePage",
+                    )
+            return None
+        except Exception as e:
+            logger.error("laya_freshness_check_failed", error=str(e))
+            return ActionResult(
+                success=False,
+                action=action,
+                error=f"Unable to verify LAYA action freshness: {e}",
+                error_type="StalePage",
+            )
+
+    async def _resolve_laya_target(
+        self, action: AgentAction, action_space: Any,
+    ) -> AgentAction:
+        """Resolve a LAYA target index to the actual Playwright locator.
+
+        The ``LayaActionPolicy`` already populates ``action.target`` with
+        the locator string from the ``BrowserActionSpace`` mapping, so
+        this method is primarily a verification step: it confirms the
+        target index in metadata matches a candidate in the action space
+        and that the locator is still safe.
+
+        If the index is stale (not found in the action space), the action
+        is converted to a WAIT so the orchestrator can re-observe.
+        """
+        metadata = action.metadata or {}
+        target_index = metadata.get("laya_target_index")
+        if target_index is None:
+            return action
+        # Verify the index exists in the action space
+        candidate = next(
+            (c for c in action_space.candidates if c.index == target_index),
+            None,
+        )
+        if candidate is None:
+            logger.warning(
+                "laya_target_index_stale",
+                target_index=target_index,
+                action_space_fingerprint=action_space.fingerprint,
+            )
+            # Convert to a no-op WAIT so the orchestrator re-observes
+            return AgentAction(
+                action_type=ActionType.WAIT,
+                target="",
+                value="0",
+                reasoning=f"LAYA target index {target_index} is stale — waiting for re-observation",
+                metadata={
+                    "laya_source": False,
+                    "laya_fallback_reason": "stale_target_index",
+                    "action_source": "laya_stale_fallback",
+                },
+            )
+        # Trust the locator from the action space (it was produced by the
+        # observation engine, never by the model)
+        return action
 
     # -----------------------------------------------------------------------
     # Helpers

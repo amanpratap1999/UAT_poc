@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import io
 import os
@@ -174,7 +175,7 @@ class MoondreamBackend(GrounderBackend):
                 logger.info(
                     "moondream_detect_success",
                     target=target_description,
-                    confidence=1.0,
+                    confidence=0.65,
                     center_x=bbox.center_x,
                     center_y=bbox.center_y,
                 )
@@ -188,7 +189,7 @@ class MoondreamBackend(GrounderBackend):
                 return PerceptionCandidate(
                     source="moondream",
                     target_description=target_description,
-                    confidence=1.0,
+                    confidence=0.65,
                     bounding_box=bbox,
                     frame_context=frame_context,
                 )
@@ -203,7 +204,7 @@ class MoondreamBackend(GrounderBackend):
                 logger.info(
                     "moondream_detect_success",
                     target=target_description,
-                    confidence=1.0,
+                    confidence=0.65,
                     center_x=bbox.center_x,
                     center_y=bbox.center_y,
                 )
@@ -217,7 +218,7 @@ class MoondreamBackend(GrounderBackend):
                 return PerceptionCandidate(
                     source="moondream",
                     target_description=target_description,
-                    confidence=1.0,
+                    confidence=0.65,
                     bounding_box=bbox,
                     frame_context=frame_context,
                 )
@@ -250,7 +251,7 @@ class MoondreamBackend(GrounderBackend):
                 return PerceptionCandidate(
                     source="moondream",
                     target_description=target_description,
-                    confidence=1.0,
+                    confidence=0.65,
                     bounding_box=BoundingBox(x=px - 5, y=py - 5, width=10, height=10),
                     frame_context=frame_context,
                 )
@@ -275,7 +276,53 @@ class MoondreamBackend(GrounderBackend):
 
 
 class GeminiBackend(GrounderBackend):
-    """Backend for Gemini Flash visual grounding using Set-of-Mark overlays."""
+    """Backend for Gemini Flash visual grounding using Set-of-Mark overlays.
+
+    P2-12 (D6, D8): adds a per-instance quota-exhaustion circuit breaker
+    and a per-run response cache to (a) avoid burning more quota on a
+    failed provider and (b) skip duplicate calls for identical targets
+    within the same run. Quota exhaustion is now surfaced explicitly via
+    ``is_quota_exhausted()`` so the report can call it out as a run
+    limitation rather than a silent fallback to other perception paths.
+    """
+
+    # Class-level quota state — shared across instances within a single
+    # worker process so the death of one GeminiBackend instance doesn't
+    # let another immediately retry and burn more quota. Reset only on
+    # ``reset_quota_state()`` (typically called between runs).
+    _QUOTA_LOCK = asyncio.Lock()
+    _QUOTA_EXHAUSTED: bool = False
+    _QUOTA_EXHAUSTED_AT: str = ""
+    _QUOTA_RESET_AFTER_SECONDS: float = 60.0  # cool-down before retrying
+    _QUOTA_LAST_RESET_AT: float = 0.0  # monotonic time of last reset
+
+    @classmethod
+    def is_quota_exhausted(cls) -> bool:
+        """Return True if the Gemini provider has hit a quota ceiling.
+
+        When True, callers should treat the absence of Gemini grounding
+        as a run limitation (not a silent fallback to another path).
+        The reporting engine reads this flag and emits a
+        ``gemini_quota_exhausted`` indicator in the report environment.
+        """
+        import time
+        if not cls._QUOTA_EXHAUSTED:
+            return False
+        # Auto-reset after cool-down so a fresh run isn't permanently
+        # blocked by a stale quota flag.
+        if (time.monotonic() - cls._QUOTA_LAST_RESET_AT) > cls._QUOTA_RESET_AFTER_SECONDS:
+            cls._QUOTA_EXHAUSTED = False
+            cls._QUOTA_EXHAUSTED_AT = ""
+            return False
+        return True
+
+    @classmethod
+    def reset_quota_state(cls) -> None:
+        """Clear the quota-exhausted flag (call between runs)."""
+        import time
+        cls._QUOTA_EXHAUSTED = False
+        cls._QUOTA_EXHAUSTED_AT = ""
+        cls._QUOTA_LAST_RESET_AT = time.monotonic()
 
     def __init__(self, api_key: str | None = None) -> None:
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
@@ -286,11 +333,29 @@ class GeminiBackend(GrounderBackend):
         try:
             import google.generativeai as genai  # type: ignore[import-untyped]
 
-            genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel("gemini-2.5-flash")
+            genai.configure(api_key=self.api_key, transport="rest")
+            self._model_name = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
+            self.model = genai.GenerativeModel(self._model_name)
             self._has_sdk = True
         except ImportError:
             self._has_sdk = False
+
+        # P2-12: per-instance response cache. Keyed by
+        # (target_description, overlay_count). Avoids duplicate Gemini
+        # calls when the agent re-grounds the same target across retries
+        # without the page actually changing. Cache is process-local and
+        # not cross-run (cleared on backend reconstruction).
+        self._response_cache: dict[tuple[str, int], PerceptionCandidate | None] = {}
+        self._cache_hits = 0
+        self._cache_misses = 0
+
+    def get_cache_stats(self) -> dict[str, int]:
+        """Return per-instance cache statistics for diagnostics."""
+        return {
+            "cache_hits": self._cache_hits,
+            "cache_misses": self._cache_misses,
+            "cache_size": len(self._response_cache),
+        }
 
     async def ground_element(
         self,
@@ -300,6 +365,18 @@ class GeminiBackend(GrounderBackend):
         frame_context: str | None = None,
         page: Page | None = None,
     ) -> PerceptionCandidate | None:
+        # P2-12: short-circuit if the Gemini quota has been exhausted.
+        # Returning None here lets the PerceptionRouter fall back to a
+        # DOM-only path; the report will flag the quota exhaustion
+        # explicitly so a reviewer doesn't mistake this for a silent
+        # fallback that produced a passing result without vision.
+        if GeminiBackend.is_quota_exhausted():
+            logger.info(
+                "gemini_quota_exhausted_short_circuit",
+                target=target_description,
+            )
+            return None
+
         if not page:
             raise GroundingFailure("GeminiBackend requires page object for overlays.")
 
@@ -315,6 +392,20 @@ class GeminiBackend(GrounderBackend):
 
         if not boxes:
             return None
+
+        # P2-12: check the per-instance cache. The same target on the
+        # same overlay set is highly likely to produce the same Gemini
+        # response — skip the call when we've seen it before.
+        cache_key = (target_description.lower().strip(), len(boxes))
+        if cache_key in self._response_cache:
+            self._cache_hits += 1
+            logger.info(
+                "gemini_cache_hit",
+                target=target_description,
+                overlay_count=len(boxes),
+            )
+            return self._response_cache[cache_key]
+        self._cache_misses += 1
 
         from PIL import Image, ImageDraw
 
@@ -343,11 +434,22 @@ class GeminiBackend(GrounderBackend):
         )
 
         try:
+            used_sdk = False
             if self._has_sdk and self.model:
-                annotated_img = Image.open(overlay_bytes)
-                response = await self.model.generate_content_async([prompt, annotated_img])
-                idx_str = response.text.strip()
-            else:
+                try:
+                    annotated_img = Image.open(overlay_bytes)
+                    import inspect
+                    res = self.model.generate_content([prompt, annotated_img])
+                    if inspect.isawaitable(res):
+                        response = await res
+                    else:
+                        response = res
+                    idx_str = response.text.strip()
+                    used_sdk = True
+                except Exception as sdk_err:
+                    logger.warning("gemini_sdk_call_failed_using_rest", error=str(sdk_err))
+                    used_sdk = False
+            if not used_sdk:
                 import base64
                 import httpx
 
@@ -368,10 +470,28 @@ class GeminiBackend(GrounderBackend):
                     ]
                 }
                 async with httpx.AsyncClient(timeout=30.0) as client:
+                    model_name = getattr(self, "_model_name", os.environ.get("GEMINI_MODEL", "gemini-3.8-flash"))
                     resp = await client.post(
-                        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={self.api_key}",
+                        f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={self.api_key}",
                         json=payload,
                     )
+                    # P2-12: detect quota exhaustion (HTTP 429) and trip
+                    # the circuit breaker so subsequent calls short-circuit.
+                    if resp.status_code == 429:
+                        async with GeminiBackend._QUOTA_LOCK:
+                            GeminiBackend._QUOTA_EXHAUSTED = True
+                            from datetime import UTC, datetime
+                            GeminiBackend._QUOTA_EXHAUSTED_AT = datetime.now(UTC).isoformat()
+                        logger.warning(
+                            "gemini_quota_exhausted",
+                            status_code=429,
+                            target=target_description,
+                            message="Google API quota exhausted — Gemini grounding will be skipped until cool-down.",
+                        )
+                        # Cache the negative result so subsequent identical
+                        # calls don't even enter the function body.
+                        self._response_cache[cache_key] = None
+                        return None
                     resp.raise_for_status()
                     data = resp.json()
                     idx_str = data["candidates"][0]["content"]["parts"][0]["text"].strip()
@@ -384,21 +504,13 @@ class GeminiBackend(GrounderBackend):
                     success=False,
                     reason="no_id_in_response",
                 )
+                self._response_cache[cache_key] = None
                 return None
 
             target_id = int(m.group())
             for b in boxes:
                 if b["id"] == target_id:
-                    logger.info(
-                        "perception_completed",
-                        provider="gemini",
-                        target=target_description,
-                        success=True,
-                        matched_id=target_id,
-                        x=int(b["x"]),
-                        y=int(b["y"]),
-                    )
-                    return PerceptionCandidate(
+                    candidate = PerceptionCandidate(
                         source="gemini_overlay",
                         target_description=target_description,
                         confidence=0.9,
@@ -410,16 +522,45 @@ class GeminiBackend(GrounderBackend):
                         ),
                         frame_context=frame_context,
                     )
+                    logger.info(
+                        "perception_completed",
+                        provider="gemini",
+                        target=target_description,
+                        success=True,
+                        matched_id=target_id,
+                        x=int(b["x"]),
+                        y=int(b["y"]),
+                    )
+                    self._response_cache[cache_key] = candidate
+                    return candidate
         except Exception as e:
+            error_str = str(e)
+            # P2-12: detect quota-exhaustion in the SDK path too — the
+            # Google SDK raises a ResourceExhausted exception whose message
+            # contains "429" or "Resource has been exhausted".
+            if "429" in error_str or "Resource has been exhausted" in error_str or "quota" in error_str.lower():
+                async with GeminiBackend._QUOTA_LOCK:
+                    GeminiBackend._QUOTA_EXHAUSTED = True
+                    from datetime import UTC, datetime
+                    GeminiBackend._QUOTA_EXHAUSTED_AT = datetime.now(UTC).isoformat()
+                logger.warning(
+                    "gemini_quota_exhausted",
+                    target=target_description,
+                    message="Google API quota exhausted — Gemini grounding will be skipped until cool-down.",
+                    error=error_str[:200],
+                )
+                self._response_cache[cache_key] = None
+                return None
             logger.error(
                 "perception_completed",
                 provider="gemini",
                 target=target_description,
                 success=False,
-                error=str(e),
+                error=error_str,
             )
             raise GroundingFailure(f"Gemini failed: {e}") from e
 
+        self._response_cache[cache_key] = None
         return None
 
 

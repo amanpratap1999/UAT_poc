@@ -1,138 +1,72 @@
-# Byte-compiled / optimized / DLL files
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Distribution / packaging
-build/
-dist/
 *.egg-info/
 *.egg
+build/
+dist/
 
-# Virtual environments
+# Virtual environments and tooling caches
 .venv/
 venv/
 env/
-
-# pytest
 .pytest_cache/
-
-# mypy
 .mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
-# IDE
+# IDE and operating system files
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# Environment variables (secrets)
-.env
-.env.*
-.env*.bak
-*.bak
-!.env.example
-!.env.local.example
-!.env.docker.example
-
-# Generated output — reports, screenshots, logs, and runtime state
-reports/
-screenshots/
-logs/
-.runtime/
-!assets/
-!assets/**
-*.log
-*.local.log
-*.err.local.log
-api.log
-worker.log
-dump.rdb
-
-# Runtime SQLite DBs (dev/test artifacts, not source)
-servicenow_qa.db
-test_qa.db
-
-# Local SQLite and database files
-*.db
-*.sqlite
-*.sqlite3
-dump.rdb
-
-# Binaries and downloaded dependencies
-.bin/
-*.exe
-*.pdb
-
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
-
-# Distribution / packaging
-build/
-dist/
-*.egg-info/
-*.egg
-
-# Virtual environments
-.venv/
-venv/
-env/
-
-# pytest
-.pytest_cache/
-
-# mypy
-.mypy_cache/
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Environment variables (secrets)
-.env
-.env.*
-.env*.bak
-*.bak
-!.env.example
-!.env.local.example
-!.env.docker.example
-
-# Generated output — reports, screenshots, logs, and runtime state
-reports/
-screenshots/
-logs/
-.runtime/
-!assets/
-!assets/**
-*.log
-*.local.log
-*.err.local.log
-api.log
-worker.log
-dump.rdb
-
-# Runtime SQLite DBs (dev/test artifacts, not source)
-servicenow_qa.db
-test_qa.db
-
-# Local SQLite and database files
-*.db
-*.sqlite
-*.sqlite3
-dump.rdb
-
-# Binaries and downloaded dependencies
-.bin/
-*.exe
-*.pdb
-
-# OS files
 Thumbs.db
 .DS_Store
+
+# Environment variables and local secrets
+.env
+.env.*
+.env*.bak
+*.bak
+!.env.example
+!.env.local.example
+!.env.docker.example
+token.txt
+
+# Generated runtime output
+reports/
+screenshots/
+logs/
+.runtime/
+*.log
+*.local.log
+*.err.local.log
+api.log
+worker.log
+dump.rdb
+servicenow_qa.db
+test_qa.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Generated frontend build metadata
+frontend/*.tsbuildinfo
+frontend/tailwind.config.js
+frontend/tailwind.config.d.ts
+frontend/vite.config.js
+frontend/vite.config.d.ts
+frontend/vitest.config.js
+frontend/vitest.config.d.ts
+frontend/node_modules/
+frontend/dist/
+
+# Binaries and downloaded dependencies
+.bin/
+*.exe
+*.pdb
 
 # Debug dumps
 last_prompt.txt
@@ -140,7 +74,7 @@ prompt_full.txt
 *prompt*.txt
 .venv_bak/
 
-# TLS / SSL Certificates and Keys (never commit private keys or generated certs)
+# TLS / SSL certificates and keys
 tls/**/*.key
 tls/**/*.crt
 tls/**/*.csr

@@ -17,9 +17,11 @@ def test_same_action_repeated_default_threshold():
     detector = StuckDetector()
     detector.record("click", "button")
     detector.record("click", "button")
+    assert not detector.check().is_stuck
+    detector.record("click", "button")
     result = detector.check()
     assert result.is_stuck
-    assert result.repetition_count == 2
+    assert result.repetition_count == 3
     assert result.repeated_action == "click: button"
 
 def test_same_action_repeated_with_different_action_in_between():
@@ -32,6 +34,7 @@ def test_same_action_repeated_with_different_action_in_between():
 
 def test_reset_clears_history():
     detector = StuckDetector()
+    detector.record("click", "button")
     detector.record("click", "button")
     detector.record("click", "button")
     assert detector.check().is_stuck
@@ -51,5 +54,6 @@ def test_custom_max_repeats_threshold():
 def test_case_insensitive_comparison():
     detector = StuckDetector()
     detector.record("CLICK", "Button")
+    detector.record("click", "button")
     detector.record("click", "button")
     assert detector.check().is_stuck

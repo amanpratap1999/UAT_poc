@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime, UTC
-from typing import Any
 from pydantic import BaseModel, Field
 
-from agent.core.config import get_settings
 from agent.core.logging import get_logger
 from agent.memory.session import SessionMemory
 from agent.testing.generator import TestScenario
-from agent.testing.ground_truth import GroundTruthScenario, GroundTruthSuite
+from agent.testing.ground_truth import GroundTruthSuite
 from agent.testing.store import TestIntelligenceStore
 from agent.main import AgentRunner
 

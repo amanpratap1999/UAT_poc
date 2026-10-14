@@ -148,8 +148,14 @@ class ExecutionPlan(BaseModel):
         evidence_requirements: list[str] | None = None,
         risk_level: str = "Medium",
         expected_values: dict[str, Any] | None = None,
+        requirement_id: str | None = None,
     ) -> PlanStep:
-        """Add a new step to the end of the plan."""
+        """Add a new step to the end of the plan.
+
+        P1-05: ``requirement_id`` links this step to a specific
+        acceptance criterion ID so the reporting engine can map step →
+        criterion (see ``ReportingEngine._map_acceptance_criteria``).
+        """
         step = PlanStep(
             step_index=len(self.steps),
             description=description,
@@ -160,6 +166,7 @@ class ExecutionPlan(BaseModel):
             evidence_requirements=evidence_requirements or ["screenshot_after"],
             risk_level=risk_level,
             expected_values=expected_values or {},
+            requirement_id=requirement_id or "",
         )
         self.steps.append(step)
         return step

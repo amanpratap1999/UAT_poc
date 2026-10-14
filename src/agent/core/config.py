@@ -64,6 +64,10 @@ def get_active_env_file() -> Path | None:
 
 def load_active_env() -> Path | None:
     """Load active env file into os.environ with override=False (process env takes precedence)."""
+    # VS Code exposes a global `BROWSER` variable for launching the default browser.
+    # That collides with the app's nested `browser` settings model because the
+    # nested Pydantic model attempts to interpret `BROWSER` as a JSON payload.
+    os.environ.pop("BROWSER", None)
     active = get_active_env_file()
     if active and active.is_file():
         load_dotenv(dotenv_path=active, override=False)
@@ -93,9 +97,11 @@ class LLMConfig(BaseSubConfig):
         extra="ignore",
     )
 
-    provider: Literal["openai", "groq", "anthropic", "nvidia"] = "openai"
+    provider: Literal["openai", "groq", "anthropic", "nvidia", "google"] = "openai"
     api_key: str = Field(
-        default="", validation_alias="OPENAI_API_KEY", description="API key for the LLM provider"
+        default="",
+        validation_alias=AliasChoices("NVIDIA_API_KEY", "GEMINI_API_KEY", "OPENAI_API_KEY"),
+        description="API key for the LLM provider",
     )
     base_url: str | None = Field(default=None, description="Base URL for the LLM API endpoint")
     model: str = Field(default="gpt-4o", description="Model identifier")
@@ -106,7 +112,9 @@ class LLMConfig(BaseSubConfig):
         default=None, description="Optional override for embeddings base URL"
     )
     embedding_api_key: str | None = Field(
-        default=None, description="Optional override for embeddings API key"
+        default=None,
+        validation_alias=AliasChoices("LLM_EMBEDDING_API_KEY", "OPENAI_API_KEY"),
+        description="Optional override for embeddings API key",
     )
     embedding_dimensions: int = Field(
         default=2048, description="Embedding vector dimensions (must match embedding model output)"
@@ -204,7 +212,14 @@ class ServiceNowConfig(BaseSubConfig):
                 f"INC-UAT-05: no silent fallback to prevent wrong-user execution."
             )
         p = self.personas[self.active_persona]
-        return p.get("username", self.username), p.get("password", self.password)
+        persona_username = p.get("username", "").strip()
+        persona_password = p.get("password", "")
+        if not persona_username or not persona_password:
+            raise ValueError(
+                f"Persona '{self.active_persona}' must define its own username and password; "
+                "default ServiceNow credentials are never inherited by a persona."
+            )
+        return persona_username, persona_password
 
     def get_persona_role(self) -> str | None:
         """Get the expected ServiceNow role for the active persona.
@@ -215,7 +230,8 @@ class ServiceNowConfig(BaseSubConfig):
         """
         if not self.active_persona or self.active_persona not in self.personas:
             return None
-        return self.personas[self.active_persona].get("role")
+        role = self.personas[self.active_persona].get("role", "").strip()
+        return role or None
 
     def verify_persona_for_benchmark(self) -> None:
         """INC-UAT-01 (Blocker): verify benchmark is running under a declared
@@ -239,8 +255,12 @@ class ServiceNowConfig(BaseSubConfig):
                 f"INC-UAT-01 (Blocker): active persona '{self.active_persona}' "
                 f"is not in the configured personas dict."
             )
-        p = self.personas[self.active_persona]
-        persona_user = p.get("username", "")
+        persona_user, _persona_password = self.get_active_credentials()
+        expected_role = self.get_persona_role()
+        if not expected_role:
+            raise ValueError(
+                f"INC-UAT-04: persona '{self.active_persona}' must declare its expected ServiceNow role."
+            )
         # Check that the persona credentials are NOT the same as the default
         # admin credentials — this catches the case where operators set the
         # persona name but reuse the admin username/password.
@@ -259,6 +279,7 @@ class BrowserConfig(BaseSubConfig):
         env_file_encoding="utf-8",
         env_prefix="BROWSER_",
         extra="ignore",
+        env_ignore={"BROWSER"},
     )
 
     headless: bool = Field(
@@ -544,6 +565,84 @@ class LayaConfig(BaseSubConfig):
     timeout: float = Field(default=30.0, description="Inference timeout in seconds")
 
 
+class LayaActionPolicyConfig(BaseSubConfig):
+    """P6-LAYA: Local LAYA action-policy configuration.
+
+    Configures a LOCAL LAYA checkpoint for browser-level micro-decisions
+    (which visible control to click/fill/select). This is SEPARATE from
+    ``LayaConfig`` above, which configures the remote LAYA verifier
+    adapter (``LayaAdapter``). The action policy does NOT require Jev
+    endpoint credentials — it runs locally through the open-source LAYA SDK.
+
+    Defaults are conservative: the policy is OFF by default so existing
+    flows are unaffected until an operator explicitly enables it.
+    """
+    model_config = SettingsConfigDict(
+        env_file_encoding="utf-8",
+        env_prefix="LAYA_ACTION_",
+        extra="ignore",
+    )
+    enabled: bool = Field(
+        default=False,
+        description="Enable the LAYA action-policy adapter for browser-level decisions",
+    )
+    mode: Literal["shadow", "primary"] = Field(
+        default="shadow",
+        description=(
+            "Action-policy mode: 'shadow' runs LAYA but records decisions "
+            "for comparison without using them; 'primary' uses LAYA "
+            "decisions when confidence >= threshold"
+        ),
+    )
+    checkpoint: str = Field(
+        default="",
+        description=(
+            "HuggingFace repo or local path to the LAYA checkpoint "
+            "(e.g., 'convaiinnovations/laya' or '/models/laya')"
+        ),
+    )
+    device: Literal["auto", "cpu", "cuda", "mps"] = Field(
+        default="auto",
+        description="Device for LAYA inference (auto-detects CUDA, then CPU)",
+    )
+    confidence_threshold: float = Field(
+        default=0.65,
+        description="Minimum confidence for LAYA decisions in 'primary' mode; below this the Gemini path runs",
+    )
+    inference_timeout_seconds: float = Field(
+        default=5.0,
+        description="Max seconds for a single LAYA inference before falling back to Gemini",
+    )
+    max_candidates: int = Field(
+        default=250,
+        description="Hard cap on action-space candidates (mirrors jev-ultrafast)",
+    )
+    model_subfolder: str = Field(
+        default="typed-decisions",
+        description="Optional checkpoint subfolder within the LAYA model repository",
+    )
+    model_max_len: int = Field(default=2048, ge=128, le=8192)
+    head_max_len: int = Field(default=768, ge=64, le=4096)
+    warmup_at_startup: bool = Field(
+        default=True,
+        description="Warm up the model at app startup (P7) so the first decision isn't slow",
+    )
+    # Remote API fallback (jev-ultrafast style): when the local LAYA SDK
+    # or checkpoint is unavailable, the action policy can call a remote
+    # OpenAI-compatible endpoint that serves LAYA decisions. This is the
+    # same architecture as jev-ultrafast, which calls api.typesafe.ai.
+    # If both endpoint and api_key are set, the policy uses the remote API
+    # instead of loading the local checkpoint.
+    endpoint: str = Field(
+        default="",
+        description="Remote LAYA API endpoint (OpenAI-compatible). If set with api_key, used instead of local checkpoint.",
+    )
+    api_key: str = Field(
+        default="",
+        description="API key for the remote LAYA endpoint",
+    )
+
+
 class Settings(BaseSubConfig):
     """Root application settings.
 
@@ -555,6 +654,7 @@ class Settings(BaseSubConfig):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
+        env_ignore={"BROWSER"},
     )
 
     # Runtime mode
@@ -575,6 +675,10 @@ class Settings(BaseSubConfig):
     security: SecurityConfig = Field(default_factory=SecurityConfig)
     safety_budgets: SafetyBudgetConfig = Field(default_factory=SafetyBudgetConfig)
     laya: LayaConfig = Field(default_factory=LayaConfig)
+    # P6-LAYA: local action-policy config (separate from the remote LAYA
+    # verifier config above). The action policy does NOT require Jev
+    # endpoint credentials — it runs locally through the LAYA SDK.
+    laya_action: LayaActionPolicyConfig = Field(default_factory=LayaActionPolicyConfig)
 
     # Logging
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"

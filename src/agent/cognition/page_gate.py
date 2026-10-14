@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from agent.core.logging import get_logger
 from agent.domain.observation import PageObservation
@@ -73,7 +72,30 @@ class PageGate:
         elif expected_record.startswith("REQ"):
             expected_table = "sc_request"
 
-        # 2. Check if we are on a dialog, dashboard or home page
+        # A record number alone is never sufficient evidence that the active
+        # page belongs to the requested table. Check table identity before
+        # accepting a matching observed record number.
+        if expected_table and (
+            f"{expected_table}.do" not in observed_url
+            and f"{expected_table}_list.do" not in observed_url
+            and f"sow/record/{expected_table}" not in observed_url
+            and "nav_to.do" not in observed_url
+            and "/now/nav/" not in observed_url
+        ):
+            return PageGateResult(
+                passed=False,
+                reason=(
+                    f"Observed URL does not identify expected ServiceNow table "
+                    f"'{expected_table}' for target {expected_record}."
+                ),
+                observed_url=observed_url,
+                observed_record=observed_record,
+                observed_page_type=observed_page_type,
+                expected_record=expected_record,
+                expected_table=expected_table,
+            )
+        # A number appearing in a dialog URL is not proof that the record form is active.
+        # form is active. Require a record-capable page before trusting it.
         if observed_page_type in ("dialog", "dashboard", "homepage", "login"):
             return PageGateResult(
                 passed=False,
@@ -84,10 +106,32 @@ class PageGate:
                 expected_record=expected_record,
                 expected_table=expected_table,
             )
-            
-        if expected_table and (f"{expected_table}.do" not in observed_url and f"sow/record/{expected_table}" not in observed_url):
-            if "nav_to.do" not in observed_url and "/now/nav/" not in observed_url:
-                pass # it might still be ok if it's some other view, but typically we want the table in URL
+
+        # A matching record number identifies the active record on a valid
+        # form-capable page, even when its route is inside unified navigation.
+        if observed_record:
+            if observed_record != expected_record:
+                return PageGateResult(
+                    passed=False,
+                    reason=(
+                        f"Observed record {observed_record} does not match "
+                        f"expected target {expected_record}."
+                    ),
+                    observed_url=observed_url,
+                    observed_record=observed_record,
+                    observed_page_type=observed_page_type,
+                    expected_record=expected_record,
+                    expected_table=expected_table,
+                )
+            return PageGateResult(
+                passed=True,
+                reason="Observed record number matches the requested target.",
+                observed_url=observed_url,
+                observed_record=observed_record,
+                observed_page_type=observed_page_type,
+                expected_record=expected_record,
+                expected_table=expected_table,
+            )
 
         # 3. Mismatched record number
         if observed_record and observed_record != expected_record:
@@ -125,7 +169,13 @@ class PageGate:
             expected_table=expected_table,
         )
         
-    async def navigate_to_record(self, browser_manager, table: str, number: str) -> bool:
+    async def navigate_to_record(
+        self,
+        browser_manager,
+        table: str,
+        number: str,
+        sys_id: str | None = None,
+    ) -> bool:
         """Attempt to recover by navigating directly to the correct record form."""
         if not browser_manager:
             return False
@@ -143,7 +193,7 @@ class PageGate:
             # Fix: use the configured ServiceNow instance URL from settings
             # (the trusted source), and reject if the parsed netloc is
             # not in the allowed_instances list.
-            from urllib.parse import urlparse
+            from urllib.parse import quote, urlparse
 
             # Lazy-import to avoid circular imports and to keep the
             # page_gate module independent of the settings module for
@@ -157,11 +207,17 @@ class PageGate:
             parsed = urlparse(instance_url)
             base_url = f"{parsed.scheme}://{parsed.netloc}"
 
-            # Defense-in-depth: verify the configured host is in the
-            # allowed_instances list (matches the safety gate in
-            # ExecutionController for action validation).
-            allowed_hosts = {str(h).strip().lower().rstrip(".") for h in
-                             settings.servicenow.allowed_instances}
+            # Defense-in-depth: normalize both bare hostnames and full URLs
+            # in the allowlist to the same canonical hostname representation.
+            allowed_hosts: set[str] = set()
+            for configured in settings.servicenow.allowed_instances:
+                raw_host = str(configured).strip()
+                if not raw_host:
+                    continue
+                candidate = raw_host if "://" in raw_host else f"https://{raw_host}"
+                parsed_allowed = urlparse(candidate)
+                if parsed_allowed.netloc:
+                    allowed_hosts.add(parsed_allowed.netloc.lower().rstrip("."))
             if allowed_hosts and parsed.netloc.lower().rstrip(".") not in allowed_hosts:
                 logger.warning(
                     "page_gate_instance_not_in_allowlist",
@@ -170,10 +226,13 @@ class PageGate:
                 )
                 return False
 
-            target_url = f"{base_url}/nav_to.do?uri={table}.do%3Fsysparm_query=number={number}"
+            if sys_id:
+                target_url = f"{base_url}/{table}.do?sys_id={sys_id}"
+            else:
+                target_url = f"{base_url}/{table}.do?sysparm_query=number={number}"
             logger.info("page_gate_navigating", target_url=target_url, instance=base_url)
 
-            await page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
+            await page.goto(target_url, wait_until="domcontentloaded", timeout=45000)
             # brief pause to let SNOW render
             await page.wait_for_timeout(2000)
             return True

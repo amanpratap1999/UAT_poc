@@ -13,6 +13,7 @@ from agent.browser.manager import BrowserManager
 from agent.capabilities.registry import CapabilityRegistry
 from agent.confidence.engine import ConfidenceEngine
 from agent.core.config import Settings, get_settings
+from agent.core.logging import get_logger
 from agent.decision.engine import DecisionEngine
 from agent.domain.discovery import CustomerDiscoveryAgent
 from agent.domain.knowledge_model import CustomerKnowledgeModel
@@ -50,6 +51,8 @@ from agent.tools.browser_tools import register_default_tools
 from agent.tools.registry import ToolRegistry
 from agent.validation.engine import ValidationEngine
 from agent.world.model import WorldModel
+
+logger = get_logger(__name__)
 
 
 @lru_cache
@@ -296,10 +299,14 @@ def get_knowledge_memory() -> KnowledgeMemory:
 def get_decision_engine(settings: Settings | None = None) -> DecisionEngine:
     """Create a DecisionEngine instance.
 
-    INC-UAT-07 (Major): now wires a JEVAdapter as the default
-    DecisionProvider when JEV configuration is available. This gives
-    the independent judgement layer a real role in the verdict path
-    by default, not just when manually injected.
+    LAYA supplies bounded verification decisions when its service config
+    is available; otherwise the existing Gemini-backed path remains active.
+
+    P3-LAYA: now also wires a LayaActionPolicy when LAYA_ACTION_ENABLED=true.
+    The policy is loaded once (singleton) and warmed up at startup.
+    On any failure (missing checkpoint, missing LAYA SDK,
+    warm-up failure), the policy is None and the DecisionEngine falls
+    back to the existing Gemini path unchanged.
     """
     llm = get_llm_client(settings, purpose='decision')
 
@@ -312,6 +319,17 @@ def get_decision_engine(settings: Settings | None = None) -> DecisionEngine:
     try:
         from agent.decision.laya_adapter import LayaAdapter
         laya = LayaAdapter(settings)
+        # If LAYA_ACTION_ENABLED=true but LAYA_ENABLED (verifier) is not set,
+        # auto-enable the LayaAdapter too so it doesn't log "laya_disabled_by_config".
+        # The LayaAdapter is the VERIFICATION adapter (risk/escalation), separate
+        # from the LayaActionPolicy (browser-level decisions). Both should be active
+        # when the operator enables LAYA.
+        if not laya.is_configured() and settings.laya_action.enabled:
+            settings.laya.enabled = True
+            settings.laya.endpoint = settings.laya_action.endpoint or "local"
+            settings.laya.model = settings.laya_action.checkpoint or "laya:router"
+            laya = LayaAdapter(settings)
+            logger.info("laya_verifier_auto_enabled_by_laya_action_config")
         # Only attach if the adapter loaded its config successfully
         if laya.is_configured():
             # P1-05: warm up the model during startup
@@ -334,13 +352,129 @@ def get_decision_engine(settings: Settings | None = None) -> DecisionEngine:
     except Exception as e:
         logger.warning("laya_adapter_init_failed", error=str(e))
 
+    # P3-LAYA: wire the local LAYA action-policy adapter (separate from
+    # the remote LayaAdapter verifier above). The action policy is
+    # loaded once as a singleton and warmed up at startup. On any
+    # failure it is None and the DecisionEngine uses the Gemini path.
+    laya_action_policy = get_laya_action_policy(settings)
+
     return DecisionEngine(
         llm_client=llm,
         confidence_engine=get_confidence_engine(),
         reflection_engine=get_reflection_engine(settings),
         tool_registry=get_tool_registry(),
         decision_provider=decision_provider,
+        laya_action_policy=laya_action_policy,
     )
+
+
+# P6-LAYA/P7-LAYA: singleton action-policy instance — loaded once,
+# warmed at startup, shut down at app exit. Stored as a module-level
+# singleton so the same model instance is reused across all runs in
+# the process (the model is expensive to load).
+_laya_action_policy_singleton: Any = None
+
+
+def get_laya_action_policy(settings: Settings | None = None) -> Any:
+    """P6-LAYA: create (or return the singleton) LayaActionPolicy.
+
+    The policy is loaded once per process. If the optional
+    ``laya`` dependency is not installed, or the
+    checkpoint path is empty, or warm-up fails, returns None — the
+    DecisionEngine then uses the existing Gemini path unchanged.
+
+    Does NOT require Jev endpoint credentials — LAYA runs locally.
+    """
+    global _laya_action_policy_singleton
+    if _laya_action_policy_singleton is not None:
+        return _laya_action_policy_singleton
+    s = settings or get_cached_settings()
+    cfg = getattr(s, "laya_action", None)
+    if cfg is None or not cfg.enabled:
+        return None
+    try:
+        from agent.decision.laya_action_policy import (
+            LayaActionPolicy,
+            LayaActionPolicyConfig,
+        )
+        policy_cfg = LayaActionPolicyConfig(
+            enabled=cfg.enabled,
+            mode=cfg.mode,
+            checkpoint=cfg.checkpoint,
+            model_subfolder=cfg.model_subfolder,
+            device=cfg.device,
+            confidence_threshold=cfg.confidence_threshold,
+            inference_timeout_seconds=cfg.inference_timeout_seconds,
+            max_candidates=cfg.max_candidates,
+            warmup_at_startup=cfg.warmup_at_startup,
+            model_max_len=cfg.model_max_len,
+            head_max_len=cfg.head_max_len,
+            endpoint=cfg.endpoint,
+            api_key=cfg.api_key,
+        )
+        policy = LayaActionPolicy(config=policy_cfg)
+        if policy.is_configured():
+            # The FastAPI lifespan owns startup warmup; do not schedule a
+            # second concurrent warmup while constructing dependencies.
+            _laya_action_policy_singleton = policy
+            logger.info(
+                "laya_action_policy_attached",
+                mode=cfg.mode,
+                checkpoint=cfg.checkpoint,
+                device=cfg.device,
+            )
+            return policy
+        else:
+            logger.info("laya_action_policy_not_configured_no_checkpoint")
+            return None
+    except Exception as e:
+        logger.warning("laya_action_policy_init_failed", error=str(e))
+        return None
+
+
+async def shutdown_laya_action_policy() -> None:
+    """P7-LAYA: shut down the singleton action policy at app exit.
+
+    Called from the FastAPI lifespan shutdown handler in main.py.
+    Releases the model and tokenizer resources.
+    """
+    global _laya_action_policy_singleton
+    if _laya_action_policy_singleton is not None:
+        try:
+            await _laya_action_policy_singleton.shutdown()
+        except Exception as e:
+            logger.warning("laya_action_policy_shutdown_failed", error=str(e))
+        _laya_action_policy_singleton = None
+
+
+def get_laya_action_policy_diagnostics() -> dict[str, Any]:
+    """P7-LAYA: health + stats for the /api/v1/ready diagnostics endpoint."""
+    if _laya_action_policy_singleton is None:
+        return {
+            "enabled": False,
+            "healthy": False,
+            "backend": "none",
+        }
+    policy = _laya_action_policy_singleton
+    stats = policy.get_stats()
+    return {
+        "enabled": stats["enabled"],
+        "healthy": policy.is_healthy(),
+        "backend": stats["device"],
+        "mode": stats["mode"],
+        "checkpoint": stats["checkpoint"],
+        "model_version": stats["model_version"],
+        "is_warm": stats["is_warm"],
+        "confidence_calibrated": stats.get("confidence_calibrated", False),
+        "action_available": bool(
+            stats.get("enabled")
+            and policy.is_healthy()
+            and stats.get("confidence_calibrated", False)
+        ),
+        "inference_count": stats["inference_count"],
+        "fallback_count": stats["fallback_count"],
+        "avg_inference_latency_ms": stats["avg_inference_latency_ms"],
+    }
 
 
 def get_reporting_engine(

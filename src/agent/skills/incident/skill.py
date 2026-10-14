@@ -127,7 +127,16 @@ class IncidentSkill(BaseSkill):
     async def plan(
         self, intent: StructuredIntent, world_state: SemanticWorldState | None = None
     ) -> ExecutionPlan:
-        """Build a domain-specific execution plan for the incident goal."""
+        """Build a domain-specific execution plan for the incident goal.
+
+        P1-05 (D1–D4): now also recognizes the full Incident workflow
+        vocabulary (creation / assignment / on-hold / resolution / closure
+        / reopen / cancel / inspection). Each step carries a
+        ``requirement_id`` so the reporting engine can trace step →
+        acceptance criterion. The previous keyword branches (state /
+        lifecycle / open / resolve / assignment / mandatory / default)
+        are preserved as fall-backs.
+        """
         logger.info(
             "building_incident_execution_plan", goal=intent.goal, intent_type=intent.intent_type
         )
@@ -135,43 +144,111 @@ class IncidentSkill(BaseSkill):
 
         goal_lower = intent.goal.lower()
 
+        # Explicit read-only intent takes precedence over incidental mentions
+        # of "state", "lifecycle", or "resolve" in the requested fields. A
+        # smoke check that asks to observe state must never become a lifecycle
+        # mutation plan.
+        read_only_markers = (
+            "read-only",
+            "read only",
+            "do not change",
+            "do not modify",
+            "do not update",
+            "inspect only",
+            "observe only",
+            "no mutations",
+        )
+        if any(marker in goal_lower for marker in read_only_markers):
+            plan.add_step("Open Target Incident Record", "Requested Incident is displayed in the form", requirement_id="AC-WF08-01")
+            plan.add_step("Observe Requested Incident Fields", "Requested values are read from the visible form", requirement_id="AC-WF08-01")
+            plan.add_step("Re-observe Without Saving", "The same Incident remains unchanged after read-only verification", requirement_id="AC-WF08-02")
+            return plan
+
+        # P1-05: explicit workflow branches covering the full Incident
+        # lifecycle. The step text and expected_outcome are matched by
+        # the ScenarioGenerator and benchmark runner to the structured
+        # acceptance criteria in ``incident_workflows.py``.
+        if "create" in goal_lower and ("incident" in goal_lower or "inc" in goal_lower) and "new" in goal_lower:
+            plan.add_step("Open New Incident Form", "Form displayed", requirement_id="AC-WF01-01")
+            plan.add_step("Fill Short Description, Caller, Impact, Urgency", "Mandatory fields populated", requirement_id="AC-WF01-02")
+            plan.add_step("Submit New Incident", "Incident created with generated INC number", requirement_id="AC-WF01-03")
+            plan.add_step("Verify State is New (1)", "State observed as New", requirement_id="AC-WF01-01")
+            return plan
+
+        if ("on hold" in goal_lower or "hold" in goal_lower) and "inc" in goal_lower:
+            plan.add_step("Open Target Incident Record", "Target incident form displayed", requirement_id="AC-WF03-01")
+            plan.add_step("Set State to On Hold (3)", "State changed to On Hold", requirement_id="AC-WF03-01")
+            plan.add_step("Set On Hold Reason to Awaiting Caller", "Hold reason populated", requirement_id="AC-WF03-02")
+            plan.add_step("Populate Additional Comments", "Conditional mandatory field satisfied", requirement_id="AC-WF03-02")
+            plan.add_step("Click Update to Persist", "On Hold transition saved", requirement_id="AC-WF03-01")
+            plan.add_step("Verify SLA Paused", "SLA clock paused", requirement_id="AC-WF03-03")
+            return plan
+
+        if "close" in goal_lower and "inc" in goal_lower and "resolve" not in goal_lower:
+            plan.add_step("Open Target Resolved Incident", "Incident form opened in Resolved state", requirement_id="AC-WF05-01")
+            plan.add_step("Set State to Closed (7)", "State changed to Closed", requirement_id="AC-WF05-01")
+            plan.add_step("Click Update to Persist", "Closure saved", requirement_id="AC-WF05-01")
+            plan.add_step("Verify close_code Retained", "close_code persisted from resolution", requirement_id="AC-WF05-02")
+            return plan
+
+        if "reopen" in goal_lower and "inc" in goal_lower:
+            plan.add_step("Open Target Closed Incident", "Incident form opened in Closed state", requirement_id="AC-WF06-01")
+            plan.add_step("Populate Reopen Justification in Comments", "Justification captured", requirement_id="AC-WF06-03")
+            plan.add_step("Set State to In Progress (2)", "State changed back to In Progress", requirement_id="AC-WF06-01")
+            plan.add_step("Click Update to Persist", "Reopen saved", requirement_id="AC-WF06-01")
+            plan.add_step("Verify SLA Restarted", "SLA clock restarted", requirement_id="AC-WF06-02")
+            plan.add_step("Verify Reopen Notification Fired", "incident.reopened notification sent", requirement_id="AC-WF06-03")
+            return plan
+
+        if "cancel" in goal_lower and "inc" in goal_lower:
+            plan.add_step("Open Target Incident Record", "Incident form opened", requirement_id="AC-WF07-01")
+            plan.add_step("Set State to Canceled (8)", "State changed to Canceled", requirement_id="AC-WF07-01")
+            plan.add_step("Click Update to Persist", "Cancellation saved", requirement_id="AC-WF07-01")
+            plan.add_step("Verify Form is Read-Only After Cancel", "No further mutations permitted", requirement_id="AC-WF07-02")
+            return plan
+
+        # Existing keyword branches preserved below — these cover the
+        # lifecycle / open / resolve / assignment / mandatory / default
+        # patterns and remain valid for backward compatibility.
+
         if ("state" in goal_lower or "lifecycle" in goal_lower or "in progress" in goal_lower or "on hold" in goal_lower) and "inc" in goal_lower:
-            plan.add_step("Open Target Incident Record", "Target incident form displayed")
-            plan.add_step("Validate Initial Incident State and Preconditions", "Preconditions met: incident number and initial state match expectation")
-            plan.add_step("Update State to In Progress", "State dropdown changed to In Progress (2)")
-            plan.add_step("Click Update to Persist Record", "Incident changes saved")
-            plan.add_step("Re-open and Validate Incident State", "Persisted State is In Progress (2)")
+            plan.add_step("Open Target Incident Record", "Target incident form displayed", requirement_id="AC-WF02-03")
+            plan.add_step("Validate Initial Incident State and Preconditions", "Preconditions met: incident number and initial state match expectation", requirement_id="AC-WF02-03")
+            plan.add_step("Update State to In Progress", "State dropdown changed to In Progress (2)", requirement_id="AC-WF02-03")
+            plan.add_step("Click Update to Persist Record", "Incident changes saved", requirement_id="AC-WF02-03")
+            plan.add_step("Re-open and Validate Incident State", "Persisted State is In Progress (2)", requirement_id="AC-WF02-03")
         elif "open" in goal_lower and "inc" in goal_lower:
-            plan.add_step("Navigate to Incident List", "Incident list page displayed")
-            plan.add_step("Search and Open Target Incident", "Incident record opened")
-            plan.add_step("Validate Initial Incident State and Preconditions", "Incident record and initial state verified")
-            plan.add_step("Verify Incident Record Details", "Incident details verified")
+            plan.add_step("Navigate to Incident List", "Incident list page displayed", requirement_id="AC-WF08-01")
+            plan.add_step("Search and Open Target Incident", "Incident record opened", requirement_id="AC-WF08-01")
+            plan.add_step("Validate Initial Incident State and Preconditions", "Incident record and initial state verified", requirement_id="AC-WF08-01")
+            plan.add_step("Verify Incident Record Details", "Incident details verified", requirement_id="AC-WF08-01")
         elif "resolve" in goal_lower or "resolution" in goal_lower:
-            plan.add_step("Open Existing Incident", "Incident record opened")
-            plan.add_step("Populate Resolution Code & Notes", "Resolution fields filled")
-            plan.add_step("Update State to Resolved", "Incident state is Resolved")
-            plan.add_step("Validate Resolution Outcome", "Resolution verified")
+            plan.add_step("Open Existing Incident", "Incident record opened", requirement_id="AC-WF04-01")
+            plan.add_step("Populate Resolution Code & Notes", "Resolution fields filled", requirement_id="AC-WF04-02")
+            plan.add_step("Update State to Resolved", "Incident state is Resolved", requirement_id="AC-WF04-01")
+            plan.add_step("Validate Resolution Outcome", "Resolution verified", requirement_id="AC-WF04-01")
         elif "assignment" in goal_lower:
-            plan.add_step("Open Incident Form", "Incident form displayed")
-            plan.add_step("Update Assignment Group & Assigned To", "Assignment updated")
-            plan.add_step("Validate Assignment Update", "Assignment group verified")
+            plan.add_step("Open Incident Form", "Incident form displayed", requirement_id="AC-WF02-01")
+            plan.add_step("Update Assignment Group & Assigned To", "Assignment updated", requirement_id="AC-WF02-01")
+            plan.add_step("Validate Assignment Update", "Assignment group verified", requirement_id="AC-WF02-01")
         elif "mandatory" in goal_lower:
-            plan.add_step("Open New Incident Form", "New Incident form displayed")
-            plan.add_step("Inspect Mandatory Fields", "Mandatory indicators checked")
-            plan.add_step("Validate Mandatory Fields Rule", "Mandatory rule verified")
+            plan.add_step("Open New Incident Form", "New Incident form displayed", requirement_id="AC-WF01-01")
+            plan.add_step("Inspect Mandatory Fields", "Mandatory indicators checked", requirement_id="AC-WF01-02")
+            plan.add_step("Validate Mandatory Fields Rule", "Mandatory rule verified", requirement_id="AC-WF01-02")
         else:
             # Default complete lifecycle plan
-            plan.add_step("Navigate to Incident Management", "Incident list view displayed")
+            plan.add_step("Navigate to Incident Management", "Incident list view displayed", requirement_id="AC-WF01-01")
             plan.add_step(
-                "Open an Existing Incident in New State", "Incident form displayed in New state"
+                "Open an Existing Incident in New State", "Incident form displayed in New state", requirement_id="AC-WF01-01"
             )
-            plan.add_step("Update Assignment Group", "Assignment group populated")
-            plan.add_step("Move State to In Progress", "State changed to In Progress")
+            plan.add_step("Update Assignment Group", "Assignment group populated", requirement_id="AC-WF02-01")
+            plan.add_step("Move State to In Progress", "State changed to In Progress", requirement_id="AC-WF02-03")
             plan.add_step(
                 "Fill Resolution Details & Resolve",
                 "Resolution code & notes populated, state is Resolved",
+                requirement_id="AC-WF04-01",
             )
-            plan.add_step("Validate Complete Lifecycle", "Complete Incident flow verified")
+            plan.add_step("Validate Complete Lifecycle", "Complete Incident flow verified", requirement_id="AC-WF04-01")
 
         return plan
 
@@ -194,25 +271,34 @@ class IncidentSkill(BaseSkill):
         )
 
         metadata = action.metadata or {}
+        action_type_lower = str(action.action_type).lower()
+        check_text = f"{action.target or ''} {action.reasoning or ''}".lower()
         is_precondition = (
             bool(metadata.get("is_precondition_check"))
             or getattr(action, "is_precondition_check", False)
-            or "precondition" in (action.reasoning or "").lower()
-            or "initial state" in (action.reasoning or "").lower()
-            or "verify incident record" in (action.reasoning or "").lower()
-            or "before proceeding" in (action.reasoning or "").lower()
+            or (
+                action_type_lower not in ("select", "fill")
+                and (
+                    "precondition" in check_text
+                    or "initial state" in check_text
+                    or "verify incident record" in check_text
+                    or "before proceeding" in check_text
+                    or "open target" in check_text
+                    or action_type_lower == "validate"
+                )
+            )
         )
 
         if is_precondition:
             import re
             expected_rec = metadata.get("expected_record") or getattr(action, "expected_record", None)
             expected_st = metadata.get("expected_state") or getattr(action, "expected_state", None)
-            if not expected_rec and (action.reasoning or ""):
-                rec_m = re.search(r"\b(INC\d+)\b", action.reasoning or "", re.IGNORECASE)
+            if not expected_rec and check_text:
+                rec_m = re.search(r"\b(INC\d+)\b", check_text, re.IGNORECASE)
                 if rec_m:
                     expected_rec = rec_m.group(1).upper()
-            if not expected_st and (action.reasoning or ""):
-                st_m = re.search(r"(?:initial\s+state|state)\s*(?:is|to|as)?\s*([A-Za-z\s]+)", action.reasoning or "", re.IGNORECASE)
+            if not expected_st and check_text:
+                st_m = re.search(r"(?:initial\s+state|state)\s*(?:is|to|as)?\s*([A-Za-z\s]+)", check_text, re.IGNORECASE)
                 if st_m:
                     cand = st_m.group(1).strip().lower()
                     for s in ("on hold", "in progress", "new", "resolved", "closed"):
@@ -223,7 +309,7 @@ class IncidentSkill(BaseSkill):
             business_result = self._validator.validate_precondition(
                 incident=incident_after,
                 expected_record=expected_rec,
-                expected_state=expected_st,
+                expected_state=expected_st or "New",
             )
             return self._validator.to_standard_validation_result(business_result, is_precondition=True)
 
@@ -238,11 +324,27 @@ class IncidentSkill(BaseSkill):
         if not expected_state:
             expected_state = (metadata.get("expected_state") or "").strip() or None
 
+        # Pre-submit form mutations (select, fill) confirm the immediate input on the form
+        # without demanding unobserved business-outcome fields (impact/urgency/priority)
+        # which belong to post-submit validation after clicking Update.
+        action_type_lower = str(action.action_type).lower()
+        if action_type_lower in ("select", "fill"):
+            business_result = self._validator.validate_pre_submit(
+                before=incident_before,
+                after=incident_after,
+                field_name=action.target,
+                expected_value=action.value or "",
+                expected_step=action.reasoning or action.target,
+            )
+            return self._validator.to_standard_validation_result(business_result, is_precondition=False)
+
+        require_prio = "priority" in f"{action.target} {action.reasoning}".lower()
         business_result = self._validator.validate_business_outcome(
             before=incident_before,
             after=incident_after,
             expected_step=action.reasoning or action.action_type,
             expected_state=expected_state,
+            require_priority=require_prio,
         )
 
         # Record evidence item

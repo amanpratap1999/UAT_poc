@@ -5,7 +5,6 @@ Queries the ServiceNow Table API to verify that expected side-effects
 parent/child relationships) actually occurred after a state transition.
 """
 from __future__ import annotations
-from typing import Any
 import httpx
 from agent.core.logging import get_logger
 from agent.domain.validation import ValidationCheck

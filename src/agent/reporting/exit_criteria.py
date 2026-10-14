@@ -131,6 +131,12 @@ class IncidentExitCriteriaEngine:
             blockers=blockers,
         )
 
+        # Invariant: requirements_total == 0 must NOT automatically result in PASS
+        if requirements_total == 0:
+            result.verdict = "INCONCLUSIVE"
+            result.reason = "Zero authoritative requirements configured; sign-off verdict cannot be PASS."
+            return result
+
         # P3-04: Rule 0a — INFRA_ERROR (all runs errored)
         if infra_errors > 0 and total_runs > 0 and infra_errors >= total_runs:
             result.verdict = "INFRA_ERROR"

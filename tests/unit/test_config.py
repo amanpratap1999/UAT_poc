@@ -1,6 +1,16 @@
 """Unit tests for configuration and DSN conversions."""
 
-from agent.core.config import BrowserConfig, DomainConfig
+from agent.core.config import BrowserConfig, DomainConfig, LLMConfig
+
+
+def test_llm_config_accepts_nvidia_api_key(monkeypatch) -> None:
+    monkeypatch.setenv("NVIDIA_API_KEY", "nvidia-test-key")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    cfg = LLMConfig(_env_file=None, provider="nvidia")
+
+    assert cfg.api_key == "nvidia-test-key"
 
 
 def test_domain_config_asyncpg_dsn_conversion() -> None:

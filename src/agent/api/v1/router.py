@@ -265,22 +265,28 @@ async def readiness_check() -> JSONResponse:
             "error": safe_err or "Database connection failed",
         }
 
-    # 2. Redis check
-    try:
-        redis_client = aioredis.from_url(settings.session.redis_url, decode_responses=True)  # type: ignore[no-untyped-call]
-        try:
-            await redis_client.ping()
-            checks["redis"] = {"status": "ok"}
-        finally:
-            await redis_client.aclose()
-    except Exception as exc:
-        is_ready = False
-        import re
-        safe_err = re.sub(r"://[^@]+@", "://***:***@", str(exc))
+    # 2. Redis check — skip if SESSION_STORE_TYPE=memory (Windows native, no Redis)
+    if settings.session.store_type == "memory":
         checks["redis"] = {
-            "status": "unhealthy",
-            "error": safe_err or "Redis connection failed",
+            "status": "skipped",
+            "reason": "SESSION_STORE_TYPE=memory (in-memory mode, no Redis required)",
         }
+    else:
+        try:
+            redis_client = aioredis.from_url(settings.session.redis_url, decode_responses=True)  # type: ignore[no-untyped-call]
+            try:
+                await redis_client.ping()
+                checks["redis"] = {"status": "ok"}
+            finally:
+                await redis_client.aclose()
+        except Exception as exc:
+            is_ready = False
+            import re
+            safe_err = re.sub(r"://[^@]+@", "://***:***@", str(exc))
+            checks["redis"] = {
+                "status": "unhealthy",
+                "error": safe_err or "Redis connection failed",
+            }
 
     # 3. Output directories check
     try:
@@ -313,9 +319,11 @@ async def readiness_check() -> JSONResponse:
         if hasattr(embedding_client, "startup_health_check"):
             emb_ok = await asyncio.wait_for(embedding_client.startup_health_check(), timeout=3.0)
             checks["embedding_client"] = {
-                "status": "ok" if emb_ok else "degraded",
+                "status": "ok" if emb_ok else "unhealthy",
                 "model": settings.llm.embedding_model,
             }
+            if not emb_ok:
+                is_ready = False
         else:
             checks["embedding_client"] = {
                 "status": "ok",
@@ -326,6 +334,51 @@ async def readiness_check() -> JSONResponse:
             "status": "unhealthy",
             "error": "Embedding client initialization failed",
             "model": settings.llm.embedding_model,
+        }
+
+    # 5. LAYA action-policy readiness.
+    try:
+        from agent.api.v1.dependencies import get_laya_action_policy_diagnostics
+        laya_diag = get_laya_action_policy_diagnostics()
+        checks["laya_action_policy"] = laya_diag
+        if laya_diag.get("enabled") and not laya_diag.get("healthy"):
+            is_ready = False
+        elif laya_diag.get("enabled") and laya_diag.get("confidence_calibrated") is False:
+            # Uncalibrated confidence is observable model metadata, not a
+            # service-readiness failure. LAYA still applies its configured
+            # confidence threshold and downstream validation gates.
+            checks["laya_action_policy"]["confidence_warning"] = (
+                "Model confidence is not calibrated; threshold and post-action validation remain active."
+            )
+    except Exception as e:
+        checks["laya_action_policy"] = {
+            "enabled": False,
+            "healthy": False,
+            "error": str(e)[:200],
+        }
+
+    # 6. Mutation control plane readiness.
+    if settings.servicenow.allow_mutations:
+        try:
+            redis_client = aioredis.from_url(
+                settings.session.redis_url,
+                decode_responses=True,
+            )
+            try:
+                await redis_client.ping()
+                checks["mutation_control_plane"] = {"status": "ok"}
+            finally:
+                await redis_client.aclose()
+        except Exception:
+            is_ready = False
+            checks["mutation_control_plane"] = {
+                "status": "unhealthy",
+                "error": "Redis control plane unavailable",
+            }
+    else:
+        checks["mutation_control_plane"] = {
+            "status": "not_required",
+            "reason": "SERVICENOW_ALLOW_MUTATIONS=false",
         }
 
     content = {
@@ -447,6 +500,13 @@ async def get_run(
                 cleanup_details=snapshot.get("cleanup_details"),
                 api_verification_status=snapshot.get("api_verification_status"),
                 telemetry=snapshot.get("telemetry") or {},
+                persona=snapshot.get("persona"),
+                exit_criteria=snapshot.get("exit_criteria"),
+                environment=snapshot.get("environment") or {},
+                requirement_ids_covered=snapshot.get("requirement_ids_covered") or [],
+                defects=snapshot.get("defects") or [],
+                step_evidence=snapshot.get("step_evidence") or [],
+                reproducibility=snapshot.get("reproducibility"),
             )
         except (OSError, json.JSONDecodeError):
             pass

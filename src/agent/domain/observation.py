@@ -69,6 +69,7 @@ class PageObservation(BaseModel):
 
     url: str = ""
     title: str = ""
+    page_title: str = ""
     page_type: PageType = PageType.UNKNOWN
     current_state: str | None = Field(
         default=None,

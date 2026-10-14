@@ -9,6 +9,9 @@ from typing import Any
 from celery import Celery  # type: ignore
 
 from agent.core.config import get_settings
+from agent.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 _settings = get_settings()
 
@@ -59,6 +62,7 @@ def _apply_redis_resp2_default() -> None:
             "CELERY_BROKER_URL",
             _settings.session.celery_broker_url or _settings.session.redis_url,
         )
+        # Skip if using in-memory broker (no Redis involved)
         if not url or not url.startswith("redis://"):
             return
         parsed = urlparse(url)
@@ -95,6 +99,20 @@ backend_url = os.getenv(
     _settings.session.celery_result_backend or _settings.session.redis_url,
 )
 
+# Windows-native fallback: if no Redis URL is configured, use Celery's
+# in-memory transport so the worker can start without Redis/Memurai.
+# This is for local development only — production must use Redis.
+if not broker_url or broker_url == "":
+    broker_url = "memory://"
+    backend_url = "cache+memory://"
+    logger.info("celery_using_in_memory_broker_no_redis_configured")
+elif broker_url.startswith("redis://") and _settings.session.store_type == "memory":
+    # SESSION_STORE_TYPE=memory means the operator doesn't want Redis.
+    # Use in-memory Celery transport to match.
+    broker_url = "memory://"
+    backend_url = "cache+memory://"
+    logger.info("celery_using_in_memory_broker_session_store_is_memory")
+
 celery_app = Celery(
     "agent_worker",
     broker=broker_url,
@@ -110,6 +128,15 @@ celery_app.conf.update(
     enable_utc=True,
     task_track_started=True,
     task_time_limit=3600,  # 1 hour max
+    # Fix 3 (Celery hang): Set a soft time limit + worker prefetch so a
+    # stuck Playwright session doesn't hang the worker indefinitely.
+    # The soft limit gives the task 55 minutes to gracefully shut down
+    # before the hard limit kills it at 60 minutes.
+    task_soft_time_limit=3300,  # 55 minutes soft
+    worker_prefetch_multiplier=1,  # don't prefetch more than 1 task
+    task_acks_late=True,  # ack only after task completes
+    worker_max_tasks_per_child=10,  # recycle child after 10 tasks (prevents memory leaks)
+    broker_connection_retry_on_startup=True,  # don't crash if Redis is slow to start
 )
 
 # Redis TLS configuration for Celery

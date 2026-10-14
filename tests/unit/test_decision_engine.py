@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from agent.decision.engine import DecisionEngine
+from agent.decision.engine import DecisionEngine, DecisionUnavailableError
 from agent.domain.intent import StructuredIntent
 from agent.domain.observation import PageObservation
 from agent.memory.session import SessionMemory
@@ -13,21 +13,17 @@ from tests.conftest import MockLLMClient
 
 
 @pytest.mark.asyncio
-async def test_decision_engine_heuristic(sample_observation: PageObservation) -> None:
-    """Test heuristic decision making."""
+async def test_decision_engine_without_provider_fails_closed(sample_observation: PageObservation) -> None:
+    """No provider must block instead of clicking an arbitrary visible control."""
     engine = DecisionEngine(llm_client=None)
-    world_model = WorldModel()
-    world_state = world_model.build_semantic_state(sample_observation)
-
+    world_state = WorldModel().build_semantic_state(sample_observation)
     intent = StructuredIntent(
         intent_type="IncidentValidation", goal="Test incident form", target_module="incident"
     )
     memory = SessionMemory(goal="Test incident form")
 
-    decision = await engine.decide_next_action(intent, world_state, memory)
-
-    assert decision.action is not None
-    assert decision.confidence_assessment is not None
+    with pytest.raises(DecisionUnavailableError):
+        await engine.decide_next_action(intent, world_state, memory)
 
 
 @pytest.mark.asyncio
@@ -60,3 +56,19 @@ async def test_decision_engine_llm(sample_observation: PageObservation) -> None:
     assert decision.action.target == "label:Short Description"
     assert decision.action.value == "Test Short Description"
     assert decision.confidence_assessment.score >= 0.70
+
+
+@pytest.mark.asyncio
+async def test_decision_engine_malformed_llm_output_fails_closed(sample_observation: PageObservation) -> None:
+    client = MockLLMClient(
+        responses=[{"action_type": "click", "target": None, "value": None}]
+    )
+    engine = DecisionEngine(llm_client=client)
+    world_state = WorldModel().build_semantic_state(sample_observation)
+    intent = StructuredIntent(
+        intent_type="IncidentValidation", goal="Validate incident", target_module="incident"
+    )
+    memory = SessionMemory(goal="Validate incident")
+
+    with pytest.raises(DecisionUnavailableError):
+        await engine.decide_next_action(intent, world_state, memory)

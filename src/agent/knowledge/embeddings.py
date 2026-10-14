@@ -71,7 +71,13 @@ class OpenAIEmbeddingClient(EmbeddingClient):
     _BATCH_SIZE = 64
 
     def __init__(self, config: LLMConfig) -> None:
-        base_url = config.embedding_base_url or config.base_url or None
+        # Keep embedding traffic on its own configured endpoint. The planner
+        # may use Google's OpenAI-compatible Gemini endpoint while embeddings
+        # continue using their existing NVIDIA model and endpoint.
+        provider_default = (
+            "https://integrate.api.nvidia.com/v1" if config.provider == "google" else None
+        )
+        base_url = config.embedding_base_url or config.base_url or provider_default
         api_key = config.embedding_api_key or config.api_key
         self._client = AsyncOpenAI(api_key=api_key, base_url=base_url, max_retries=0)
         self._model = config.embedding_model

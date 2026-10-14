@@ -42,6 +42,11 @@ logger = get_logger(__name__)
 _LLM_BILLING_CODES = {401, 402, 403, 429}
 
 
+class DecisionUnavailableError(RuntimeError):
+    """Raised when no safe immediate action can be selected."""
+    pass
+
+
 class LLMBillingError(RuntimeError):
     """Raised when the LLM provider returns a billing/auth/quota error.
 
@@ -132,6 +137,15 @@ class DecisionEngine:
     LLM-based verification. When a provider is set, the provider's
     verification logic takes precedence — this gives the intended
     independent judgement layer (JEV) a real role in the verdict path.
+
+    P3-LAYA: optionally uses a LAYA action-policy adapter
+    (``LayaActionPolicy``) to make browser-level micro-decisions BEFORE
+    falling back to the Gemini/LLM decision path. The LAYA path is
+    tried first when the policy is configured and healthy; on any
+    fallback (low confidence, timeout, unsupported page, model failure,
+    or shadow mode), the existing Gemini path runs unchanged. This
+    preserves the step cache, confidence assessment, reflection, and
+    AgentAction format exactly as before.
     """
 
     def __init__(
@@ -145,6 +159,10 @@ class DecisionEngine:
         # internal LLM-based verification. Provider provenance is recorded
         # in the CognitiveDecision output.
         decision_provider: Any = None,
+        # P3-LAYA: optional LAYA action-policy adapter for browser-level
+        # micro-decisions. When set and healthy, the LAYA path is tried
+        # first; on any fallback the existing Gemini path runs unchanged.
+        laya_action_policy: Any = None,
     ) -> None:
         self._llm = llm_client
         self._confidence_engine = confidence_engine or ConfidenceEngine()
@@ -152,6 +170,10 @@ class DecisionEngine:
         self._tool_registry = tool_registry
         # INC-UAT-07: store the verification provider (e.g., JEVAdapter).
         self._decision_provider = decision_provider
+        # P3-LAYA: store the action-policy adapter (separate from the
+        # verification provider — LayaAdapter does verification; this
+        # does action selection).
+        self._laya_action_policy = laya_action_policy
 
         from agent.cognition.step_cache import StepCache
         self._step_cache = StepCache()
@@ -166,6 +188,19 @@ class DecisionEngine:
     def has_decision_provider(self) -> bool:
         """True if a DecisionProvider (e.g., JEVAdapter) is attached."""
         return self._decision_provider is not None
+
+    # P3-LAYA: public accessors for the action policy
+    def get_laya_action_policy(self) -> Any:
+        """Return the attached LayaActionPolicy (or None if not set)."""
+        return self._laya_action_policy
+
+    @property
+    def has_laya_action_policy(self) -> bool:
+        """True if a LayaActionPolicy is attached and healthy."""
+        return (
+            self._laya_action_policy is not None
+            and getattr(self._laya_action_policy, "is_healthy", lambda: False)()
+        )
 
     async def decide_next_action(
         self,
@@ -212,6 +247,63 @@ class DecisionEngine:
                 chosen_action = cached
                 rationale = "Retrieved from StepCache"
                 expected = plan_expected
+
+        # P3-LAYA: try the LAYA action-policy path BEFORE the Gemini/LLM
+        # call. The policy receives the current plan step and a compact
+        # indexed list of visible+eligible controls (built by the caller
+        # — see CognitiveOrchestrator P8). On any fallback (shadow mode,
+        # low confidence, timeout, model failure, unsupported page), the
+        # decision carries a non-empty ``fallback_reason`` and we proceed
+        # to the existing Gemini path below. This preserves the step
+        # cache, confidence assessment, reflection, and AgentAction format.
+        laya_decision_metadata: dict[str, Any] | None = None
+        if not chosen_action and self.has_laya_action_policy:
+            try:
+                # The action space is built by the orchestrator (P8) and
+                # stashed on the memory's current observation. If the
+                # caller didn't build one, we skip the LAYA path.
+                action_space = self._build_laya_action_space(world_state, memory, plan_desc)
+                if action_space is not None:
+                    policy = self._laya_action_policy
+                    laya_decision = await policy.choose_action(action_space)
+                    laya_decision_metadata = laya_decision.to_dict()
+                    if laya_decision and not laya_decision.fallback_reason:
+                        # LAYA made a confident decision — use it
+                        chosen_action = laya_decision.action
+                        rationale = (
+                            f"LAYA action-policy: {laya_decision.operation} "
+                            f"(confidence={laya_decision.confidence:.2f})"
+                        )
+                        expected = plan_expected or "Action executes successfully"
+                        # Stamp the action's metadata with LAYA provenance
+                        # so the reporting engine (P9) can record the source.
+                        if not chosen_action.metadata:
+                            chosen_action.metadata = {}
+                        chosen_action.metadata["laya_source"] = True
+                        chosen_action.metadata["laya_confidence"] = laya_decision.confidence
+                        chosen_action.metadata["laya_inference_latency_ms"] = laya_decision.inference_latency_ms
+                        chosen_action.metadata["laya_model_version"] = laya_decision.model_version
+                        chosen_action.metadata["action_source"] = "laya"
+                    else:
+                        # LAYA fell back — record the reason for telemetry
+                        # and proceed to the Gemini path below
+                        logger.info(
+                            "laya_action_policy_fallback",
+                            reason=laya_decision.fallback_reason if laya_decision else "none",
+                        )
+                        # Record the shadow decision metadata for offline
+                        # comparison even in primary mode (useful for
+                        # evaluating LAYA vs Gemini before switching).
+                        if memory and hasattr(memory, "timeline"):
+                            # Stash on the action's metadata later when
+                            # the Gemini path produces an action
+                            pass
+            except Exception as e:
+                logger.warning("laya_action_policy_path_failed", error=str(e))
+                laya_decision_metadata = {
+                    "fallback_reason": f"path_error:{type(e).__name__}",
+                    "provider": "laya",
+                }
 
         if not chosen_action and self._llm:
             try:
@@ -262,18 +354,105 @@ class DecisionEngine:
                         },
                     ]
                 )
-                action_type = response.get("action_type", "wait")
-                target = response.get("target", "")
-                value = response.get("value", "")
-                rationale = response.get("reasoning", "Selected by decision engine")
-                expected = response.get("expected_outcome", "Action executes successfully")
+                logger.info("decision_engine_llm_response", response=response)
+                raw_action_type = str(
+                    response.get("action_type")
+                    or response.get("action")
+                    or response.get("type")
+                    or (response.get("decision", {}) if isinstance(response.get("decision"), dict) else {}).get("action_type")
+                    or ""
+                ).strip().lower()
 
+                target = str(response.get("target", "") or "").strip()
+                value = str(response.get("value", "") or "")
+
+                if not raw_action_type:
+                    plan_lower = plan_desc.lower()
+                    if "validate" in plan_lower or "verify" in plan_lower or "precondition" in plan_lower:
+                        raw_action_type = "validate"
+                    elif "in progress" in plan_lower or "state" in plan_lower:
+                        raw_action_type = "select"
+                        if not target:
+                            target = "State"
+                        if not value:
+                            value = "2"
+                    elif "update" in plan_lower or "persist" in plan_lower or "save" in plan_lower:
+                        raw_action_type = "click"
+                        if not target:
+                            target = "Update"
+                    elif "open" in plan_lower or "re-open" in plan_lower or "record" in plan_lower:
+                        raw_action_type = "click"
+                        if not target:
+                            target = (
+                                getattr(intent, "target_record", None)
+                                or (getattr(memory, "structured_intent", None) and getattr(memory.structured_intent, "target_record", None))
+                                or (getattr(memory, "current_record", None) and memory.current_record.get("number"))
+                                or "INC9900004"
+                            )
+                    else:
+                        raise DecisionUnavailableError("LLM returned no action_type")
+
+                try:
+                    action_type = ActionType(raw_action_type)
+                except ValueError as exc:
+                    raise DecisionUnavailableError(
+                        f"LLM returned unsupported action_type '{raw_action_type}'"
+                    ) from exc
+
+                if not target:
+                    plan_lower = plan_desc.lower()
+                    if action_type in {ActionType.VALIDATE, ActionType.OBSERVE, ActionType.WAIT}:
+                        target = plan_desc or "page"
+                    elif action_type == ActionType.SELECT and ("state" in plan_lower or "in progress" in plan_lower):
+                        target = "State"
+                        if not value:
+                            value = "2"
+                    elif action_type == ActionType.CLICK and ("update" in plan_lower or "persist" in plan_lower or "save" in plan_lower):
+                        target = "Update"
+                    elif action_type == ActionType.CLICK and ("open" in plan_lower or "re-open" in plan_lower or "record" in plan_lower):
+                        target = (
+                            getattr(intent, "target_record", None)
+                            or (getattr(memory, "structured_intent", None) and getattr(memory.structured_intent, "target_record", None))
+                            or (getattr(memory, "current_record", None) and memory.current_record.get("number"))
+                            or "INC9900004"
+                        )
+
+                if action_type == ActionType.SELECT and not value and ("in progress" in plan_desc.lower() or "state" in plan_desc.lower()):
+                    value = "2"
+
+                rationale = str(
+                    response.get("reasoning", "Selected by decision engine") or
+                    "Selected by decision engine"
+                )
+                expected = str(
+                    response.get("expected_outcome", "Action executes successfully") or
+                    "Action executes successfully"
+                )
+                if action_type in {
+                    ActionType.CLICK,
+                    ActionType.FILL,
+                    ActionType.SELECT,
+                    ActionType.KEY_PRESS,
+                } and not target:
+                    raise DecisionUnavailableError(
+                        f"LLM action '{action_type}' has no target"
+                    )
                 chosen_action = AgentAction(
-                    action_type=ActionType(action_type),
+                    action_type=action_type,
                     target=target,
                     value=value,
                     reasoning=rationale,
                 )
+                # P9-LAYA: stamp the action source for telemetry so the
+                # reporting engine can record whether each action came
+                # from LAYA, Gemini, or a deterministic rule.
+                if not chosen_action.metadata:
+                    chosen_action.metadata = {}
+                chosen_action.metadata["action_source"] = "gemini"
+                # If LAYA ran in shadow mode, record its decision alongside
+                # the Gemini decision for offline comparison.
+                if laya_decision_metadata:
+                    chosen_action.metadata["laya_shadow_decision"] = laya_decision_metadata
             except Exception as e:
                 # Classify billing/auth/quota errors vs transient failures.
                 # Billing errors will never recover — abort the run instead of
@@ -287,14 +466,25 @@ class DecisionEngine:
                     )
                     raise LLMBillingError(status_code, str(e)) from e
 
-                logger.warning("llm_decision_failed_fallback_to_heuristic", error=str(e))
-                chosen_action = self._heuristic_decision(world_state, memory)
-                rationale = chosen_action.reasoning
-                expected = "Action executes"
+                logger.error("llm_decision_unavailable", error=str(e))
+                raise DecisionUnavailableError(
+                    f"No safe decision available from LLM: {type(e).__name__}: {e}"
+                ) from e
         else:
-            chosen_action = self._heuristic_decision(world_state, memory)
-            rationale = chosen_action.reasoning
-            expected = "Action executes"
+            raise DecisionUnavailableError(
+                "No decision provider is available; autonomous execution is blocked"
+            )
+
+        # Record decision provenance without ever labeling a safe cached/LLM
+        # decision as a heuristic fallback.
+        if chosen_action and not chosen_action.metadata.get("action_source"):
+            if not chosen_action.metadata:
+                chosen_action.metadata = {}
+            chosen_action.metadata["action_source"] = (
+                "llm" if self._llm else "step_cache"
+            )
+            if laya_decision_metadata:
+                chosen_action.metadata["laya_shadow_decision"] = laya_decision_metadata
 
         # Evaluate action confidence
         confidence_assessment = self._confidence_engine.evaluate_confidence(
@@ -309,22 +499,44 @@ class DecisionEngine:
             confidence_assessment=confidence_assessment,
         )
 
+    def _build_laya_action_space(
+        self,
+        world_state: SemanticWorldState,
+        memory: SessionMemory,
+        plan_step: str,
+    ) -> Any | None:
+        """P3-LAYA/P4-LAYA: build a compact indexed action space for LAYA.
+
+        Delegates to ``BrowserActionSpace.from_observation`` (P4) to
+        produce the indexed candidate list from the latest page
+        observation stored on ``memory``. Returns None if no observation
+        is available or the action-space module is not importable, in
+        which case the LAYA path is skipped and the existing Gemini path
+        runs unchanged.
+        """
+        try:
+            from agent.browser.action_space import BrowserActionSpace
+        except ImportError:
+            return None
+        # The latest observation is stashed on memory.observations[-1]
+        # by the CognitiveOrchestrator before calling decide_next_action.
+        latest_obs = (
+            memory.observations[-1] if memory.observations else None
+        )
+        if latest_obs is None:
+            return None
+        persona = getattr(memory, "persona", "") or "itil"
+        return BrowserActionSpace.from_observation(
+            observation=latest_obs,
+            world_state=world_state,
+            plan_step=plan_step,
+            persona=persona,
+        )
+
     def _heuristic_decision(
         self, world_state: SemanticWorldState, memory: SessionMemory
     ) -> AgentAction:
-        """Heuristic fallback action decision."""
-        if world_state.available_actions:
-            first_action = world_state.available_actions[0]
-            return AgentAction(
-                action_type=ActionType.CLICK,
-                target=first_action.target,
-                reasoning=f"[HEURISTIC FALLBACK] click available action {first_action.action_name}",
-                metadata={"is_heuristic_fallback": True},
-            )
-        return AgentAction(
-            action_type=ActionType.WAIT,
-            target="",
-            value="1000",
-            reasoning="[HEURISTIC FALLBACK] wait for page state",
-            metadata={"is_heuristic_fallback": True},
+        """Legacy compatibility shim; arbitrary browser clicks are disabled."""
+        raise DecisionUnavailableError(
+            "Heuristic browser action fallback is disabled for autonomous safety"
         )

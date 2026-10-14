@@ -336,7 +336,7 @@ class ValidationEngine:
         passed = True
         error_message = None
         
-        target_record = intent.target_record
+        target_record = getattr(intent, "target_record", None) or intent.extracted_entities.get("target_record")
         if not target_record:
             # Try to parse from goal
             match = re.search(r'(INC\d+|CHG\d+|REQ\d+|RITM\d+|SCTASK\d+|CS\d+)', intent.goal)
@@ -354,8 +354,16 @@ class ValidationEngine:
                     passed = False
                     error_message = f"Agent navigated to {observed_record}, but expected {target_record}. Semantic target mismatch."
             else:
-                # If observer didn't find it, fallback to checking URL or title
-                if target_record.lower() not in after.url.lower() and target_record.lower() not in after.page_title.lower():
+                after_title = getattr(after, "title", "") or getattr(after, "page_title", "") or ""
+                summary_text = getattr(after, "visible_text_summary", "") or ""
+                buttons = getattr(after, "buttons", [])
+                has_record_in_context = (
+                    target_record.lower() in after.url.lower()
+                    or target_record.lower() in after_title.lower()
+                    or target_record.lower() in summary_text.lower()
+                    or any(target_record.lower() in (getattr(b, "label", "") or "").lower() for b in buttons)
+                )
+                if not has_record_in_context:
                     # We might be on a dashboard or completely wrong page
                     actual = f"Page without {target_record} (URL: {after.url})"
                     passed = False
@@ -484,26 +492,6 @@ class ValidationEngine:
             actual="changed" if page_responded else "no visible change",
             error_message=(
                 "Click did not produce any visible change" if not page_responded else None
-            ),
-        )
-
-    def _check_state_change(
-        self,
-        before: PageObservation,
-        after: PageObservation,
-        expected_state: str,
-    ) -> ValidationCheck:
-        """Verify a record state transition occurred."""
-        return ValidationCheck(
-            check_name="state_change",
-            description=f"Record state changed to '{expected_state}'",
-            passed=after.current_state == expected_state,
-            expected=expected_state,
-            actual=after.current_state or "unknown",
-            error_message=(
-                f"State is '{after.current_state}' not '{expected_state}'"
-                if after.current_state != expected_state
-                else None
             ),
         )
 

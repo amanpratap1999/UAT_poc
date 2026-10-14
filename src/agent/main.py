@@ -267,6 +267,12 @@ class AgentOrchestrator:
         self._execution_controller: ExecutionController | None = None
         self._perception_engine: PerceptionDecisionEngine | None = None
 
+        # P1-08 (D7): Retest / regression chain manager. Lazily created
+        # but persisted across the run so a fix detected mid-run can trigger
+        # linked retests without losing the original finding.
+        from agent.testing.retest_chain import RetestChainManager
+        self._retest_chain_manager: RetestChainManager = RetestChainManager()
+
     @property
     def session_id(self) -> str:
         return self._memory.session_id
@@ -366,11 +372,114 @@ class AgentOrchestrator:
         if final_assertions:
             setattr(self._memory, 'final_assertions', final_assertions)
         self._memory.test_case_data = tc_data
-        
+
         logger.info("test_case_loaded_as_plan", steps=len(plan.steps))
 
+    # ------------------------------------------------------------------
+    # P1-08 (D7): Fix→Retest→Regression lifecycle
+    # ------------------------------------------------------------------
+
+    def trigger_retest_on_fix(
+        self,
+        finding_id: str,
+        fix_reference: str,
+        failed_scenario: str,
+        regression_scenarios: list[str] | None = None,
+    ) -> str | None:
+        """Create a retest package when a defect fix is applied.
+
+        Wires ``RetestChainManager`` into the execution lifecycle so a fix
+        can trigger linked retests and the report retains BOTH the original
+        finding AND the retest outcome. A fix must never erase the original
+        finding; a regression must be visible alongside the retest.
+
+        Args:
+            finding_id: the report finding ID that was fixed (e.g., ``DEF-001``)
+            fix_reference: short description of the fix (e.g., ``"Change INC0001234 priority to 1-High"``)
+            failed_scenario: the scenario ID that originally failed (e.g., ``"INC-G02"``)
+            regression_scenarios: optional list of impacted scenarios to re-run
+
+        Returns:
+            The new ``retest_id`` or ``None`` if creation failed.
+        """
+        if not self._retest_chain_manager:
+            logger.warning("retest_chain_manager_not_wired")
+            return None
+        pkg = self._retest_chain_manager.create_retest_package(
+            finding_id=finding_id,
+            fix_reference=fix_reference,
+            failed_scenario=failed_scenario,
+            regression_scenarios=regression_scenarios,
+        )
+        # Persist on session memory so the reporting engine can surface
+        # both the original finding and the retest outcome.
+        self._memory.retest_packages.append(pkg.to_dict())
+        logger.info(
+            "retest_triggered_on_fix",
+            retest_id=pkg.retest_id,
+            finding_id=finding_id,
+            failed_scenario=failed_scenario,
+        )
+        return pkg.retest_id
+
+    def record_retest_outcome(
+        self,
+        retest_id: str,
+        scenario: str,
+        verdict: str,
+        evidence: dict[str, Any] | None = None,
+    ) -> None:
+        """Record the outcome of one retest scenario in the package."""
+        if not self._retest_chain_manager:
+            return
+        self._retest_chain_manager.record_retest_result(
+            retest_id=retest_id,
+            scenario=scenario,
+            verdict=verdict,
+            evidence=evidence,
+        )
+        # Refresh the session-memory snapshot so the report picks it up.
+        pkg = self._retest_chain_manager.get_package(retest_id)
+        if pkg:
+            updated = pkg.to_dict()
+            for i, existing in enumerate(self._memory.retest_packages):
+                if existing.get("retest_id") == retest_id:
+                    self._memory.retest_packages[i] = updated
+                    break
+            else:
+                self._memory.retest_packages.append(updated)
+
+    def finalize_retest(self, retest_id: str) -> dict[str, Any] | None:
+        """Mark a retest package as complete and return its final state."""
+        if not self._retest_chain_manager:
+            return None
+        pkg = self._retest_chain_manager.complete_retest(retest_id)
+        if not pkg:
+            return None
+        result = pkg.to_dict()
+        # Update session memory snapshot.
+        for i, existing in enumerate(self._memory.retest_packages):
+            if existing.get("retest_id") == retest_id:
+                self._memory.retest_packages[i] = result
+                break
+        else:
+            self._memory.retest_packages.append(result)
+        return result
+
+    @property
+    def retest_packages(self) -> list[dict[str, Any]]:
+        """Expose the current retest packages for the reporting engine."""
+        return list(self._memory.retest_packages)
+
     async def _ensure_authenticated(self) -> None:
-        """Log in to ServiceNow if the initial navigation lands on a login screen."""
+        """Log in to ServiceNow if the initial navigation lands on a login screen.
+
+        After successful login, if the agent lands on the ServiceNow workspace
+        homepage (not an Incident form), auto-navigate to the Incident list.
+        This was the root cause of Scenario 2's navigation failure — the agent
+        logged in successfully but stayed on the workspace homepage and
+        couldn't figure out how to get to the Incident list.
+        """
         if not self._browser_manager:
             return
         try:
@@ -392,6 +501,42 @@ class AgentOrchestrator:
                         await self._browser_manager.wait_for_load()
                         await page.wait_for_timeout(3000)
                         logger.info("servicenow_session_authenticated")
+
+            # Post-login navigation: if we're on the workspace homepage
+            # (not an Incident form), navigate to the Incident list so the
+            # agent has actionable controls to work with.
+            current_url = page.url.lower()
+            is_incident_form = (
+                "incident.do" in current_url
+                or "sys_id" in current_url
+                or "nav_to.do" in current_url
+            )
+            is_workspace = (
+                "now/nav" in current_url
+                or "home.do" in current_url
+                or "polaris.do" in current_url
+                or ("/" == current_url.rstrip("/")[-1:])
+            )
+            if not is_incident_form and (is_workspace or "incident" not in current_url):
+                logger.info(
+                    "post_login_navigation",
+                    current_url=current_url[:120],
+                    target="incident_list",
+                )
+                instance_url = self._settings.servicenow.instance_url.rstrip("/")
+                # Navigate to the Incident list — this is the canonical
+                # entry point for any Incident-management QA goal
+                incident_list_url = f"{instance_url}/incident_list.do?sysparm_query=active=true"
+                try:
+                    await self._browser_manager.navigate(incident_list_url)
+                    await page.wait_for_timeout(2000)
+                    logger.info("navigated_to_incident_list")
+                except Exception as nav_err:
+                    logger.warning(
+                        "post_login_navigation_failed",
+                        error=str(nav_err),
+                        fallback="agent will attempt to navigate via the decision engine",
+                    )
         except Exception as e:
             logger.warning("ensure_authenticated_skipped", error=str(e))
 
@@ -432,12 +577,43 @@ class AgentOrchestrator:
         
         logger.info("agent_run_started", goal=goal, session_id=self.session_id, persona=persona)
 
+        if self._settings.servicenow.require_persona_for_benchmark and not persona:
+            raise RuntimeError(
+                "INC-UAT-01: benchmark execution requires an explicit non-admin persona; "
+                "default ServiceNow credentials are not permitted."
+            )
+
         if persona:
             # Persona isolation (P1.9): use a per-run copy of the ServiceNow
             # config so concurrent multi-persona sweeps never mutate the
             # process-wide cached settings and leak credentials between runs.
             self._settings = self._settings.model_copy(deep=True)
             self._settings.servicenow.active_persona = persona
+
+            # Benchmark persona proof: when benchmark mode is enabled, verify
+            # both local persona configuration and the actual ServiceNow role
+            # before opening the browser. A declared role string alone is not
+            # authoritative evidence of role separation.
+            if self._settings.servicenow.require_persona_for_benchmark:
+                self._settings.servicenow.verify_persona_for_benchmark()
+                expected_role = self._settings.servicenow.get_persona_role()
+                if expected_role:
+                    from agent.skills.incident.role_verifier import RoleVerifier
+                    role_result = await RoleVerifier().verify_role(
+                        self._settings.servicenow,
+                        expected_role,
+                    )
+                    if not role_result.get("match"):
+                        raise RuntimeError(
+                            "INC-UAT-04: ServiceNow persona role verification failed: "
+                            f"expected={expected_role!r}, "
+                            f"actual={role_result.get('actual_roles', [])}, "
+                            f"error={role_result.get('error')}"
+                        )
+                    self._memory.add_timeline_entry(
+                        action=f"Verified ServiceNow persona role: {expected_role}",
+                        result="role_verified",
+                    )
 
         self._memory.goal = goal
         self._memory.persona = persona
@@ -473,6 +649,7 @@ class AgentOrchestrator:
                 page_interactor=self._page_interactor,
                 recovery_engine=self._recovery_engine,
                 servicenow_config=self._settings.servicenow,
+                observation_engine=self._observation_engine,
             )
 
             # If perception dependencies are available, set up PerceptionDecisionEngine
@@ -845,7 +1022,44 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.warning("embedding_startup_probe_failed", error=str(e))
 
+    # P7-LAYA: warm up the local LAYA action-policy model at startup so
+    # the first decision isn't slow. The policy is a process singleton
+    # (see get_laya_action_policy in dependencies.py). Warm-up is
+    # non-blocking and non-fatal — if it fails, the DecisionEngine
+    # uses the existing Gemini path unchanged.
+    try:
+        from agent.api.v1.dependencies import get_laya_action_policy
+        policy = get_laya_action_policy(settings)
+        if policy is not None and policy.is_configured():
+            startup_warmup_timeout = max(
+                150.0,
+                settings.laya_action.inference_timeout_seconds + 30.0,
+            )
+            warm_ok = await asyncio.wait_for(
+                policy.warm_up(),
+                timeout=startup_warmup_timeout,
+            )
+            logger.info(
+                "laya_action_policy_startup_probe",
+                healthy=warm_ok,
+                checkpoint=settings.laya_action.checkpoint,
+                mode=settings.laya_action.mode,
+                device=policy._device if hasattr(policy, "_device") else "unknown",
+            )
+    except asyncio.TimeoutError:
+        logger.warning("laya_action_policy_warmup_timeout")
+    except Exception as e:
+        logger.warning("laya_action_policy_warmup_failed", error=str(e))
+
     yield
+
+    # P7-LAYA: shut down the action policy at app exit to release model resources
+    try:
+        from agent.api.v1.dependencies import shutdown_laya_action_policy
+        await shutdown_laya_action_policy()
+    except Exception as e:
+        logger.warning("laya_action_policy_shutdown_failed", error=str(e))
+
     logger.info("application_stopped")
 
 

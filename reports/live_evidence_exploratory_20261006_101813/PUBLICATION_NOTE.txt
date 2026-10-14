@@ -1,0 +1,4 @@
+This public evidence bundle contains the five-run summary and score only.
+Individual API run details remain local because they include live ServiceNow
+incident fields and caller information. The score was computed from those
+unchanged API results using the documented exploratory scoring formula.
