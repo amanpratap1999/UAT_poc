@@ -299,16 +299,14 @@ def get_knowledge_memory() -> KnowledgeMemory:
 def get_decision_engine(settings: Settings | None = None) -> DecisionEngine:
     """Create a DecisionEngine instance.
 
-    LAYA supplies bounded verification decisions when its service config
-    is available; otherwise the existing Gemini-backed path remains active.
-
-    P3-LAYA: now also wires a LayaActionPolicy when LAYA_ACTION_ENABLED=true.
-    The policy is loaded once (singleton) and warmed up at startup.
-    On any failure (missing checkpoint, missing LAYA SDK,
-    warm-up failure), the policy is None and the DecisionEngine falls
-    back to the existing Gemini path unchanged.
+    LAYA supplies bounded verification decisions where configured, and the
+    LAYA Action Policy is the authoritative browser-level action selector.
+    Action-selection failure is fail-closed; no Gemini/LLM action fallback
+    exists in the DecisionEngine.
     """
-    llm = get_llm_client(settings, purpose='decision')
+    # The DecisionEngine keeps an llm_client parameter only for dependency
+    # compatibility. Browser action selection is LAYA-only.
+    llm = None
 
     # P1-01: LAYA replaces JEV as the default DecisionProvider.
     # LAYA is a bounded typed-decision model that classifies, routes,
@@ -352,10 +350,9 @@ def get_decision_engine(settings: Settings | None = None) -> DecisionEngine:
     except Exception as e:
         logger.warning("laya_adapter_init_failed", error=str(e))
 
-    # P3-LAYA: wire the local LAYA action-policy adapter (separate from
-    # the remote LayaAdapter verifier above). The action policy is
-    # loaded once as a singleton and warmed up at startup. On any
-    # failure it is None and the DecisionEngine uses the Gemini path.
+    # Wire the local LAYA action-policy adapter (separate from the remote
+    # LayaAdapter verifier above). It is the authoritative action selector;
+    # load/warmup failures surface as a fail-closed action-selection block.
     laya_action_policy = get_laya_action_policy(settings)
 
     return DecisionEngine(
@@ -376,14 +373,11 @@ _laya_action_policy_singleton: Any = None
 
 
 def get_laya_action_policy(settings: Settings | None = None) -> Any:
-    """P6-LAYA: create (or return the singleton) LayaActionPolicy.
+    """Create (or return) the singleton LAYA Action Policy.
 
-    The policy is loaded once per process. If the optional
-    ``laya`` dependency is not installed, or the
-    checkpoint path is empty, or warm-up fails, returns None — the
-    DecisionEngine then uses the existing Gemini path unchanged.
-
-    Does NOT require Jev endpoint credentials — LAYA runs locally.
+    The policy is loaded once per process. LAYA must be available for browser
+    action selection; callers fail closed when the policy cannot initialize
+    or warm up. Local LAYA does not require JEV endpoint credentials.
     """
     global _laya_action_policy_singleton
     if _laya_action_policy_singleton is not None:
@@ -469,7 +463,6 @@ def get_laya_action_policy_diagnostics() -> dict[str, Any]:
         "action_available": bool(
             stats.get("enabled")
             and policy.is_healthy()
-            and stats.get("confidence_calibrated", False)
         ),
         "inference_count": stats["inference_count"],
         "fallback_count": stats["fallback_count"],

@@ -144,14 +144,15 @@ def test_action_space_returns_candidates(sample_observation):
     assert payload.page_title == sample_observation.title
 
 
-def test_action_space_returns_none_for_empty_observation(empty_observation):
-    """An observation with no visible controls returns None."""
+def test_action_space_preserves_empty_observation_for_laya(empty_observation):
+    """Empty target lists remain valid inputs for LAYA control operations."""
     payload = BrowserActionSpace.from_observation(
         observation=empty_observation,
         plan_step="Wait",
         persona="itil",
     )
-    assert payload is None
+    assert payload is not None
+    assert payload.candidates == []
 
 
 def test_action_space_includes_buttons(sample_observation):
@@ -356,3 +357,15 @@ def test_allowed_operations_includes_all_laya_operations(sample_observation):
     assert payload is not None
     for op in ("click", "fill", "select", "wait", "scroll_down", "scroll_up", "done", "blocked"):
         assert op in payload.allowed_operations, f"Missing operation: {op}"
+
+
+
+def test_action_space_carries_planned_values(sample_observation):
+    payload = BrowserActionSpace.from_observation(
+        observation=sample_observation,
+        plan_step="Fill Short description",
+        persona="itil_user",
+        planned_values={"short_description": "Network outage"},
+    )
+    assert payload is not None
+    assert payload.planned_values["short_description"] == "Network outage"

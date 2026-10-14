@@ -71,13 +71,13 @@ class BrowserActionSpace:
         world_state: SemanticWorldState | None = None,
         plan_step: str = "",
         persona: str = "itil",
+        planned_values: dict[str, str] | None = None,
     ) -> _ActionSpacePayload | None:
-        """Build the action space from a PageObservation.
+        """Build the bounded action space from a PageObservation.
 
-        Returns ``None`` if the observation has no visible buttons or
-        fields (e.g., a loading page or a dialog with no actionable
-        controls) — in that case the LAYA path is skipped and the
-        existing Gemini path runs unchanged.
+        An empty target list is still a valid LAYA input because WAIT/SCROLL
+        control operations remain available. The runtime must not route an
+        empty observation to another action-selection model.
 
         Args:
             observation: the latest PageObservation from the observation engine.
@@ -219,11 +219,6 @@ class BrowserActionSpace:
         for new_index, candidate in enumerate(candidates, start=1):
             candidate.index = new_index
 
-        # If no candidates were produced, return None so the LAYA path is
-        # skipped and the Gemini path runs unchanged.
-        if not candidates:
-            return None
-
         # Add synthetic scroll/wait controls (always available, never
         # index-capped — they use non-numeric indices)
         # These are not in the candidate list; LAYA knows about them
@@ -239,6 +234,7 @@ class BrowserActionSpace:
             candidates=candidates,
             plan_step=plan_step,
             persona=persona,
+            planned_values=dict(planned_values or {}),
             allowed_operations=allowed_operations,
         )
 

@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, servicenow_testing]
+    branches: [main]
   pull_request:
     branches: [main, servicenow_testing]
 
@@ -39,7 +39,7 @@ jobs:
     env:
       # Required env vars for Settings validation (audit issue I5)
       SERVICENOW_INSTANCE_URL: https://test.service-now.com
-      SERVICENOW_USERNAME: admin
+      SERVICENOW_USERNAME: itil_user
       SERVICENOW_PASSWORD: testpass
       ENVIRONMENT: development
       UAT_RUNTIME_MODE: local

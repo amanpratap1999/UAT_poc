@@ -574,8 +574,8 @@ class LayaActionPolicyConfig(BaseSubConfig):
     adapter (``LayaAdapter``). The action policy does NOT require Jev
     endpoint credentials — it runs locally through the open-source LAYA SDK.
 
-    Defaults are conservative: the policy is OFF by default so existing
-    flows are unaffected until an operator explicitly enables it.
+    The action selector is ON by default and must run in primary mode. Any
+    unavailable LAYA decision fails closed; there is no LLM action fallback.
     """
     model_config = SettingsConfigDict(
         env_file_encoding="utf-8",
@@ -583,15 +583,14 @@ class LayaActionPolicyConfig(BaseSubConfig):
         extra="ignore",
     )
     enabled: bool = Field(
-        default=False,
-        description="Enable the LAYA action-policy adapter for browser-level decisions",
+        default=True,
+        description="Require the LAYA action-policy adapter for browser-level decisions",
     )
     mode: Literal["shadow", "primary"] = Field(
-        default="shadow",
+        default="primary",
         description=(
-            "Action-policy mode: 'shadow' runs LAYA but records decisions "
-            "for comparison without using them; 'primary' uses LAYA "
-            "decisions when confidence >= threshold"
+            "Action-policy mode. Only 'primary' is executable; non-primary "
+            "modes fail closed."
         ),
     )
     checkpoint: str = Field(
@@ -607,11 +606,11 @@ class LayaActionPolicyConfig(BaseSubConfig):
     )
     confidence_threshold: float = Field(
         default=0.65,
-        description="Minimum confidence for LAYA decisions in 'primary' mode; below this the Gemini path runs",
+        description="Minimum confidence for an executable LAYA action; below this the run fails closed",
     )
     inference_timeout_seconds: float = Field(
         default=5.0,
-        description="Max seconds for a single LAYA inference before falling back to Gemini",
+        description="Max seconds for a single LAYA inference before action selection fails closed",
     )
     max_candidates: int = Field(
         default=250,
