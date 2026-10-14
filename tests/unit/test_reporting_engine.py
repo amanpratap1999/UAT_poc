@@ -288,3 +288,81 @@ async def test_report_status_determination(
     memory_failed.add_completed_step(action=action, result=result, validation=validation)
     report_failed = await engine.generate_report(memory_failed)
     assert report_failed.status == "failed"
+
+
+@pytest.mark.asyncio
+async def test_exit_criteria_invariants_status_partial_not_pass(
+    engine: ReportingEngine,
+) -> None:
+    """TEST FIX 2: status=partial, passed=1, total=5 -> exit_criteria.verdict != PASS."""
+    memory = SessionMemory(goal="Test")
+    # Add 1 passed validation and 4 failed validations
+    a1 = AgentAction(action_type=ActionType.CLICK, target="btn1")
+    r1 = ActionResult(success=True, action=a1)
+    v1 = ValidationResult(action_description="step 1")
+    v1.add_check(ValidationCheck(check_name="c1", passed=True))
+    memory.add_completed_step(action=a1, result=r1, validation=v1)
+
+    for i in range(2, 6):
+        a = AgentAction(action_type=ActionType.CLICK, target=f"btn{i}")
+        r = ActionResult(success=True, action=a)
+        v = ValidationResult(action_description=f"step {i}")
+        v.add_check(ValidationCheck(check_name=f"c{i}", passed=False, error_message="mismatch"))
+        memory.add_completed_step(action=a, result=r, validation=v)
+
+    report = await engine.generate_report(memory)
+    assert report.total_validations == 5
+    assert report.passed_validations == 1
+    assert report.failed_validations == 4
+    assert report.exit_criteria["verdict"] != "PASS"
+
+
+@pytest.mark.asyncio
+async def test_exit_criteria_invariants_status_failed_not_pass(
+    engine: ReportingEngine,
+) -> None:
+    """TEST FIX 2: status=failed -> exit_criteria.verdict != PASS."""
+    memory = SessionMemory(goal="Test")
+    a = AgentAction(action_type=ActionType.CLICK, target="btn")
+    r = ActionResult(success=True, action=a)
+    v = ValidationResult(action_description="step 1")
+    v.add_check(ValidationCheck(check_name="c1", passed=False, error_message="failed"))
+    memory.add_completed_step(action=a, result=r, validation=v)
+
+    report = await engine.generate_report(memory)
+    assert report.status == "failed"
+    assert report.exit_criteria["verdict"] != "PASS"
+
+
+@pytest.mark.asyncio
+async def test_exit_criteria_invariants_passed_less_than_total_not_pass(
+    engine: ReportingEngine,
+) -> None:
+    """TEST FIX 2: passed < total -> exit_criteria.verdict != PASS."""
+    memory = SessionMemory(goal="Test")
+    a1 = AgentAction(action_type=ActionType.CLICK, target="btn1")
+    r1 = ActionResult(success=True, action=a1)
+    v1 = ValidationResult(action_description="step 1")
+    v1.add_check(ValidationCheck(check_name="c1", passed=True))
+    memory.add_completed_step(action=a1, result=r1, validation=v1)
+
+    a2 = AgentAction(action_type=ActionType.CLICK, target="btn2")
+    r2 = ActionResult(success=True, action=a2)
+    v2 = ValidationResult(action_description="step 2")
+    v2.add_check(ValidationCheck(check_name="c2", passed=False, error_message="fail"))
+    memory.add_completed_step(action=a2, result=r2, validation=v2)
+
+    report = await engine.generate_report(memory)
+    assert report.passed_validations < report.total_validations
+    assert report.exit_criteria["verdict"] != "PASS"
+
+
+@pytest.mark.asyncio
+async def test_exit_criteria_invariants_requirements_zero_not_pass(
+    engine: ReportingEngine,
+    populated_memory: SessionMemory,
+) -> None:
+    """TEST FIX 2: requirements_total=0 -> exit_criteria.verdict != PASS."""
+    report = await engine.generate_report(populated_memory)
+    assert report.exit_criteria["requirements_total"] == 0
+    assert report.exit_criteria["verdict"] != "PASS"

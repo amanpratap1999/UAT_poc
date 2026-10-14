@@ -75,6 +75,7 @@ class WorldModel:
             validation_errors=observation.validation_messages,
             notifications=observation.notification_messages,
             form_completeness_score=completeness,
+            visible_content=observation.visible_text_summary,
         )
 
         logger.info(

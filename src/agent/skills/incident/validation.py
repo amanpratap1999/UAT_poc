@@ -30,12 +30,56 @@ logger = get_logger(__name__)
 class IncidentValidator:
     """Evaluates semantic business outcome validations for Incidents."""
 
+    def validate_pre_submit(
+        self,
+        before: Incident,
+        after: Incident,
+        field_name: str = "",
+        expected_value: str = "",
+        expected_step: str = "",
+    ) -> IncidentValidationResult:
+        """Validate pre-submit form mutations (select/fill) before record persistence.
+
+        Confirms the immediate field update on the form without demanding unobserved
+        business outcome fields (impact/urgency/priority) which belong to post-submit validation.
+        """
+        logger.info("validating_incident_pre_submit", field=field_name, expected=expected_value)
+        details: dict[str, str] = {
+            "field": field_name,
+            "expected_value": expected_value,
+            "actual_state": after.state.name,
+            "incident_number": after.number,
+        }
+        passed = True
+        error_msg: str | None = None
+
+        target_lower = field_name.lower()
+        if target_lower in ("state", "incident.state") or "state" in expected_step.lower():
+            exp_state = IncidentState.from_string(expected_value)
+            if exp_state != IncidentState.UNKNOWN and after.state != exp_state:
+                passed = False
+                error_msg = (
+                    f"Pre-submit field update failed: expected state {exp_state.name} "
+                    f"({exp_state.value}), actual {after.state.name} ({after.state.value})"
+                )
+
+        return IncidentValidationResult(
+            business_step=f"Pre-submit Field Update: {field_name or expected_step}",
+            passed=passed,
+            incident_number=after.number,
+            expected_state=expected_value or after.state.name,
+            actual_state=after.state.name,
+            details=details,
+            error_message=error_msg,
+        )
+
     def validate_business_outcome(
         self,
         before: Incident,
         after: Incident,
         expected_step: str = "",
         expected_state: str | None = None,
+        require_priority: bool = True,
     ) -> IncidentValidationResult:
         """Validate business outcome between before and after Incident states.
 
@@ -46,6 +90,9 @@ class IncidentValidator:
             expected_state: Explicit expected post-action state. When given
                 (e.g. from a select action's value), it is authoritative and
                 free-text inference from ``expected_step`` is skipped.
+            require_priority: When True, unobserved impact/urgency/priority fails
+                closed as UNVERIFIED (QA-004). Set to False for post-update state
+                verification steps where priority recalculation is not in scope.
 
         Returns:
             An IncidentValidationResult.
@@ -59,26 +106,32 @@ class IncidentValidator:
         # Check Priority recalculation — only when the values were actually
         # observed (QA-004). Unobserved values must be reported as UNVERIFIED,
         # never silently compared against a fabricated default.
-        if after.impact == Impact.UNKNOWN or after.urgency == Urgency.UNKNOWN:
-            passed = False
-            details["priority_check"] = "unverified"
-            error_msg = (
-                "UNVERIFIED: impact and/or urgency were not observed on the page."
-            )
-        elif after.priority == IncidentPriority.UNKNOWN:
-            passed = False
-            details["priority_check"] = "unverified"
-            error_msg = (
-                "UNVERIFIED: priority was not observed on the page."
-            )
+        if require_priority:
+            if after.impact == Impact.UNKNOWN or after.urgency == Urgency.UNKNOWN:
+                passed = False
+                details["priority_check"] = "unverified"
+                error_msg = (
+                    "UNVERIFIED: impact and/or urgency were not observed on the page."
+                )
+            elif after.priority == IncidentPriority.UNKNOWN:
+                passed = False
+                details["priority_check"] = "unverified"
+                error_msg = (
+                    "UNVERIFIED: priority was not observed on the page."
+                )
+            else:
+                details["priority_check"] = "verified_from_observation"
+                if "priority" in expected_step.lower():
+                    expected_prio = IncidentBusinessRules.calculate_priority(after.impact, after.urgency)
+                    if after.priority != expected_prio:
+                        passed = False
+                        details["priority_check"] = "mismatch"
+                        error_msg = f"Priority calculation mismatch: expected {expected_prio.name}, actual {after.priority.name}"
         else:
-            details["priority_check"] = "verified_from_observation"
-            if "priority" in expected_step.lower():
-                expected_prio = IncidentBusinessRules.calculate_priority(after.impact, after.urgency)
-                if after.priority != expected_prio:
-                    passed = False
-                    details["priority_check"] = "mismatch"
-                    error_msg = f"Priority calculation mismatch: expected {expected_prio.name}, actual {after.priority.name}"
+            if after.impact != Impact.UNKNOWN and after.urgency != Urgency.UNKNOWN and after.priority != IncidentPriority.UNKNOWN:
+                details["priority_check"] = "verified_from_observation"
+            else:
+                details["priority_check"] = "not_required"
 
         step_lower = expected_step.lower()
 

@@ -169,7 +169,13 @@ class PageGate:
             expected_table=expected_table,
         )
         
-    async def navigate_to_record(self, browser_manager, table: str, number: str) -> bool:
+    async def navigate_to_record(
+        self,
+        browser_manager,
+        table: str,
+        number: str,
+        sys_id: str | None = None,
+    ) -> bool:
         """Attempt to recover by navigating directly to the correct record form."""
         if not browser_manager:
             return False
@@ -220,17 +226,13 @@ class PageGate:
                 )
                 return False
 
-            # Encode the nested nav_to URI as a single value. Leaving the
-            # inner '=' unescaped can make ServiceNow parse the URI query
-            # incorrectly on some instances and strand the agent on the list.
-            inner_uri = quote(
-                f"{table}.do?sysparm_query=number={number}",
-                safe="",
-            )
-            target_url = f"{base_url}/nav_to.do?uri={inner_uri}"
+            if sys_id:
+                target_url = f"{base_url}/{table}.do?sys_id={sys_id}"
+            else:
+                target_url = f"{base_url}/{table}.do?sysparm_query=number={number}"
             logger.info("page_gate_navigating", target_url=target_url, instance=base_url)
 
-            await page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
+            await page.goto(target_url, wait_until="domcontentloaded", timeout=45000)
             # brief pause to let SNOW render
             await page.wait_for_timeout(2000)
             return True

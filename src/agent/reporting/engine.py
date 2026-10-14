@@ -325,12 +325,42 @@ class ReportingEngine:
                 open_minor_defects=minor_defects,
                 unverified_items=unverified,
             )
+            # Enforce mandatory exit criteria invariants:
+            # 1. report.status != "passed" -> exit_criteria.verdict != "PASS"
+            # 2. failed_validations > 0 -> exit_criteria.verdict != "PASS"
+            # 3. passed_validations < total_validations -> exit_criteria.verdict != "PASS"
+            # 4. requirements_total == 0 -> must NOT automatically result in PASS
+            if (
+                report.status != "passed"
+                or report.failed_validations > 0
+                or report.passed_validations < report.total_validations
+                or authoritative_total == 0
+            ):
+                if exit_result.verdict == "PASS":
+                    if report.status == "failed" or report.failed_validations > 0:
+                        exit_result.verdict = "FAIL"
+                        exit_result.reason = (
+                            f"Report status is '{report.status}' with "
+                            f"{report.failed_validations} failed validation(s)."
+                        )
+                    elif authoritative_total == 0:
+                        exit_result.verdict = "INCONCLUSIVE"
+                        exit_result.reason = (
+                            "Zero authoritative requirements configured; sign-off verdict cannot be PASS."
+                        )
+                    else:
+                        exit_result.verdict = "CONDITIONAL_PASS"
+                        exit_result.reason = (
+                            f"Run status is '{report.status}' "
+                            f"({report.passed_validations}/{report.total_validations} validations passed)."
+                        )
+
             report.exit_criteria = exit_result.to_dict()
             # The top-level report status is the result clients and runners
             # commonly consume. Never leave it as PASSED when the stricter
             # Incident sign-off engine found insufficient coverage or a
             # blocker; doing so creates a false-positive UAT sign-off.
-            if report.status in {"passed", "partial"}:
+            if report.status in {"passed", "partial"} and authoritative_total > 0:
                 exit_status = {
                     "FAIL": "failed",
                     "BLOCKED": "blocked",

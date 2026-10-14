@@ -333,8 +333,9 @@ class GeminiBackend(GrounderBackend):
         try:
             import google.generativeai as genai  # type: ignore[import-untyped]
 
-            genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel("gemini-2.5-flash")
+            genai.configure(api_key=self.api_key, transport="rest")
+            self._model_name = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
+            self.model = genai.GenerativeModel(self._model_name)
             self._has_sdk = True
         except ImportError:
             self._has_sdk = False
@@ -433,11 +434,22 @@ class GeminiBackend(GrounderBackend):
         )
 
         try:
+            used_sdk = False
             if self._has_sdk and self.model:
-                annotated_img = Image.open(overlay_bytes)
-                response = await self.model.generate_content_async([prompt, annotated_img])
-                idx_str = response.text.strip()
-            else:
+                try:
+                    annotated_img = Image.open(overlay_bytes)
+                    import inspect
+                    res = self.model.generate_content([prompt, annotated_img])
+                    if inspect.isawaitable(res):
+                        response = await res
+                    else:
+                        response = res
+                    idx_str = response.text.strip()
+                    used_sdk = True
+                except Exception as sdk_err:
+                    logger.warning("gemini_sdk_call_failed_using_rest", error=str(sdk_err))
+                    used_sdk = False
+            if not used_sdk:
                 import base64
                 import httpx
 
@@ -458,8 +470,9 @@ class GeminiBackend(GrounderBackend):
                     ]
                 }
                 async with httpx.AsyncClient(timeout=30.0) as client:
+                    model_name = getattr(self, "_model_name", os.environ.get("GEMINI_MODEL", "gemini-3.8-flash"))
                     resp = await client.post(
-                        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={self.api_key}",
+                        f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={self.api_key}",
                         json=payload,
                     )
                     # P2-12: detect quota exhaustion (HTTP 429) and trip

@@ -226,9 +226,9 @@ class PageInteractor:
             ElementNotInteractableError: If element exists but cannot be clicked.
         """
         locator = self._resolve_locator(selector)
-        await self._move_mouse_to_locator(locator)
+        await self._move_mouse_to_locator(locator.first)
         try:
-            await locator.click(timeout=timeout)
+            await locator.first.click(timeout=timeout)
             logger.debug("clicked", selector=selector)
         except Exception as e:
             error_msg = str(e)
@@ -642,8 +642,28 @@ class PageInteractor:
                 .or_(ctx.get_by_role("button", name="Resolve"))
             )
 
-        # 3. Check if it looks like a clean CSS or XPath selector (e.g. starts with #, ., [, //)
-        if selector.startswith("#") or selector.startswith(".") or selector.startswith("[") or selector.startswith("//"):
+        # Heuristics for table record links (Incident list, etc.)
+        if (
+            sel_lower in ("first incident", "open target incident", "open target incident record", "target incident record", "incident record")
+            or ("tbody tr" in sel_lower and "a" in sel_lower)
+            or ("formlink" in sel_lower)
+        ):
+            return (  # type: ignore[no-any-return]
+                ctx.locator(selector)
+                .or_(ctx.locator("a.linked.formlink, a[href*='incident.do']"))
+                .or_(ctx.get_by_role("link", name=selector))
+            )
+
+        # 3. Check if it looks like a clean CSS or XPath selector (e.g. starts with #, ., [, //, or CSS tags/combinators)
+        is_css_or_xpath = (
+            selector.startswith("#")
+            or selector.startswith(".")
+            or selector.startswith("[")
+            or selector.startswith("//")
+            or any(selector.startswith(tag) for tag in ("tbody", "table", "tr", "td", "div", "a", "button", "input", "select", "form"))
+            or (" > " in selector or " >> " in selector or ":nth-" in selector)
+        )
+        if is_css_or_xpath:
             # Audit issue I31 (P1): the selector here comes from the LLM
             # (action.target) which is influenced by page content (the
             # observation/prompt chain). An attacker controlling ServiceNow

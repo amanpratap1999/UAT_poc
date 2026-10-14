@@ -271,25 +271,34 @@ class IncidentSkill(BaseSkill):
         )
 
         metadata = action.metadata or {}
+        action_type_lower = str(action.action_type).lower()
+        check_text = f"{action.target or ''} {action.reasoning or ''}".lower()
         is_precondition = (
             bool(metadata.get("is_precondition_check"))
             or getattr(action, "is_precondition_check", False)
-            or "precondition" in (action.reasoning or "").lower()
-            or "initial state" in (action.reasoning or "").lower()
-            or "verify incident record" in (action.reasoning or "").lower()
-            or "before proceeding" in (action.reasoning or "").lower()
+            or (
+                action_type_lower not in ("select", "fill")
+                and (
+                    "precondition" in check_text
+                    or "initial state" in check_text
+                    or "verify incident record" in check_text
+                    or "before proceeding" in check_text
+                    or "open target" in check_text
+                    or action_type_lower == "validate"
+                )
+            )
         )
 
         if is_precondition:
             import re
             expected_rec = metadata.get("expected_record") or getattr(action, "expected_record", None)
             expected_st = metadata.get("expected_state") or getattr(action, "expected_state", None)
-            if not expected_rec and (action.reasoning or ""):
-                rec_m = re.search(r"\b(INC\d+)\b", action.reasoning or "", re.IGNORECASE)
+            if not expected_rec and check_text:
+                rec_m = re.search(r"\b(INC\d+)\b", check_text, re.IGNORECASE)
                 if rec_m:
                     expected_rec = rec_m.group(1).upper()
-            if not expected_st and (action.reasoning or ""):
-                st_m = re.search(r"(?:initial\s+state|state)\s*(?:is|to|as)?\s*([A-Za-z\s]+)", action.reasoning or "", re.IGNORECASE)
+            if not expected_st and check_text:
+                st_m = re.search(r"(?:initial\s+state|state)\s*(?:is|to|as)?\s*([A-Za-z\s]+)", check_text, re.IGNORECASE)
                 if st_m:
                     cand = st_m.group(1).strip().lower()
                     for s in ("on hold", "in progress", "new", "resolved", "closed"):
@@ -300,7 +309,7 @@ class IncidentSkill(BaseSkill):
             business_result = self._validator.validate_precondition(
                 incident=incident_after,
                 expected_record=expected_rec,
-                expected_state=expected_st,
+                expected_state=expected_st or "New",
             )
             return self._validator.to_standard_validation_result(business_result, is_precondition=True)
 
@@ -315,11 +324,27 @@ class IncidentSkill(BaseSkill):
         if not expected_state:
             expected_state = (metadata.get("expected_state") or "").strip() or None
 
+        # Pre-submit form mutations (select, fill) confirm the immediate input on the form
+        # without demanding unobserved business-outcome fields (impact/urgency/priority)
+        # which belong to post-submit validation after clicking Update.
+        action_type_lower = str(action.action_type).lower()
+        if action_type_lower in ("select", "fill"):
+            business_result = self._validator.validate_pre_submit(
+                before=incident_before,
+                after=incident_after,
+                field_name=action.target,
+                expected_value=action.value or "",
+                expected_step=action.reasoning or action.target,
+            )
+            return self._validator.to_standard_validation_result(business_result, is_precondition=False)
+
+        require_prio = "priority" in f"{action.target} {action.reasoning}".lower()
         business_result = self._validator.validate_business_outcome(
             before=incident_before,
             after=incident_after,
             expected_step=action.reasoning or action.action_type,
             expected_state=expected_state,
+            require_priority=require_prio,
         )
 
         # Record evidence item
