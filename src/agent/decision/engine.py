@@ -18,6 +18,7 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 from agent.confidence.engine import ConfidenceAssessment, ConfidenceEngine
+from agent.core.exceptions import AgentError
 from agent.core.logging import get_logger
 from agent.domain.actions import AgentAction
 from agent.domain.intent import StructuredIntent
