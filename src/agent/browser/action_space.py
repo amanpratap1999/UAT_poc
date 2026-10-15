@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from typing import Any
 
 from agent.core.logging import get_logger
@@ -197,24 +198,42 @@ class BrowserActionSpace:
 
         # Rank before truncation so important controls are not lost when a
         # large ServiceNow page exceeds the LAYA candidate budget.
+        plan_lower = plan_step.strip().casefold()
         plan_terms = {
             token
-            for token in plan_step.lower().replace("/", " ").replace("-", " ").split()
+            for token in plan_lower.replace("/", " ").replace("-", " ").split()
             if len(token) >= 3
         }
-        def relevance(candidate: ActionSpaceCandidate) -> tuple[int, int]:
-            label = candidate.label.lower()
+        # When a ServiceNow step asks to open/find/select a record, prioritize
+        # visible record links before the local LAYA candidate budget is applied.
+        # The ranking only changes which DOM-owned candidates are presented to
+        # LAYA; LAYA remains the sole browser action selector.
+        wants_record_link = (
+            any(term in plan_lower for term in ("incident", "record"))
+            and any(term in plan_lower for term in ("open", "find", "select", "choose", "target"))
+        )
+
+        def relevance(candidate: ActionSpaceCandidate) -> tuple[int, int, int]:
+            label = candidate.label.casefold()
             overlap = sum(1 for token in plan_terms if token in label)
-            exact = 1 if plan_step.strip().lower() and plan_step.strip().lower() in label else 0
-            return exact, overlap
+            exact = 1 if plan_lower and plan_lower in label else 0
+            record_priority = 0
+            if wants_record_link and candidate.kind == "click" and candidate.role == "link":
+                if re.search(r"\b[A-Z]{2,8}\d{4,}\b", candidate.label.upper()):
+                    record_priority = 3
+                else:
+                    record_priority = 2
+            return record_priority, exact, overlap
 
         unique_candidates.sort(
             key=lambda candidate: (
                 -relevance(candidate)[0],
                 -relevance(candidate)[1],
+                -relevance(candidate)[2],
                 candidate.index,
             )
         )
+
         candidates = unique_candidates[: cls.MAX_CANDIDATES]
         for new_index, candidate in enumerate(candidates, start=1):
             candidate.index = new_index
@@ -312,16 +331,19 @@ class BrowserActionSpace:
 
     @classmethod
     def _locator_for_button(cls, button: Any) -> str:
-        """Build a safe Playwright locator for a button.
+        """Build a safe Playwright locator for a button or record link.
 
         Uses the PageInteractor's prefix convention (``role:``, ``label:``,
         ``text:``, ``css:``, ``xpath:``) so the existing ``_resolve_locator``
-        in ``page_interactor.py`` resolves it unchanged.
+        in ``page_interactor.py`` resolves it unchanged. ServiceNow record
+        links are preserved as ``role:link:...`` rather than being mislabeled
+        as buttons.
         """
         label = getattr(button, "label", "") or getattr(button, "text", "")
+        button_type = str(getattr(button, "button_type", "button") or "button").strip().lower()
+        role = "link" if button_type == "link" else "button"
         if label:
-            return f"role:button:{label}"
-        # Fall back to a CSS selector if no label
+            return f"role:{role}:{label}"
         selector = getattr(button, "selector", "")
         if selector and cls._is_safe_css(selector):
             return f"css:{selector}"
@@ -399,8 +421,8 @@ class BrowserActionSpace:
         This fingerprint is checked by the ExecutionController (P5) before
         resolving a LAYA-chosen index to a locator. If the page changed
         between observation and execution, the fingerprint will not match
-        and the action is rejected (the orchestrator re-observes and the
-        Gemini path runs on the next iteration).
+        and the action is rejected so the orchestrator can re-observe and request a
+        fresh LAYA decision.
         """
         candidate_sigs = [
             {
