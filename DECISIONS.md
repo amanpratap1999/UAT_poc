@@ -198,3 +198,27 @@ Full local pytest execution was not possible in the sandbox because GitHub repos
 
 ### Follow-up / limitations
 Run the focused unit/integration tests and the live ServiceNow LAYA benchmark from the developer environment before merging. Confirm run telemetry shows `action_source=laya` for each browser action and that no action-selection fallback occurs.
+
+
+## D-009 — 2026-10-15 — Preserve and prioritize ServiceNow record links in the LAYA action space
+### Change
+Adjusted `BrowserActionSpace` so ServiceNow record links are represented as executable `link` targets and are prioritized when an open/find/select record step is being prepared. The ranking occurs before the runtime LAYA candidate budget is applied.
+
+### Why
+The live LAYA-authoritative benchmark repeatedly selected `scroll_down` and never opened an Incident. The action-space audit showed that record links could be appended after generic controls and then omitted by a small local candidate budget; additionally, record links were being converted to `role:button` locators. This prevented LAYA from receiving the most relevant executable Incident target.
+
+### Alternatives rejected
+1. Adding a scripted direct-click bypass for Incident rows.
+2. Selecting the Incident with an LLM, heuristic, or Gemini fallback.
+3. Removing the LAYA candidate budget.
+4. Automatically forcing a click without presenting the choice to LAYA.
+
+### Files / areas
+`src/agent/browser/action_space.py`
+`tests/unit/test_browser_action_space.py`
+
+### Verification
+Added a regression test with 20 generic controls plus an Incident record link. The Incident link must rank inside the first 12 candidates and resolve as `role:link:<record label>` so the existing Playwright executor can execute the LAYA-selected index.
+
+### Follow-up / limitations
+The focused tests and a live ServiceNow rerun must be executed from the developer environment. The live run must demonstrate that LAYA selects the Incident record rather than repeatedly scrolling, and that the subsequent state mutation/persistence succeeds.
