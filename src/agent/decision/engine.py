@@ -366,32 +366,8 @@ class DecisionEngine:
                 target = str(response.get("target", "") or "").strip()
                 value = str(response.get("value", "") or "")
 
-                if not raw_action_type:
-                    plan_lower = plan_desc.lower()
-                    if "validate" in plan_lower or "verify" in plan_lower or "precondition" in plan_lower:
-                        raw_action_type = "validate"
-                    elif "in progress" in plan_lower or "state" in plan_lower:
-                        raw_action_type = "select"
-                        if not target:
-                            target = "State"
-                        if not value:
-                            value = "2"
-                    elif "update" in plan_lower or "persist" in plan_lower or "save" in plan_lower:
-                        raw_action_type = "click"
-                        if not target:
-                            target = "Update"
-                    elif "open" in plan_lower or "re-open" in plan_lower or "record" in plan_lower:
-                        raw_action_type = "click"
-                        if not target:
-                            target = (
-                                getattr(intent, "target_record", None)
-                                or (getattr(memory, "structured_intent", None) and getattr(memory.structured_intent, "target_record", None))
-                                or (getattr(memory, "current_record", None) and memory.current_record.get("number"))
-                                or "INC9900004"
-                            )
-                    else:
-                        raise DecisionUnavailableError("LLM returned no action_type")
-
+        if not raw_action_type:
+            raise DecisionUnavailableError("LLM returned no action_type; refusing to synthesize fallback actions.")
                 try:
                     action_type = ActionType(raw_action_type)
                 except ValueError as exc:
@@ -399,27 +375,8 @@ class DecisionEngine:
                         f"LLM returned unsupported action_type '{raw_action_type}'"
                     ) from exc
 
-                if not target:
-                    plan_lower = plan_desc.lower()
-                    if action_type in {ActionType.VALIDATE, ActionType.OBSERVE, ActionType.WAIT}:
-                        target = plan_desc or "page"
-                    elif action_type == ActionType.SELECT and ("state" in plan_lower or "in progress" in plan_lower):
-                        target = "State"
-                        if not value:
-                            value = "2"
-                    elif action_type == ActionType.CLICK and ("update" in plan_lower or "persist" in plan_lower or "save" in plan_lower):
-                        target = "Update"
-                    elif action_type == ActionType.CLICK and ("open" in plan_lower or "re-open" in plan_lower or "record" in plan_lower):
-                        target = (
-                            getattr(intent, "target_record", None)
-                            or (getattr(memory, "structured_intent", None) and getattr(memory.structured_intent, "target_record", None))
-                            or (getattr(memory, "current_record", None) and memory.current_record.get("number"))
-                            or "INC9900004"
-                        )
-
-                if action_type == ActionType.SELECT and not value and ("in progress" in plan_desc.lower() or "state" in plan_desc.lower()):
-                    value = "2"
-
+        if not target and action_type in {ActionType.VALIDATE, ActionType.OBSERVE, ActionType.WAIT}:
+            target = plan_desc or "page"
                 rationale = str(
                     response.get("reasoning", "Selected by decision engine") or
                     "Selected by decision engine"
