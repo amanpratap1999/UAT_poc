@@ -76,6 +76,27 @@ def action_space() -> _ActionSpacePayload:
 
 
 @pytest.mark.asyncio
+async def test_router_inference_uses_typed_decisions_model(policy, action_space):
+    """The browser selector must pin Router inference to the typed-decisions checkpoint."""
+    policy._model = MagicMock()
+    policy._model.system_one.return_value = {
+        "answers": {
+            "operation": {"choice": "click", "answer_confidence": 0.95},
+            "click_target": {"choice": "1", "answer_confidence": 0.95},
+        },
+        "usage": {},
+    }
+
+    raw = await policy._run_model(action_space)
+
+    assert raw is not None
+    assert raw["operation"] == "click"
+    policy._model.system_one.assert_called_once()
+    kwargs = policy._model.system_one.call_args.kwargs
+    assert kwargs["model"] == "typed-decisions"
+
+
+@pytest.mark.asyncio
 async def test_primary_high_confidence_is_executable(policy, action_space):
     policy._infer = AsyncMock(
         return_value=LayaActionDecision(
