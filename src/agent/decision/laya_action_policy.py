@@ -78,7 +78,7 @@ class LayaActionDecision:
     """
     action: AgentAction
     operation: str  # one of LAYA_OPERATIONS
-    target_index: int | None  # 1-indexed position in the action space, or None for controls
+    target_index: int | None = None  # 1-indexed position in the action space, or None for controls
     confidence: float  # 0.0–1.0
     provider: str = "laya"
     model_version: str = ""
