@@ -361,7 +361,7 @@ class ReportingEngine:
             }:
                 exit_result.verdict = "FAIL"
                 exit_result.reason = (
-                    f"{len(criterion_failed)} acceptance criterion(riteria) failed."
+                    f"{len(criterion_failed)} acceptance criteria failed."
                 )
             # Enforce mandatory exit criteria invariants:
             # 1. report.status != "passed" -> exit_criteria.verdict != "PASS"
