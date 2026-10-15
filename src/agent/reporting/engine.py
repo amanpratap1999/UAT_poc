@@ -171,6 +171,14 @@ class ReportingEngine:
             )
         )
 
+        plan_failed_steps = []
+        if memory.plan and memory.plan.steps:
+            plan_failed_steps = [
+                s for s in memory.plan.steps
+                if getattr(getattr(s, "status", None), "value", getattr(s, "status", None))
+                in {"failed", "blocked", "skipped"}
+            ]
+
         if getattr(memory, "cleanup_status", None) == "cleanup_failed":
             status = "cleanup_failed"
         elif precondition_failure:
@@ -178,6 +186,11 @@ class ReportingEngine:
             # Hard QA rule: An application defect can ONLY exist if preconditions
             # passed and the action was executed. Precondition failures yield 0 defects.
             defects = []
+        elif plan_failed_steps:
+            # A terminally failed/blocked/skipped plan step is execution evidence
+            # that the requested workflow did not complete. It must never be
+            # reported as PASSED solely because earlier validations succeeded.
+            status = "blocked"
         elif memory.total_actions_executed == 0 and len(memory.completed_steps) == 0:
             status = "error" if memory.total_failures > 0 else "blocked"
         elif has_application_defects:
@@ -313,18 +326,43 @@ class ReportingEngine:
             minor_defects = sum(1 for d in defects if getattr(d, "severity", "").lower() in ("minor", "low"))
             unverified = sum(1 for v in memory.completed_validations if not v.overall_passed and not v.failed_checks)
             # Authoritative total: from test_case_data's acceptance_criteria
-            # list ONLY. When the list is empty the run honestly reports
-            # coverage as 0% (which the exit-criteria engine treats as a
-            # coverage-gap → BLOCKED), rather than fabricating a denominator
-            # from plan-step count.
+            # list ONLY. Coverage is the number of criteria with actual
+            # PASS evidence in the acceptance-criteria mapping. Never derive
+            # coverage from plan requirement IDs: a plan can contain an ID
+            # without executing/verifying the criterion.
             authoritative_total = len(normalized_ac)
+            criterion_passed = sum(
+                1 for item in report.acceptance_criteria_results
+                if item.get("status") == "pass"
+            )
+            criterion_failed = [
+                item for item in report.acceptance_criteria_results
+                if item.get("status") == "fail"
+            ]
+            criterion_blocked = [
+                item for item in report.acceptance_criteria_results
+                if item.get("status") in {"blocked", "not_scored"}
+            ]
+            criterion_blockers = [
+                f"{item.get('criterion_id', 'unknown')}: "
+                f"{item.get('reason', item.get('status', 'unresolved'))}"
+                for item in criterion_blocked
+            ]
             exit_result = exit_engine.evaluate(
                 requirements_total=authoritative_total,
-                requirements_covered=len(report.requirement_ids_covered),
+                requirements_covered=criterion_passed,
                 open_major_defects=major_defects,
                 open_minor_defects=minor_defects,
                 unverified_items=unverified,
+                blockers=criterion_blockers,
             )
+            if criterion_failed and not criterion_blockers and exit_result.verdict in {
+                "PASS", "CONDITIONAL_PASS"
+            }:
+                exit_result.verdict = "FAIL"
+                exit_result.reason = (
+                    f"{len(criterion_failed)} acceptance criterion(riteria) failed."
+                )
             # Enforce mandatory exit criteria invariants:
             # 1. report.status != "passed" -> exit_criteria.verdict != "PASS"
             # 2. failed_validations > 0 -> exit_criteria.verdict != "PASS"
