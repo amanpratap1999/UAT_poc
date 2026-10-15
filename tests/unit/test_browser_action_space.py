@@ -144,14 +144,15 @@ def test_action_space_returns_candidates(sample_observation):
     assert payload.page_title == sample_observation.title
 
 
-def test_action_space_returns_none_for_empty_observation(empty_observation):
-    """An observation with no visible controls returns None."""
+def test_action_space_preserves_empty_observation_for_laya(empty_observation):
+    """Empty target lists remain valid inputs for LAYA control operations."""
     payload = BrowserActionSpace.from_observation(
         observation=empty_observation,
         plan_step="Wait",
         persona="itil",
     )
-    assert payload is None
+    assert payload is not None
+    assert payload.candidates == []
 
 
 def test_action_space_includes_buttons(sample_observation):
@@ -356,3 +357,95 @@ def test_allowed_operations_includes_all_laya_operations(sample_observation):
     assert payload is not None
     for op in ("click", "fill", "select", "wait", "scroll_down", "scroll_up", "done", "blocked"):
         assert op in payload.allowed_operations, f"Missing operation: {op}"
+
+
+
+def test_servicenow_record_link_is_ranked_for_open_record():
+    """Visible Incident links survive the local LAYA candidate budget and keep link semantics."""
+    buttons = [
+        ButtonInfo(label=f"Utility {i}", is_visible=True, is_enabled=True)
+        for i in range(20)
+    ]
+    buttons.append(
+        ButtonInfo(
+            label="INC0010001 - Email server down",
+            is_visible=True,
+            is_enabled=True,
+            button_type="link",
+        )
+    )
+    obs = PageObservation(
+        url="https://test.service-now.com/incident_list.do",
+        title="Incidents",
+        page_type="list",
+        visible_fields=[],
+        buttons=buttons,
+        tabs=[],
+        validation_messages=[],
+        notification_messages=[],
+        interactive_elements=[],
+    )
+
+    payload = BrowserActionSpace.from_observation(
+        observation=obs,
+        plan_step="Open Target Incident Record",
+        persona="itil_user",
+    )
+
+    assert payload is not None
+    record_candidates = [c for c in payload.candidates if c.label.startswith("INC0010001")]
+    assert record_candidates, "Incident record link was omitted from the action space"
+    record = record_candidates[0]
+    assert payload.candidates.index(record) < 12
+    assert record.kind == "click"
+    assert record.role == "link"
+    assert record.locator == "role:link:INC0010001 - Email server down"
+
+
+def test_visible_servicenow_record_disables_scroll_competition():
+    """A visible target record should remove irrelevant scroll choices for LAYA."""
+    buttons = [
+        ButtonInfo(label=f"Utility {i}", is_visible=True, is_enabled=True)
+        for i in range(8)
+    ]
+    buttons.append(
+        ButtonInfo(
+            label="INC0010001 - Email server down",
+            is_visible=True,
+            is_enabled=True,
+            button_type="link",
+        )
+    )
+    obs = PageObservation(
+        url="https://test.service-now.com/incident_list.do",
+        title="Incidents",
+        page_type="list",
+        visible_fields=[],
+        buttons=buttons,
+        tabs=[],
+        validation_messages=[],
+        notification_messages=[],
+        interactive_elements=[],
+    )
+
+    payload = BrowserActionSpace.from_observation(
+        observation=obs,
+        plan_step="Open an existing Incident Record",
+        persona="itil_user",
+    )
+
+    assert payload is not None
+    assert "click" in payload.allowed_operations
+    assert "scroll_down" not in payload.allowed_operations
+    assert "scroll_up" not in payload.allowed_operations
+
+
+def test_action_space_carries_planned_values(sample_observation):
+    payload = BrowserActionSpace.from_observation(
+        observation=sample_observation,
+        plan_step="Fill Short description",
+        persona="itil_user",
+        planned_values={"short_description": "Network outage"},
+    )
+    assert payload is not None
+    assert payload.planned_values["short_description"] == "Network outage"

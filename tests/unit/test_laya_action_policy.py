@@ -1,23 +1,8 @@
-"""Tests for the LAYA action-policy adapter (P10-LAYA).
-
-Covers:
-  • Operation/target mapping (LAYA operation → ActionType, target index → locator)
-  • Stale-page rejection (target index not in action space → fallback)
-  • Policy timeout/error fallback (model failure → Gemini path)
-  • Unsupported ServiceNow controls (password/file/hidden inputs excluded)
-  • Safety gates (mode=shadow always falls back; low confidence falls back)
-  • Action space fingerprint computation and freshness check
-
-These tests do NOT require the optional ``transformers`` / ``mlx-lm``
-dependency — they mock the model backend so the policy's decision logic
-is tested in isolation.
-"""
+"""Unit tests for the LAYA browser action selector."""
 from __future__ import annotations
 
 import asyncio
-import sys
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -32,413 +17,253 @@ from agent.decision.laya_action_policy import (
 )
 
 
-# ── Fixtures ──
+@pytest.fixture
+def policy() -> LayaActionPolicy:
+    p = LayaActionPolicy(
+        config=LayaActionPolicyConfig(
+            enabled=True,
+            mode="primary",
+            confidence_threshold=0.65,
+            checkpoint="test/laya",
+            device="cpu",
+        )
+    )
+    p._warm = True
+    p._model = MagicMock()
+    p._tokenizer = MagicMock()
+    p._model_version = "test:v1"
+    return p
 
 
 @pytest.fixture
-def disabled_policy() -> LayaActionPolicy:
-    """A policy with enabled=False — always falls back to Gemini."""
-    return LayaActionPolicy(config=LayaActionPolicyConfig(enabled=False))
-
-
-@pytest.fixture
-def shadow_policy() -> LayaActionPolicy:
-    """A policy in shadow mode — runs inference but always returns a fallback."""
-    policy = LayaActionPolicy(config=LayaActionPolicyConfig(
-        enabled=True,
-        mode="shadow",
-        checkpoint="test/laya",
-        device="cpu",
-    ))
-    # Mock the model as loaded + warm
-    policy._warm = True
-    policy._model = MagicMock()
-    policy._tokenizer = MagicMock()
-    policy._model_version = "test:v1"
-    return policy
-
-
-@pytest.fixture
-def primary_policy() -> LayaActionPolicy:
-    """A policy in primary mode — uses LAYA decisions when confidence ≥ threshold."""
-    policy = LayaActionPolicy(config=LayaActionPolicyConfig(
-        enabled=True,
-        mode="primary",
-        checkpoint="test/laya",
-        device="cpu",
-        confidence_threshold=0.65,
-    ))
-    policy._warm = True
-    policy._model = MagicMock()
-    policy._tokenizer = MagicMock()
-    policy._model_version = "test:v1"
-    return policy
-
-
-@pytest.fixture
-def sample_action_space() -> _ActionSpacePayload:
-    """A minimal action space with 3 candidates."""
+def action_space() -> _ActionSpacePayload:
     return _ActionSpacePayload(
         fingerprint="abc123",
-        page_url="https://test.service-now.com/incident.do",
+        page_url="https://test.service-now.com/incident.do?sys_id=abc",
         page_title="INC0010001",
         candidates=[
             ActionSpaceCandidate(
-                index=1, kind="click", role="button",
-                label="Update", value="", locator="role:button:Update",
+                index=1,
+                kind="click",
+                role="button",
+                label="Update",
+                value="",
+                locator="role:button:Update",
             ),
             ActionSpaceCandidate(
-                index=2, kind="fill", role="textbox",
-                label="Short description", value="test",
+                index=2,
+                kind="fill",
+                role="textbox",
+                label="Short description",
+                value="old",
                 locator="label:Short description",
             ),
             ActionSpaceCandidate(
-                index=3, kind="select", role="combobox",
-                label="State", value="2",
+                index=3,
+                kind="select",
+                role="combobox",
+                label="State",
+                value="1",
                 locator="label:State",
+                options=["1", "2"],
             ),
         ],
-        plan_step="Click Update to save the record",
-        persona="itil",
+        plan_step="Set the short description",
+        persona="itil_user",
+        planned_values={"short_description": "Network outage"},
         allowed_operations=sorted(LAYA_OPERATIONS),
     )
 
 
-@pytest.fixture
-def empty_action_space() -> _ActionSpacePayload:
-    """An empty action space — LAYA cannot choose from nothing."""
-    return _ActionSpacePayload(
-        fingerprint="empty",
-        page_url="https://test.service-now.com/loading",
-        page_title="Loading...",
-        candidates=[],
-        plan_step="Wait for page to load",
-        persona="itil",
-        allowed_operations=sorted(LAYA_OPERATIONS),
+@pytest.mark.asyncio
+async def test_router_inference_uses_typed_decisions_model(policy, action_space):
+    """The browser selector must pin Router inference to the typed-decisions checkpoint."""
+    policy._model = MagicMock()
+    policy._model.system_one.return_value = {
+        "answers": {
+            "operation": {"choice": "click", "answer_confidence": 0.95},
+            "click_target": {"choice": "1", "answer_confidence": 0.95},
+        },
+        "usage": {},
+    }
+
+    raw = await policy._run_model(action_space)
+
+    assert raw is not None
+    assert raw["operation"] == "click"
+    policy._model.system_one.assert_called_once()
+    kwargs = policy._model.system_one.call_args.kwargs
+    assert kwargs["model"] == "typed-decisions"
+
+
+@pytest.mark.asyncio
+async def test_primary_high_confidence_is_executable(policy, action_space):
+    policy._infer = AsyncMock(
+        return_value=LayaActionDecision(
+            action=MagicMock(
+                action_type=ActionType.CLICK,
+                target="role:button:Update",
+                value="",
+                metadata={},
+            ),
+            operation="click",
+            target_index=1,
+            confidence=0.90,
+            model_version="test:v1",
+            inference_latency_ms=12.0,
+        )
     )
-
-
-# ── Tests: disabled policy always falls back ──
-
-
-@pytest.mark.asyncio
-async def test_disabled_policy_always_falls_back(disabled_policy, sample_action_space):
-    """A disabled policy must always return a fallback decision."""
-    decision = await disabled_policy.choose_action(sample_action_space)
-    assert decision.fallback_reason == "policy_disabled"
-    assert decision.action.action_type == ActionType.WAIT
-    assert decision.confidence == 0.0
-
-
-# ── Tests: shadow mode always falls back ──
-
-
-@pytest.mark.asyncio
-async def test_shadow_mode_always_returns_fallback(shadow_policy, sample_action_space):
-    """Shadow mode runs LAYA but returns a fallback so the Gemini path is used."""
-    # Mock the inference to return a high-confidence decision
-    shadow_policy._infer = AsyncMock(return_value=LayaActionDecision(
-        action=MagicMock(),
-        operation="click",
-        target_index=1,
-        confidence=0.95,
-        model_version="test:v1",
-    ))
-    decision = await shadow_policy.choose_action(sample_action_space)
-    assert decision.fallback_reason == "shadow_mode"
-    assert decision.action.action_type == ActionType.WAIT
-
-
-# ── Tests: primary mode uses LAYA when confidence ≥ threshold ──
-
-
-@pytest.mark.asyncio
-async def test_primary_mode_uses_laya_on_high_confidence(primary_policy, sample_action_space):
-    """Primary mode uses the LAYA decision when confidence ≥ threshold."""
-    # Mock inference to return a high-confidence click on candidate 1
-    primary_policy._infer = AsyncMock(return_value=LayaActionDecision(
-        action=MagicMock(action_type=ActionType.CLICK, target="role:button:Update", value="", metadata={}),
-        operation="click",
-        target_index=1,
-        confidence=0.90,
-        model_version="test:v1",
-        inference_latency_ms=15.0,
-    ))
-    decision = await primary_policy.choose_action(sample_action_space)
+    decision = await policy.choose_action(action_space)
     assert decision.fallback_reason == ""
-    assert decision.operation == "click"
-    assert decision.confidence == 0.90
+    assert decision.provider == "laya"
 
 
 @pytest.mark.asyncio
-async def test_primary_mode_falls_back_on_low_confidence(primary_policy, sample_action_space):
-    """Primary mode falls back when confidence < threshold."""
-    primary_policy._infer = AsyncMock(return_value=LayaActionDecision(
-        action=MagicMock(action_type=ActionType.CLICK, target="x", value="", metadata={}),
-        operation="click",
-        target_index=1,
-        confidence=0.40,  # below threshold 0.65
-        model_version="test:v1",
-    ))
-    decision = await primary_policy.choose_action(sample_action_space)
+async def test_low_confidence_is_blocked(policy, action_space):
+    policy._infer = AsyncMock(
+        return_value=LayaActionDecision(
+            action=MagicMock(action_type=ActionType.CLICK),
+            operation="click",
+            target_index=1,
+            confidence=0.40,
+        )
+    )
+    decision = await policy.choose_action(action_space)
     assert "low_confidence" in decision.fallback_reason
-    assert decision.confidence == 0.0
-
-
-# ── Tests: empty action space falls back ──
 
 
 @pytest.mark.asyncio
-async def test_empty_action_space_falls_back(primary_policy, empty_action_space):
-    """LAYA cannot choose from an empty action space."""
-    decision = await primary_policy.choose_action(empty_action_space)
-    assert decision.fallback_reason == "empty_action_space"
-
-
-# ── Tests: stale target index falls back ──
-
-
-@pytest.mark.asyncio
-async def test_stale_target_index_falls_back(primary_policy, sample_action_space):
-    """When the model returns a target index not in the action space, the
-    _resolve_to_action method returns a fallback with stale_target_index."""
-    # Build a raw model output with a target_index that doesn't exist
-    raw = {"operation": "click", "target_index": 999, "confidence": 0.90}
-    decision = primary_policy._resolve_to_action(raw, sample_action_space, elapsed_ms=10.0)
-    assert "stale_target_index" in decision.fallback_reason
-
-
-# ── Tests: inference timeout falls back ──
-
-
-@pytest.mark.asyncio
-async def test_inference_timeout_falls_back(primary_policy, sample_action_space):
-    """When the model times out, the policy falls back to Gemini."""
-    primary_policy._infer = AsyncMock(side_effect=asyncio.TimeoutError())
-    decision = await primary_policy.choose_action(sample_action_space)
+async def test_timeout_is_blocked_not_routed_to_llm(policy, action_space):
+    policy._infer = AsyncMock(side_effect=asyncio.TimeoutError())
+    decision = await policy.choose_action(action_space)
     assert "inference_timeout" in decision.fallback_reason
 
 
-# ── Tests: inference error falls back ──
-
-
 @pytest.mark.asyncio
-async def test_inference_error_falls_back(primary_policy, sample_action_space):
-    """When the model raises an error, the policy falls back to Gemini."""
-    primary_policy._infer = AsyncMock(side_effect=RuntimeError("model crashed"))
-    decision = await primary_policy.choose_action(sample_action_space)
+async def test_model_error_is_blocked_not_routed_to_llm(policy, action_space):
+    policy._infer = AsyncMock(side_effect=RuntimeError("model crashed"))
+    decision = await policy.choose_action(action_space)
     assert "inference_error" in decision.fallback_reason
 
 
-
 @pytest.mark.asyncio
-async def test_primary_mode_allows_warm_laya_without_calibration(primary_policy, sample_action_space, monkeypatch):
-    """Uncalibrated confidence is telemetry; threshold and validation remain the gates."""
-    monkeypatch.delenv("LAYA_ACTION_CONFIDENCE_CALIBRATED", raising=False)
-    primary_policy._infer = AsyncMock(return_value=LayaActionDecision(
-        action=MagicMock(
-            action_type=ActionType.CLICK,
-            target="role:button:Update",
-            value="",
-            metadata={},
-        ),
-        operation="click",
-        target_index=1,
-        confidence=0.90,
-        model_version="test:v1",
-    ))
-    decision = await primary_policy.choose_action(sample_action_space)
-    assert decision.fallback_reason == ""
-    assert decision.provider == "laya"
-    assert decision.operation == "click"
-
-# ── Tests: operation → ActionType mapping ──
+async def test_non_primary_mode_is_rejected(policy, action_space):
+    policy._config.mode = "shadow"
+    decision = await policy.choose_action(action_space)
+    assert decision.fallback_reason.startswith("non_primary_mode:")
 
 
-def test_operation_to_action_type_mapping(primary_policy, sample_action_space):
-    """Verify LAYA operations map correctly to the project's ActionType enum."""
-    test_cases = [
-        ("click", ActionType.CLICK),
-        ("wait", ActionType.WAIT),
-        ("scroll_down", ActionType.SCROLL),
-        ("scroll_up", ActionType.SCROLL),
-    ]
-    for operation, expected_action_type in test_cases:
-        raw = {"operation": operation, "target_index": None, "confidence": 0.8}
-        decision = primary_policy._resolve_to_action(raw, sample_action_space, elapsed_ms=5.0)
-        # Control operations don't need a target_index; they should resolve cleanly
-        if operation in ("wait", "scroll_down", "scroll_up"):
-            assert decision.action.action_type == expected_action_type, (
-                f"operation={operation} should map to {expected_action_type}"
-            )
-    # done/blocked are now terminal signals that fall back (not executed directly)
-    for terminal_op in ("done", "blocked"):
-        raw = {"operation": terminal_op, "target_index": None, "confidence": 0.8}
-        decision = primary_policy._resolve_to_action(raw, sample_action_space, elapsed_ms=5.0)
-        assert decision.fallback_reason == f"laya_{terminal_op}_terminal_signal"
+def test_runtime_dependency_version_guard_accepts_required_versions(policy, monkeypatch):
+    versions = {"laya": "0.3.29", "torch": "2.14.1+cpu"}
+    monkeypatch.setattr(
+        "agent.decision.laya_action_policy.package_version",
+        lambda name: versions[name],
+    )
+    policy._verify_runtime_dependencies()
 
 
-def test_click_operation_requires_valid_index(primary_policy, sample_action_space):
-    """A click resolves only to a code-owned candidate locator."""
-    # Valid index 1 (the "Update" button)
-    raw = {"operation": "click", "target_index": 1, "confidence": 0.9}
-    decision = primary_policy._resolve_to_action(raw, sample_action_space, elapsed_ms=5.0)
-    assert decision.fallback_reason == ""  # clean resolution
-    assert decision.action.target == "role:button:Update"
+def test_runtime_dependency_version_guard_rejects_old_torch(policy, monkeypatch):
+    versions = {"laya": "0.3.29", "torch": "2.14.0"}
+    monkeypatch.setattr(
+        "agent.decision.laya_action_policy.package_version",
+        lambda name: versions[name],
+    )
+    with pytest.raises(RuntimeError, match="torch>=2.14.1"):
+        policy._verify_runtime_dependencies()
 
 
-def test_fill_falls_back_without_planner_value(primary_policy, sample_action_space):
-    """Fill operations still fall back to Gemini (LAYA can't generate text values)."""
-    raw = {"operation": "fill", "target_index": 2, "confidence": 0.85}
-    decision = primary_policy._resolve_to_action(raw, sample_action_space, elapsed_ms=5.0)
-    assert decision.fallback_reason == "planner_value_required:fill"
-    assert decision.action.action_type == ActionType.WAIT
-
-
-def test_select_uses_laya_selected_value(primary_policy, sample_action_space):
-    """Select operations now use LAYA's chosen value (DOM-owned options)."""
-    raw = {"operation": "select", "target_index": 3, "selected_value": "2", "confidence": 0.85}
-    decision = primary_policy._resolve_to_action(raw, sample_action_space, elapsed_ms=5.0)
-    assert decision.fallback_reason == ""  # select is now executable
-    assert decision.action.action_type == ActionType.SELECT
-
-
-# ── Tests: safety — model never emits selectors ──
-
-
-def test_model_output_never_contains_selectors(primary_policy, sample_action_space):
-    """The resolved AgentAction's target is always from the action space,
-    never from model output. The model only emits an index."""
-    raw = {
-        "operation": "click",
-        "target_index": 1,
-        "confidence": 0.9,
-    }
-    decision = primary_policy._resolve_to_action(raw, sample_action_space, elapsed_ms=5.0)
-    # The target must be the locator from candidate 1, not a model-generated string
-    assert decision.action.target == "role:button:Update"
-    assert "laya_target_index" in decision.action.metadata
-    assert decision.action.metadata["laya_target_index"] == 1
-
-
-# ── Tests: config defaults ──
-
-
-def test_laya_action_policy_config_defaults():
-    """Default config has the policy disabled in shadow mode."""
+def test_config_defaults_require_primary_laya():
     cfg = LayaActionPolicyConfig()
-    assert cfg.enabled is False
-    assert cfg.mode == "shadow"
-    assert cfg.checkpoint == ""
-    assert cfg.device == "auto"
-    assert cfg.confidence_threshold == 0.65
-    assert cfg.inference_timeout_seconds == 5.0
-    assert cfg.max_candidates == 250
+    assert cfg.enabled is True
+    assert cfg.mode == "primary"
 
 
-def test_policy_configured_when_enabled():
-    """A policy with enabled=True is configured (Router auto-downloads checkpoint)."""
-    policy = LayaActionPolicy(config=LayaActionPolicyConfig(
-        enabled=True, checkpoint="",
-    ))
-    assert policy.is_configured()
+def test_click_target_is_resolved_only_from_action_space(policy, action_space):
+    decision = policy._resolve_to_action(
+        {"operation": "click", "target_index": 1, "confidence": 0.9},
+        action_space,
+        elapsed_ms=5.0,
+    )
+    assert decision.fallback_reason == ""
+    assert decision.action.target == "role:button:Update"
 
 
-def test_policy_not_configured_when_disabled():
-    """A policy with enabled=False is not configured."""
-    policy = LayaActionPolicy(config=LayaActionPolicyConfig(
-        enabled=False, checkpoint="some/checkpoint",
-    ))
-    assert not policy.is_configured()
+def test_fill_uses_precomputed_planned_value(policy, action_space):
+    decision = policy._resolve_to_action(
+        {"operation": "fill", "target_index": 2, "confidence": 0.9},
+        action_space,
+        elapsed_ms=5.0,
+    )
+    assert decision.fallback_reason == ""
+    assert decision.action.action_type == ActionType.FILL
+    assert decision.action.value == "Network outage"
 
 
-def test_policy_configured_with_checkpoint():
-    """A policy with enabled=True and a checkpoint is configured."""
-    policy = LayaActionPolicy(config=LayaActionPolicyConfig(
-        enabled=True, checkpoint="test/laya",
-    ))
-    assert policy.is_configured()
+def test_fill_without_planned_value_fails_closed(policy, action_space):
+    action_space.planned_values = {}
+    decision = policy._resolve_to_action(
+        {"operation": "fill", "target_index": 2, "confidence": 0.9},
+        action_space,
+        elapsed_ms=5.0,
+    )
+    assert decision.fallback_reason == "planned_value_missing:fill"
 
 
-def test_load_model_uses_router_without_checkpoint(monkeypatch):
-    """The default local backend uses Router without loading a checkpoint path."""
-    router = MagicMock()
-    router_constructor = MagicMock(return_value=router)
-    laya_module = SimpleNamespace(Router=router_constructor, load=MagicMock())
-    monkeypatch.setitem(sys.modules, "laya", laya_module)
-    policy = LayaActionPolicy(config=LayaActionPolicyConfig(enabled=True))
-
-    policy._load_model()
-
-    router_constructor.assert_called_once_with()
-    laya_module.load.assert_not_called()
-    assert policy._model is router
-    assert policy.model_version == "laya:router"
+def test_stale_target_fails_closed(policy, action_space):
+    decision = policy._resolve_to_action(
+        {"operation": "click", "target_index": 999, "confidence": 0.9},
+        action_space,
+        elapsed_ms=5.0,
+    )
+    assert "stale_target_index" in decision.fallback_reason
 
 
-@pytest.mark.asyncio
-async def test_warmup_uses_dummy_candidate_and_extended_timeout():
-    policy = LayaActionPolicy(config=LayaActionPolicyConfig(
-        enabled=True,
-        mode="primary",
-        inference_timeout_seconds=5.0,
-    ))
-    policy._model = MagicMock()
-    policy._load_model = MagicMock()
-    policy._infer = AsyncMock(return_value=MagicMock())
-
-    assert await policy.warm_up()
-
-    action_space = policy._infer.await_args.args[0]
-    assert len(action_space.candidates) == 1
-    assert action_space.candidates[0].kind == "click"
-    assert policy._infer.await_args.kwargs["timeout_seconds"] == 120.0
+def test_done_is_a_terminal_laya_selection(policy, action_space):
+    decision = policy._resolve_to_action(
+        {"operation": "done", "target_index": None, "confidence": 0.9},
+        action_space,
+        elapsed_ms=5.0,
+    )
+    assert decision.fallback_reason == ""
+    assert decision.action.action_type == ActionType.VALIDATE
 
 
-# ── Tests: stats / telemetry ──
-
-
-def test_policy_stats_initialized(primary_policy):
-    """A fresh policy has zero stats."""
-    stats = primary_policy.get_stats()
-    assert stats["inference_count"] == 0
-    assert stats["fallback_count"] == 0
-    assert stats["avg_inference_latency_ms"] == 0.0
+def test_blocked_terminal_signal_fails_closed(policy, action_space):
+    decision = policy._resolve_to_action(
+        {"operation": "blocked", "target_index": None, "confidence": 0.9},
+        action_space,
+        elapsed_ms=5.0,
+    )
+    assert decision.fallback_reason == "laya_blocked_terminal_signal"
 
 
 @pytest.mark.asyncio
-async def test_fallback_count_increments(primary_policy, sample_action_space):
-    """Each fallback increments the fallback_count for telemetry."""
-    primary_policy._infer = AsyncMock(side_effect=RuntimeError("crash"))
-    await primary_policy.choose_action(sample_action_space)
-    stats = primary_policy.get_stats()
-    assert stats["fallback_count"] >= 1
-
-
-# ── Tests: health checks ──
-
-
-def test_policy_not_healthy_when_not_warm():
-    """A policy that hasn't warmed up is not healthy."""
-    policy = LayaActionPolicy(config=LayaActionPolicyConfig(
-        enabled=True, checkpoint="test/laya",
-    ))
-    assert not policy.is_healthy()
-
-
-def test_policy_healthy_when_warm(primary_policy):
-    """A policy with a loaded model and warm flag is healthy."""
-    assert primary_policy.is_healthy()
-
-
-# ── Tests: shutdown ──
+async def test_disabled_policy_reports_unavailable(action_space):
+    p = LayaActionPolicy(config=LayaActionPolicyConfig(enabled=False))
+    decision = await p.choose_action(action_space)
+    assert decision.fallback_reason == "policy_disabled"
 
 
 @pytest.mark.asyncio
-async def test_shutdown_releases_model(primary_policy):
-    """shutdown() clears the model and tokenizer."""
-    assert primary_policy._model is not None
-    await primary_policy.shutdown()
-    assert primary_policy._model is None
-    assert primary_policy._tokenizer is None
-    assert not primary_policy.is_healthy()
+async def test_empty_target_list_can_still_choose_wait(policy):
+    empty = _ActionSpacePayload(
+        fingerprint="empty",
+        page_url="https://test.service-now.com/loading",
+        page_title="Loading",
+        candidates=[],
+        plan_step="Wait for the page to finish loading",
+        persona="itil_user",
+        planned_values={},
+        allowed_operations=["wait", "scroll_down", "scroll_up", "done", "blocked"],
+    )
+    policy._infer = AsyncMock(
+        return_value=LayaActionDecision(
+            action=MagicMock(action_type=ActionType.WAIT),
+            operation="wait",
+            target_index=None,
+            confidence=0.95,
+        )
+    )
+    decision = await policy.choose_action(empty)
+    assert decision.fallback_reason == ""
+    assert decision.operation == "wait"

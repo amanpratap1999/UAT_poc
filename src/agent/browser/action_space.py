@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from typing import Any
 
 from agent.core.logging import get_logger
@@ -71,13 +72,13 @@ class BrowserActionSpace:
         world_state: SemanticWorldState | None = None,
         plan_step: str = "",
         persona: str = "itil",
+        planned_values: dict[str, str] | None = None,
     ) -> _ActionSpacePayload | None:
-        """Build the action space from a PageObservation.
+        """Build the bounded action space from a PageObservation.
 
-        Returns ``None`` if the observation has no visible buttons or
-        fields (e.g., a loading page or a dialog with no actionable
-        controls) — in that case the LAYA path is skipped and the
-        existing Gemini path runs unchanged.
+        An empty target list is still a valid LAYA input because WAIT/SCROLL
+        control operations remain available. The runtime must not route an
+        empty observation to another action-selection model.
 
         Args:
             observation: the latest PageObservation from the observation engine.
@@ -97,11 +98,12 @@ class BrowserActionSpace:
             locator = cls._locator_for_button(button)
             if not locator:
                 continue
+            role = getattr(button, "button_type", None) or "button"
             candidates.append(
                 ActionSpaceCandidate(
                     index=index_counter,
                     kind="click",
-                    role="button",
+                    role=role,
                     label=button.label or getattr(button, "text", "") or "button",
                     value="",
                     locator=locator,
@@ -197,40 +199,68 @@ class BrowserActionSpace:
 
         # Rank before truncation so important controls are not lost when a
         # large ServiceNow page exceeds the LAYA candidate budget.
+        plan_lower = plan_step.strip().casefold()
         plan_terms = {
             token
-            for token in plan_step.lower().replace("/", " ").replace("-", " ").split()
+            for token in plan_lower.replace("/", " ").replace("-", " ").split()
             if len(token) >= 3
         }
-        def relevance(candidate: ActionSpaceCandidate) -> tuple[int, int]:
-            label = candidate.label.lower()
+        # When a ServiceNow step asks to open/find/select a record, prioritize
+        # visible record links before the local LAYA candidate budget is applied.
+        # The ranking only changes which DOM-owned candidates are presented to
+        # LAYA; LAYA remains the sole browser action selector.
+        wants_record_link = (
+            any(term in plan_lower for term in ("incident", "record"))
+            and any(term in plan_lower for term in ("open", "find", "select", "choose", "target"))
+        )
+
+        def relevance(candidate: ActionSpaceCandidate) -> tuple[int, int, int]:
+            label = candidate.label.casefold()
             overlap = sum(1 for token in plan_terms if token in label)
-            exact = 1 if plan_step.strip().lower() and plan_step.strip().lower() in label else 0
-            return exact, overlap
+            exact = 1 if plan_lower and plan_lower in label else 0
+            record_priority = 0
+            if wants_record_link and candidate.kind == "click" and candidate.role == "link":
+                if re.search(r"\b[A-Z]{2,8}\d{4,}\b", candidate.label.upper()):
+                    record_priority = 3
+                else:
+                    record_priority = 2
+            return record_priority, exact, overlap
 
         unique_candidates.sort(
             key=lambda candidate: (
                 -relevance(candidate)[0],
                 -relevance(candidate)[1],
+                -relevance(candidate)[2],
                 candidate.index,
             )
         )
+
         candidates = unique_candidates[: cls.MAX_CANDIDATES]
         for new_index, candidate in enumerate(candidates, start=1):
             candidate.index = new_index
 
-        # If no candidates were produced, return None so the LAYA path is
-        # skipped and the Gemini path runs unchanged.
-        if not candidates:
-            return None
+        # When the requested record is already visibly actionable, do not
+        # offer scrolling as a competing operation. This is not a browser
+        # action fallback: LAYA still chooses the operation and target from
+        # the remaining bounded action space. Removing an irrelevant
+        # navigation operation prevents the model from repeatedly scrolling
+        # past an already-visible record link.
+        allowed_operations = set(LAYA_OPERATIONS)
+        visible_record_link = wants_record_link and any(
+            candidate.kind == "click"
+            and candidate.role == "link"
+            and re.search(r"\b[A-Z]{2,8}\d{4,}\b", candidate.label.upper())
+            for candidate in candidates
+        )
+        if visible_record_link:
+            allowed_operations.difference_update({"scroll_down", "scroll_up"})
 
-        # Add synthetic scroll/wait controls (always available, never
-        # index-capped — they use non-numeric indices)
-        # These are not in the candidate list; LAYA knows about them
-        # via the ``allowed_operations`` field.
+        # Add synthetic scroll/wait controls (always available when the
+        # requested target is not already visible; they use non-numeric
+        # operations and are not candidate indices).
 
         fingerprint = cls._compute_fingerprint(observation, candidates)
-        allowed_operations = sorted(LAYA_OPERATIONS)
+        allowed_operations = sorted(allowed_operations)
 
         return _ActionSpacePayload(
             fingerprint=fingerprint,
@@ -239,6 +269,7 @@ class BrowserActionSpace:
             candidates=candidates,
             plan_step=plan_step,
             persona=persona,
+            planned_values=dict(planned_values or {}),
             allowed_operations=allowed_operations,
         )
 
@@ -316,16 +347,19 @@ class BrowserActionSpace:
 
     @classmethod
     def _locator_for_button(cls, button: Any) -> str:
-        """Build a safe Playwright locator for a button.
+        """Build a safe Playwright locator for a button or record link.
 
         Uses the PageInteractor's prefix convention (``role:``, ``label:``,
         ``text:``, ``css:``, ``xpath:``) so the existing ``_resolve_locator``
-        in ``page_interactor.py`` resolves it unchanged.
+        in ``page_interactor.py`` resolves it unchanged. ServiceNow record
+        links are preserved as ``role:link:...`` rather than being mislabeled
+        as buttons.
         """
         label = getattr(button, "label", "") or getattr(button, "text", "")
+        button_type = str(getattr(button, "button_type", "button") or "button").strip().lower()
+        role = "link" if button_type == "link" else "button"
         if label:
-            return f"role:button:{label}"
-        # Fall back to a CSS selector if no label
+            return f"role:{role}:{label}"
         selector = getattr(button, "selector", "")
         if selector and cls._is_safe_css(selector):
             return f"css:{selector}"
@@ -403,8 +437,8 @@ class BrowserActionSpace:
         This fingerprint is checked by the ExecutionController (P5) before
         resolving a LAYA-chosen index to a locator. If the page changed
         between observation and execution, the fingerprint will not match
-        and the action is rejected (the orchestrator re-observes and the
-        Gemini path runs on the next iteration).
+        and the action is rejected so the orchestrator can re-observe and request a
+        fresh LAYA decision.
         """
         candidate_sigs = [
             {

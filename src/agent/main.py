@@ -1022,11 +1022,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.warning("embedding_startup_probe_failed", error=str(e))
 
-    # P7-LAYA: warm up the local LAYA action-policy model at startup so
-    # the first decision isn't slow. The policy is a process singleton
-    # (see get_laya_action_policy in dependencies.py). Warm-up is
-    # non-blocking and non-fatal — if it fails, the DecisionEngine
-    # uses the existing Gemini path unchanged.
+    # Warm up the LAYA action-policy model at startup so the first browser
+    # action does not pay model-load cost. If warm-up fails, action selection
+    # remains fail-closed until LAYA is healthy.
     try:
         from agent.api.v1.dependencies import get_laya_action_policy
         policy = get_laya_action_policy(settings)

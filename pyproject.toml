@@ -51,10 +51,11 @@ dev = [
 ]
 # P6-LAYA: optional extra for local LAYA action-policy support.
 # Install with: pip install -e '.[laya]'
-# Without this extra, the LAYA action-policy path is disabled and the
-# DecisionEngine uses the existing Gemini path unchanged.
+# Without this extra, the LAYA action-policy path is unavailable and
+# browser action selection fails closed; no model is substituted for LAYA.
 laya = [
-    "laya>=0.3.27,<1.0",
+    "laya>=0.3.29,<1.0",
+    "torch>=2.14.1,<2.15",
 ]
 
 [tool.setuptools.packages.find]

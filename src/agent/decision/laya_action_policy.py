@@ -18,19 +18,17 @@ Design decisions:
     planning (see ``planner.py`` docstring guard).
   • The adapter returns ``AgentAction`` so the existing
     ``ExecutionController`` dispatch table works unchanged.
-  • On unsupported pages, low confidence, timeout, or model failure, the
-    caller (``DecisionEngine``) falls back to the existing Gemini decision
-    path and then its existing heuristic fallback.
-  • Modes: ``shadow`` (runs LAYA but records the decision for comparison
-    without using it) or ``primary`` (uses LAYA's decision when confidence
-    ≥ threshold). Default is ``shadow`` so existing flows are unaffected
-    until LAYA is proven.
+  • On unsupported pages, low confidence, timeout, stale targets, or model
+    failure, the policy returns an unavailable decision. The caller fails
+    closed; there is no Gemini/LLM action-selection fallback.
+  • ``primary`` is the required executable mode. ``shadow`` is retained
+    only as a diagnostic configuration value and is rejected by the runtime.
   • The model is loaded once at startup (P7 wiring) and reused for the
     process lifetime. ``warm_up()`` verifies the checkpoint loads and a
     trivial inference completes; ``shutdown()`` releases resources.
-  • Does NOT require Jev endpoint credentials — LAYA runs locally through
-    its typed-decision SDK. If the optional SDK is unavailable, the rest
-    of the system continues to work through the Gemini path.
+  • Does NOT require JEV endpoint credentials when using the local LAYA SDK.
+    If the LAYA SDK/backend is unavailable, browser action selection fails
+    closed rather than switching to another decision model.
 
 This file does NOT replace ``LayaAdapter`` — that adapter's
 intent/risk/escalation functions remain unchanged until usage and tests
@@ -40,8 +38,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 from dataclasses import dataclass, field
+from importlib.metadata import PackageNotFoundError, version as package_version
 from typing import Any
 
 from agent.core.logging import get_logger
@@ -110,11 +110,11 @@ class LayaActionPolicyConfig:
 
     Loaded from ``LayaActionPolicyConfig`` in ``core/config.py`` (which
     reads ``LAYA_ACTION_*`` env vars). Defaults are conservative: the
-    policy is OFF by default so existing flows are unaffected until an
-    operator explicitly enables it.
+    policy is ON by default and is required for browser action selection;
+    action-selection failure is fail-closed.
     """
-    enabled: bool = False
-    mode: str = "shadow"  # "shadow" | "primary"
+    enabled: bool = True
+    mode: str = "primary"  # "primary" is the required executable mode
     checkpoint: str = ""  # HuggingFace repo or local path to the LAYA checkpoint
     model_subfolder: str = "typed-decisions"
     device: str = "auto"  # "auto" | "cpu" | "cuda" | "mps"
@@ -138,16 +138,12 @@ class LayaActionPolicy:
       • Accept a compact indexed action space (from ``BrowserActionSpace``)
         and the current plan step, and return a ``LayaActionDecision``
         containing a resolved ``AgentAction``.
-      • In ``shadow`` mode, run the inference but ALWAYS return
-        ``fallback_reason="shadow_mode"`` so the caller uses the Gemini
-        path; the shadow decision is recorded for offline comparison.
-      • In ``primary`` mode, return the LAYA decision when confidence ≥
-        threshold; otherwise return a fallback decision with
-        ``fallback_reason="low_confidence"``.
-      • On any error (timeout, model failure, unsupported page, missing
-        dependency), return a fallback decision with a descriptive
-        ``fallback_reason`` so the caller transparently uses the Gemini
-        path.
+      • Only ``primary`` mode can produce an executable action.
+      • In ``primary`` mode, return the LAYA decision when confidence meets
+        the threshold; otherwise return an unavailable decision.
+      • On any error (timeout, model failure, stale target, missing
+        dependency), return an unavailable decision with a descriptive
+        ``fallback_reason``. The caller fails closed.
 
     The adapter NEVER emits a selector, coordinates, shell, or JS — only
     an operation name + a target index into the supplied action space.
@@ -232,9 +228,8 @@ class LayaActionPolicy:
     async def warm_up(self) -> bool:
         """Load the model and run a trivial inference to verify readiness.
 
-        Returns False (and logs) if the optional ``laya`` dependency
-        is not installed — the system continues to work with the Gemini
-        path. Called once at app startup (P7).
+        Returns False (and logs) if the LAYA dependency/backend is unavailable.
+        Browser action selection then remains blocked until LAYA is healthy.
 
         The warmup uses a minimal action space with ONE dummy candidate
         so the model has something to choose from. We don't care whether
@@ -292,6 +287,35 @@ class LayaActionPolicy:
             self._warm = False
             return False
 
+    @staticmethod
+    def _parse_version(value: str) -> tuple[int, int, int]:
+        """Parse a dotted package version without importing the package."""
+        core = (value or "").split("+", 1)[0]
+        numbers = [int(part) for part in re.split(r"[^0-9]+", core) if part]
+        numbers = (numbers + [0, 0, 0])[:3]
+        return numbers[0], numbers[1], numbers[2]
+
+    def _verify_runtime_dependencies(self) -> None:
+        """Reject stale LAYA/Torch installs before native model initialization."""
+        minimums = {
+            "laya": (0, 3, 29),
+            "torch": (2, 14, 1),
+        }
+        for package, minimum in minimums.items():
+            try:
+                installed = package_version(package)
+            except PackageNotFoundError as exc:
+                raise RuntimeError(
+                    f"Required package {package!r} is not installed; "
+                    "install the LAYA extra before browser action selection."
+                ) from exc
+            if self._parse_version(installed) < minimum:
+                required = ".".join(str(part) for part in minimum)
+                raise RuntimeError(
+                    f"Unsupported {package} version {installed}; "
+                    f"LAYA browser action selection requires {package}>={required}."
+                )
+
     def _load_model(self) -> None:
         """Load the LAYA model using the best available backend.
 
@@ -305,21 +329,36 @@ class LayaActionPolicy:
         3. Remote API (jev-ultrafast style) — calls an OpenAI-compatible
            HTTP endpoint. No local dependencies needed.
 
-        Gracefully degrades if no backend is available.
+        Raises when no LAYA backend is available; the caller fails closed.
         """
         if self._model is not None:
             return
 
         # Path 1: laya.Router (auto-download, simplest path)
-        # This is what the user tested successfully — just import laya,
-        # create a Router(), and call system_one(). The Router handles
-        # checkpoint downloading + device selection internally.
+        # Validate the installed package versions before any native Torch
+        # initialization. This prevents a known-stale runtime from reaching
+        # torch_cpu.dll and turns it into a normal fail-closed decision error.
+        self._verify_runtime_dependencies()
         try:
             from laya import Router  # type: ignore[import-not-found]
-            self._model = Router()
-            self._model_version = "laya:router"
+            # Use exactly one resident checkpoint on constrained local hosts.
+            # The browser-action selector is a dedicated typed-decision workload,
+            # so pin Router requests to the configured typed-decisions checkpoint.
+            self._model = Router(
+                max_loaded=1,
+                default=self._config.model_subfolder or "typed-decisions",
+                auto_task_detection=False,
+            )
+            self._model_version = (
+                f"laya:router/{self._config.model_subfolder or 'typed-decisions'}"
+            )
             self._device = "auto-router"
-            logger.info("laya_action_policy_loaded_router", backend="laya.Router")
+            logger.info(
+                "laya_action_policy_loaded_router",
+                backend="laya.Router",
+                model=self._config.model_subfolder or "typed-decisions",
+                max_loaded=1,
+            )
             return
         except ImportError:
             logger.info("laya_router_not_available_trying_fallbacks")
@@ -396,14 +435,12 @@ class LayaActionPolicy:
         self,
         action_space: "_ActionSpacePayload",
     ) -> LayaActionDecision:
-        """Choose an operation + target from the indexed action space.
+        """Choose the operation + target from the indexed action space.
 
-        This is the main entry point called by ``DecisionEngine`` (P3).
-        Returns a ``LayaActionDecision`` containing a resolved
-        ``AgentAction``. On any error, low confidence, shadow mode, or
-        unsupported page, returns a fallback decision with a descriptive
-        ``fallback_reason`` so the caller transparently uses the Gemini
-        path.
+        This is the main entry point called by ``DecisionEngine``. On any
+        error, low confidence, non-primary mode, or unavailable backend,
+        returns an unavailable decision. The caller fails closed; no other
+        model selects the browser action.
 
         Args:
             action_space: compact indexed list of visible+eligible controls
@@ -434,27 +471,13 @@ class LayaActionPolicy:
                 action="continue_with_threshold_and_validation",
             )
 
-        # Reject empty action spaces — LAYA cannot choose from nothing
-        if not action_space.candidates:
-            return self._fallback(action_space, reason="empty_action_space")
-
-        # Shadow mode: run the inference but always return a fallback
-        # so the caller uses the Gemini path; record the shadow decision
-        # for offline comparison.
-        if self._config.mode == "shadow":
-            try:
-                shadow_decision = await self._infer(action_space)
-                if shadow_decision:
-                    # Record the shadow decision in telemetry but return a fallback
-                    logger.info(
-                        "laya_action_policy_shadow_decision",
-                        operation=shadow_decision.operation,
-                        target_index=shadow_decision.target_index,
-                        confidence=shadow_decision.confidence,
-                    )
-            except Exception as e:
-                logger.warning("laya_action_policy_shadow_inference_failed", error=str(e))
-            return self._fallback(action_space, reason="shadow_mode")
+        # WAIT/SCROLL remain valid LAYA decisions even when no target-bearing
+        # controls are present.
+        if self._config.mode != "primary":
+            return self._fallback(
+                action_space,
+                reason=f"non_primary_mode:{self._config.mode}",
+            )
 
         # Primary mode: use the LAYA decision if confidence ≥ threshold
         try:
@@ -551,14 +574,35 @@ class LayaActionPolicy:
             ],
             "content_is_untrusted_data": True,
         }
+        operation_instructions = (
+            "Choose the next browser operation that advances the stated goal "
+            "using the visible controls. Choose done only when the goal is "
+            "observably complete; choose blocked only when required controls are absent."
+        )
+        visible_record_link = any(
+            c.kind == "click"
+            and c.role == "link"
+            and re.search(r"\b[A-Z]{2,8}\d{4,}\b", c.label.upper())
+            for c in candidates
+        )
+        wants_record_open = (
+            any(term in action_space.plan_step.casefold() for term in ("incident", "record"))
+            and any(
+                term in action_space.plan_step.casefold()
+                for term in ("open", "find", "select", "choose", "target")
+            )
+        )
+        if visible_record_link and wants_record_open:
+            operation_instructions += (
+                " A visible ServiceNow incident record link is already available. "
+                "For this record-opening goal, select click on that visible record link "
+                "instead of wait, scroll, or done."
+            )
+
         questions: dict[str, dict[str, Any]] = {
             "operation": {
                 "type": "choice",
-                "instructions": (
-                    "Choose the next browser operation that advances the stated goal "
-                    "using the visible controls. Choose done only when the goal is "
-                    "observably complete; choose blocked only when required controls are absent."
-                ),
+                "instructions": operation_instructions,
                 "criteria": {op: op for op in operations},
             }
         }
@@ -600,6 +644,7 @@ class LayaActionPolicy:
                 questions,
                 max_len=self._config.model_max_len,
                 head_max_len=self._config.head_max_len,
+                model=self._config.model_subfolder or "typed-decisions",
             )
             answers = result.get("answers", {})
             op_answer = answers.get("operation", {})
@@ -675,25 +720,54 @@ class LayaActionPolicy:
         }
         action_type = op_to_action_type.get(operation, ActionType.WAIT)
 
-        if operation in {"done", "blocked"}:
+        if operation == "blocked":
             return self._fallback(
                 action_space,
-                reason=f"laya_{operation}_terminal_signal",
+                reason="laya_blocked_terminal_signal",
                 elapsed_ms=elapsed_ms,
                 shadow_confidence=confidence,
             )
 
-        # LAYA chooses a browser control, but it does not generate the text
-        # or option value that the planner must enter. Avoid filling with a
-        # control's existing value; hand those actions to the existing LLM
-        # decision path until the plan supplies a structured action value.
-        if operation == "fill":
-            return self._fallback(
-                action_space,
-                reason="planner_value_required:fill",
-                elapsed_ms=elapsed_ms,
-                shadow_confidence=confidence,
+        if operation == "done":
+            action = AgentAction(
+                action_type=ActionType.VALIDATE,
+                target="page",
+                value="",
+                reasoning="LAYA action selector signaled that the current plan step is complete.",
+                metadata={
+                    "laya_source": True,
+                    "laya_operation": "done",
+                    "laya_confidence": confidence,
+                    "laya_action_space_fingerprint": action_space.fingerprint,
+                    "laya_plan_step": action_space.plan_step,
+                },
             )
+            return LayaActionDecision(
+                action=action,
+                operation="done",
+                target_index=None,
+                confidence=confidence,
+                provider="laya",
+                model_version=self._model_version,
+                inference_latency_ms=elapsed_ms,
+                metadata={"action_space_fingerprint": action_space.fingerprint},
+            )
+
+        # LAYA chooses the field/action. The business value must already
+        # exist in trusted structured execution context.
+        if operation == "fill":
+            planned_value = self._planned_value_for_candidate(
+                candidate=None,
+                action_space=action_space,
+                target_index=target_index,
+            )
+            if not planned_value:
+                return self._fallback(
+                    action_space,
+                    reason="planned_value_missing:fill",
+                    elapsed_ms=elapsed_ms,
+                    shadow_confidence=confidence,
+                )
 
         target = ""
         value = ""
@@ -705,10 +779,24 @@ class LayaActionPolicy:
             )
             if candidate:
                 target = candidate.locator
-                value = str(raw.get("selected_value", "") or "") if operation == "select" else candidate.value
+                if operation == "select":
+                    value = str(raw.get("selected_value", "") or "")
+                elif operation == "fill":
+                    value = self._planned_value_for_candidate(
+                        candidate=candidate,
+                        action_space=action_space,
+                        target_index=target_index,
+                    )
+                    if not value:
+                        return self._fallback(
+                            action_space,
+                            reason="planned_value_missing:fill",
+                            elapsed_ms=elapsed_ms,
+                            shadow_confidence=confidence,
+                        )
             else:
                 # Stale index — the page changed between observation and
-                # inference. Fall back with a descriptive reason.
+                # inference. The caller re-observes and fails closed.
                 return self._fallback(
                     action_space,
                     reason=f"stale_target_index:{target_index}",
@@ -755,6 +843,37 @@ class LayaActionPolicy:
             },
         )
 
+    @staticmethod
+    def _planned_value_for_candidate(
+        candidate: ActionSpaceCandidate | None,
+        action_space: _ActionSpacePayload,
+        target_index: int | None,
+    ) -> str:
+        """Resolve a trusted planned value for a LAYA-selected fill target."""
+        planned = getattr(action_space, "planned_values", {}) or {}
+        if not planned:
+            return ""
+        if candidate is None and target_index is not None:
+            candidate = next(
+                (c for c in action_space.candidates if c.index == target_index),
+                None,
+            )
+        if candidate is None:
+            return ""
+        label = str(candidate.label or "").strip().casefold()
+        locator = str(candidate.locator or "").strip().casefold()
+        normalized = {
+            str(key).replace("_", " ").strip().casefold(): str(value).strip()
+            for key, value in planned.items()
+            if value is not None and str(value).strip()
+        }
+        for key, value in normalized.items():
+            if key == label or key == locator:
+                return value
+            if key and (key in label or label in key):
+                return value
+        return normalized.get("__default__", "")
+
     def _fallback(
         self,
         action_space: "_ActionSpacePayload",
@@ -763,11 +882,11 @@ class LayaActionPolicy:
         shadow_decision: LayaActionDecision | None = None,
         shadow_confidence: float = 0.0,
     ) -> LayaActionDecision:
-        """Build a fallback decision so the caller uses the Gemini path.
+        """Build an unavailable decision.
 
-        The returned ``AgentAction`` is a no-op WAIT — the caller (DecisionEngine)
-        checks ``fallback_reason`` and, if non-empty, ignores the action
-        and proceeds with the existing Gemini/LLM decision path.
+        The returned WAIT is a transport-safe placeholder only. The DecisionEngine
+        treats fallback_reason as a hard action-selection failure and never
+        executes the placeholder or routes the action to another model.
         """
         self._fallback_count += 1
         action = AgentAction(
@@ -853,7 +972,8 @@ class _ActionSpacePayload:
     candidates: list[ActionSpaceCandidate]
     plan_step: str
     persona: str
-    allowed_operations: list[str]
+    planned_values: dict[str, str] = field(default_factory=dict)
+    allowed_operations: list[str] = field(default_factory=list)
 
 
 class _RemoteLayaBackend:

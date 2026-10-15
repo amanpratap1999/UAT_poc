@@ -12,7 +12,7 @@
 > **Recruiter & Engineering Lead TL;DR:**
 > - **What it is:** Production-grade autonomous QA agent runtime designed for end-to-end ServiceNow Incident Management testing.
 > - **Core Engineering:** Users provide high-level natural language QA goals; the system decomposes goals into structured execution plans, drives Playwright browsers with visual observation engines, automatically validates field changes & DOM state, and executes automated recovery routines on transient errors.
-> - **Architectural Discipline:** Strictly decoupled LLM planner from browser execution—the planner emits structured typed action primitives; execution controllers translate them into Playwright browser events.
+> - **Architectural Discipline:** LLM/Nemotron owns reasoning and macro planning; LAYA owns immediate browser action selection; Playwright only executes selected actions. There is no LLM/Gemini fallback for browser action selection.
 > - **Live Execution Capture:** [View Automated Test Capture](#-live-servicenow-inspection-run) • **Architecture:** [View Component Architecture](#architecture) • **Quickstart:** [Local Execution Guide](#-local-execution)
 
 An AI-first autonomous QA agent for ServiceNow Incident Management. Users provide business-level goals; the agent autonomously plans, browses, validates, recovers, and reports.
@@ -27,39 +27,66 @@ An AI-first autonomous QA agent for ServiceNow Incident Management. Users provid
 
 ## Architecture
 
-```
-User Goal → Planner (LLM) → Execution Controller → Playwright Browser
-                  ↑                                        |
-                  └──── Session Memory ←── Observation Engine
-```
+~~~
+User Goal → Intent → LLM Reasoning/Plan → Observe
+                                  ↓
+                           LAYA Action Selector
+                                  ↓
+                         Playwright Executor
+                                  ↓
+                         Observe → Validate
+                                  ↓
+                    LLM Recovery/Interpretation
+                                  ↺
+~~~
 
-**Primary Principle:** The LLM never directly manipulates Playwright. The Planner emits structured action dictionaries. The Execution Controller translates those into browser operations.
+**Primary Principle:** The LLM is the reasoning/planning layer, not the browser action selector. LAYA selects the immediate operation and target from code-owned observed controls. Playwright only executes the selected action.
 
 ### Component Overview
 
 | Component | Purpose | Location |
 |-----------|---------|----------|
-| **Planner** | LLM-based reasoning: plan creation, action decisions, validation assessment | `src/agent/planner/` |
-| **Session Memory** | Stateful context: goal, plan, observations, failures, timeline | `src/agent/memory/` |
-| **Execution Controller** | Translates structured actions → browser operations | `src/agent/execution/` |
-| **Browser Manager** | Playwright lifecycle, screenshots, accessibility tree | `src/agent/browser/` |
-| **Observation Engine** | Converts browser pages → structured JSON observations | `src/agent/observation/` |
-| **Validation Engine** | Post-action verification (field updates, errors, JS) | `src/agent/validation/` |
-| **Recovery Engine** | Automated error recovery: wait, scroll, dismiss, refresh | `src/agent/recovery/` |
-| **Reporting Engine** | QA report generation (Markdown, JSON) with defect analysis | `src/agent/reporting/` |
-| **Knowledge Store** | ServiceNow documentation retrieval for planner context | `src/agent/knowledge/` |
+| **Intent Manager** | Goal normalization and structured intent | src/agent/intent/ |
+| **Planner** | LLM reasoning, macro planning, validation interpretation, recovery reasoning | src/agent/planner/ |
+| **LAYA Action Selector** | Immediate browser action selection from bounded DOM-owned controls | src/agent/decision/laya_action_policy.py |
+| **Session Memory** | Goal, plan, observations, failures, timeline | src/agent/memory/ |
+| **Execution Controller** | Safe translation of AgentAction into browser operations | src/agent/execution/ |
+| **Browser Manager** | Playwright lifecycle and browser state | src/agent/browser/ |
+| **Observation Engine** | Browser page to structured DOM observation | src/agent/observation/ |
+| **Moondream** | Primary visual grounding when DOM is insufficient | src/agent/perception/ |
+| **Gemini** | Visual fallback/verification only | src/agent/perception/ |
+| **Validation Engine** | Post-action and business-outcome verification | src/agent/validation/ |
+| **Recovery Engine** | Bounded recovery orchestration | src/agent/recovery/ |
+| **Reporting Engine** | Evidence, findings, and run reports | src/agent/reporting/ |
 
-### Reasoning Loop
+### Canonical Execution Loop
 
-```
-Goal → Observe → Reason → Execute → Observe → Validate → Continue/Report
-```
+~~~
+Goal → Intent → LLM Reason/Plan → Observe
+→ LAYA selects action → Playwright executes
+→ Observe → Validate
+→ LLM interprets/reasons about recovery or completion
+→ LAYA selects next action …
+~~~
+
+### LAYA Action-Selection Contract
+
+LAYA is the only browser-level action selector in the runtime.
+
+- LLM/Nemotron decides the business objective, plan, expected outcomes, and recovery reasoning.
+- DOM observation builds a bounded indexed action space.
+- LAYA chooses the operation and target index.
+- Code resolves that index to a safe DOM-owned locator; LAYA never emits raw selectors, coordinates, JavaScript, or shell commands.
+- Moondream remains the primary visual grounder; Gemini remains a perception/verification fallback and does not select browser actions.
+- Playwright only executes the resulting AgentAction.
+- LAYA failures, low confidence, stale targets, or unavailable models fail closed. There is no Gemini/LLM action-selection fallback.
+- For fill, LAYA chooses the field; the value must already exist in trusted structured plan/test data.
 
 ## Runtime Architecture & Execution Modes
 
 The platform supports two first-class runtime environments:
 
-1. **Local Host Mode (`local`)**: Runs directly on the developer's workstation without Docker.
+1. **Local Host Mode (`local`)**: Runs directly on the developer's workstation without Docker and is the default development/test path.
    - FastAPI API runs on `http://127.0.0.1:8000`.
    - Celery worker runs locally with `--pool=solo` (Windows compatible) in your interactive desktop session.
    - React/Vite development server runs on `http://localhost:5173` and automatically proxies `/api` requests to port 8000.
@@ -192,7 +219,7 @@ powershell -ExecutionPolicy Bypass -File scripts/stop-local.ps1
 
 ---
 
-## 🐳 Docker Execution
+## 🐳 Docker Execution (optional deployment/CI runtime) (optional deployment/CI runtime)
 
 All containerized multi-service Docker Compose topologies run with multi-stage non-root images, mutual TLS Redis communication, and dedicated bridge network isolation.
 

@@ -1826,69 +1826,32 @@ class CognitiveOrchestrator:
             # 3. Decision
             self._transition(AgentState.DECISION, f"Deciding action for: {step.description}")
             
-            # P0.2 SCRIPTED TEST EXECUTION MODE bypass
-            action = None
-            if step.expected_values and "action_type" in step.expected_values:
-                # Build AgentAction from the explicitly mapped step. An
-                # unrecognized action_type string must degrade gracefully to
-                # the decision engine rather than crashing the run with a
-                # ValueError.
-                raw_action_type = str(step.expected_values["action_type"]).lower().strip()
-                try:
-                    typed_action = ActionType(raw_action_type)
-                except ValueError:
-                    typed_action = None
-                    logger.warning(
-                        "scripted_step_unknown_action_type",
-                        action_type=raw_action_type,
-                        step=step.step_index,
+            # All browser action selection is delegated to LAYA. Imported
+            # test-case action_type/target/value data remains in the PlanStep
+            # as trusted execution constraints and planned values, but it never
+            # bypasses the LAYA action-selector boundary.
+            try:
+                decision = await self._decision_engine.decide_next_action(  # type: ignore[union-attr]
+                    intent=memory.structured_intent,
+                    world_state=world_state,
+                    memory=memory,
+                    latest_reflection=None,
+                )
+            except Exception as decision_error:
+                from agent.decision.engine import DecisionUnavailableError
+                if isinstance(decision_error, DecisionUnavailableError):
+                    reason = f"Safe LAYA action selection unavailable: {decision_error}"
+                    step.mark_blocked(reason)
+                    plan.skip_remaining_steps(step.step_index + 1, reason)
+                    memory.add_timeline_entry(
+                        action=f"LAYA decision blocked: {step.description}",
+                        result=reason,
                     )
+                    self._transition(AgentState.BLOCKED, reason)
+                    return
+                raise
+            action = decision.action
 
-                if typed_action is not None:
-                    action = AgentAction(
-                        action_type=typed_action,
-                        target=step.expected_values.get("target", ""),
-                        value=step.expected_values.get("value", ""),
-                        reasoning=f"Explicitly scripted step: {step.description}",
-                        metadata={"is_scripted": True}
-                    )
-                    logger.info("decision_engine_bypassed", reason="Scripted test execution mode active")
-
-            if action is None:
-                # P8-LAYA: the DecisionEngine may now delegate browser-level
-                # micro-decisions to the LAYA action policy (when configured
-                # and healthy) before falling back to the Gemini path. The
-                # action policy receives the current plan step (from
-                # memory.plan.current_step.description), the active persona
-                # (from memory.persona), and the compact indexed action
-                # space built from the latest observation stashed on
-                # memory.observations[-1]. The orchestrator's safety gates
-                # (page_gate, mutation authorization, execution limits) and
-                # independent post-action verification remain unchanged — the
-                # LAYA-chosen AgentAction flows through the exact same
-                # execution + validation path as a Gemini-chosen action.
-                try:
-                    decision = await self._decision_engine.decide_next_action(  # type: ignore[union-attr]
-                        intent=memory.structured_intent,
-                        world_state=world_state,
-                        memory=memory,
-                        latest_reflection=None,
-                    )
-                except Exception as decision_error:
-                    from agent.decision.engine import DecisionUnavailableError
-                    if isinstance(decision_error, DecisionUnavailableError):
-                        reason = f"Safe decision unavailable: {decision_error}"
-                        step.mark_blocked(reason)
-                        plan.skip_remaining_steps(step.step_index + 1, reason)
-                        memory.add_timeline_entry(
-                            action=f"Decision blocked: {step.description}",
-                            result=reason,
-                        )
-                        self._transition(AgentState.BLOCKED, reason)
-                        return
-                    raise
-                action = decision.action
-            
             # Read-only safety guard: if the goal is read-only, block any
             # mutating action the decision engine might choose (click on
             # a list row to navigate is OK; fill/select on a form is not).
