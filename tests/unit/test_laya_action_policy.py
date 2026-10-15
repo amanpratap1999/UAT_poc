@@ -153,6 +153,25 @@ async def test_non_primary_mode_is_rejected(policy, action_space):
     assert decision.fallback_reason.startswith("non_primary_mode:")
 
 
+def test_runtime_dependency_version_guard_accepts_required_versions(policy, monkeypatch):
+    versions = {"laya": "0.3.29", "torch": "2.14.1+cpu"}
+    monkeypatch.setattr(
+        "agent.decision.laya_action_policy.package_version",
+        lambda name: versions[name],
+    )
+    policy._verify_runtime_dependencies()
+
+
+def test_runtime_dependency_version_guard_rejects_old_torch(policy, monkeypatch):
+    versions = {"laya": "0.3.29", "torch": "2.14.0"}
+    monkeypatch.setattr(
+        "agent.decision.laya_action_policy.package_version",
+        lambda name: versions[name],
+    )
+    with pytest.raises(RuntimeError, match="torch>=2.14.1"):
+        policy._verify_runtime_dependencies()
+
+
 def test_config_defaults_require_primary_laya():
     cfg = LayaActionPolicyConfig()
     assert cfg.enabled is True
