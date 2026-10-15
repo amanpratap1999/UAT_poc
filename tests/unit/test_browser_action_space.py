@@ -402,6 +402,44 @@ def test_servicenow_record_link_is_ranked_for_open_record():
     assert record.locator == "role:link:INC0010001 - Email server down"
 
 
+def test_visible_servicenow_record_disables_scroll_competition():
+    """A visible target record should remove irrelevant scroll choices for LAYA."""
+    buttons = [
+        ButtonInfo(label=f"Utility {i}", is_visible=True, is_enabled=True)
+        for i in range(8)
+    ]
+    buttons.append(
+        ButtonInfo(
+            label="INC0010001 - Email server down",
+            is_visible=True,
+            is_enabled=True,
+            button_type="link",
+        )
+    )
+    obs = PageObservation(
+        url="https://test.service-now.com/incident_list.do",
+        title="Incidents",
+        page_type="list",
+        visible_fields=[],
+        buttons=buttons,
+        tabs=[],
+        validation_messages=[],
+        notification_messages=[],
+        interactive_elements=[],
+    )
+
+    payload = BrowserActionSpace.from_observation(
+        observation=obs,
+        plan_step="Open an existing Incident Record",
+        persona="itil_user",
+    )
+
+    assert payload is not None
+    assert "click" in payload.allowed_operations
+    assert "scroll_down" not in payload.allowed_operations
+    assert "scroll_up" not in payload.allowed_operations
+
+
 def test_action_space_carries_planned_values(sample_observation):
     payload = BrowserActionSpace.from_observation(
         observation=sample_observation,
