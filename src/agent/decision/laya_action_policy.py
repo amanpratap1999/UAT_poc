@@ -309,10 +309,24 @@ class LayaActionPolicy:
         # checkpoint downloading + device selection internally.
         try:
             from laya import Router  # type: ignore[import-not-found]
-            self._model = Router()
-            self._model_version = "laya:router"
+            # Use exactly one resident checkpoint on constrained local hosts.
+            # The browser-action selector is a dedicated typed-decision workload,
+            # so pin Router requests to the configured typed-decisions checkpoint.
+            self._model = Router(
+                max_loaded=1,
+                default=self._config.model_subfolder or "typed-decisions",
+                auto_task_detection=False,
+            )
+            self._model_version = (
+                f"laya:router/{self._config.model_subfolder or 'typed-decisions'}"
+            )
             self._device = "auto-router"
-            logger.info("laya_action_policy_loaded_router", backend="laya.Router")
+            logger.info(
+                "laya_action_policy_loaded_router",
+                backend="laya.Router",
+                model=self._config.model_subfolder or "typed-decisions",
+                max_loaded=1,
+            )
             return
         except ImportError:
             logger.info("laya_router_not_available_trying_fallbacks")
@@ -598,6 +612,7 @@ class LayaActionPolicy:
                 questions,
                 max_len=self._config.model_max_len,
                 head_max_len=self._config.head_max_len,
+                model=self._config.model_subfolder or "typed-decisions",
             )
             answers = result.get("answers", {})
             op_answer = answers.get("operation", {})
