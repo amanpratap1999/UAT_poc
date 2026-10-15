@@ -98,11 +98,12 @@ class BrowserActionSpace:
             locator = cls._locator_for_button(button)
             if not locator:
                 continue
+            role = getattr(button, "button_type", None) or "button"
             candidates.append(
                 ActionSpaceCandidate(
                     index=index_counter,
                     kind="click",
-                    role="button",
+                    role=role,
                     label=button.label or getattr(button, "text", "") or "button",
                     value="",
                     locator=locator,
