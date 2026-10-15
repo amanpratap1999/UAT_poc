@@ -31,6 +31,11 @@ from agent.tools.registry import ToolRegistry
 
 logger = get_logger(__name__)
 
+
+class DecisionUnavailableError(AgentError):
+    """Raised when the LAYA action policy cannot safely select an executable action."""
+
+
 class CognitiveDecision(BaseModel):
     """Output of the DecisionEngine."""
 
