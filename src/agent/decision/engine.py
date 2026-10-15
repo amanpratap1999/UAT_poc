@@ -140,10 +140,21 @@ class DecisionEngine:
             plan_desc = step.description
             plan_expected = step.expected_outcome
 
+        overall_goal = (
+            str(getattr(memory, "goal", "") or getattr(intent, "goal", "") or "").strip()
+        )
+        if overall_goal and plan_desc:
+            laya_goal = (
+                f"Overall goal: {overall_goal}\n"
+                f"Current plan step: {plan_desc}"
+            )
+        else:
+            laya_goal = overall_goal or plan_desc
+
         action_space = self._build_laya_action_space(
             world_state=world_state,
             memory=memory,
-            plan_step=plan_desc,
+            plan_step=laya_goal,
             planned_values=self._build_laya_planned_values(intent, memory),
         )
         if action_space is None:
