@@ -360,6 +360,48 @@ def test_allowed_operations_includes_all_laya_operations(sample_observation):
 
 
 
+def test_servicenow_record_link_is_ranked_for_open_record():
+    """Visible Incident links survive the local LAYA candidate budget and keep link semantics."""
+    buttons = [
+        ButtonInfo(label=f"Utility {i}", is_visible=True, is_enabled=True)
+        for i in range(20)
+    ]
+    buttons.append(
+        ButtonInfo(
+            label="INC0010001 - Email server down",
+            is_visible=True,
+            is_enabled=True,
+            button_type="link",
+        )
+    )
+    obs = PageObservation(
+        url="https://test.service-now.com/incident_list.do",
+        title="Incidents",
+        page_type="list",
+        visible_fields=[],
+        buttons=buttons,
+        tabs=[],
+        validation_messages=[],
+        notification_messages=[],
+        interactive_elements=[],
+    )
+
+    payload = BrowserActionSpace.from_observation(
+        observation=obs,
+        plan_step="Open Target Incident Record",
+        persona="itil_user",
+    )
+
+    assert payload is not None
+    record_candidates = [c for c in payload.candidates if c.label.startswith("INC0010001")]
+    assert record_candidates, "Incident record link was omitted from the action space"
+    record = record_candidates[0]
+    assert payload.candidates.index(record) < 12
+    assert record.kind == "click"
+    assert record.role == "link"
+    assert record.locator == "role:link:INC0010001 - Email server down"
+
+
 def test_action_space_carries_planned_values(sample_observation):
     payload = BrowserActionSpace.from_observation(
         observation=sample_observation,
