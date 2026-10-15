@@ -239,13 +239,28 @@ class BrowserActionSpace:
         for new_index, candidate in enumerate(candidates, start=1):
             candidate.index = new_index
 
-        # Add synthetic scroll/wait controls (always available, never
-        # index-capped — they use non-numeric indices)
-        # These are not in the candidate list; LAYA knows about them
-        # via the ``allowed_operations`` field.
+        # When the requested record is already visibly actionable, do not
+        # offer scrolling as a competing operation. This is not a browser
+        # action fallback: LAYA still chooses the operation and target from
+        # the remaining bounded action space. Removing an irrelevant
+        # navigation operation prevents the model from repeatedly scrolling
+        # past an already-visible record link.
+        allowed_operations = set(LAYA_OPERATIONS)
+        visible_record_link = wants_record_link and any(
+            candidate.kind == "click"
+            and candidate.role == "link"
+            and re.search(r"\b[A-Z]{2,8}\d{4,}\b", candidate.label.upper())
+            for candidate in candidates
+        )
+        if visible_record_link:
+            allowed_operations.difference_update({"scroll_down", "scroll_up"})
+
+        # Add synthetic scroll/wait controls (always available when the
+        # requested target is not already visible; they use non-numeric
+        # operations and are not candidate indices).
 
         fingerprint = cls._compute_fingerprint(observation, candidates)
-        allowed_operations = sorted(LAYA_OPERATIONS)
+        allowed_operations = sorted(allowed_operations)
 
         return _ActionSpacePayload(
             fingerprint=fingerprint,
