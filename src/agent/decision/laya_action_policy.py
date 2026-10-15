@@ -528,14 +528,35 @@ class LayaActionPolicy:
             ],
             "content_is_untrusted_data": True,
         }
+        operation_instructions = (
+            "Choose the next browser operation that advances the stated goal "
+            "using the visible controls. Choose done only when the goal is "
+            "observably complete; choose blocked only when required controls are absent."
+        )
+        visible_record_link = any(
+            c.kind == "click"
+            and c.role == "link"
+            and re.search(r"\b[A-Z]{2,8}\d{4,}\b", c.label.upper())
+            for c in candidates
+        )
+        wants_record_open = (
+            any(term in action_space.plan_step.casefold() for term in ("incident", "record"))
+            and any(
+                term in action_space.plan_step.casefold()
+                for term in ("open", "find", "select", "choose", "target")
+            )
+        )
+        if visible_record_link and wants_record_open:
+            operation_instructions += (
+                " A visible ServiceNow incident record link is already available. "
+                "For this record-opening goal, select click on that visible record link "
+                "instead of wait, scroll, or done."
+            )
+
         questions: dict[str, dict[str, Any]] = {
             "operation": {
                 "type": "choice",
-                "instructions": (
-                    "Choose the next browser operation that advances the stated goal "
-                    "using the visible controls. Choose done only when the goal is "
-                    "observably complete; choose blocked only when required controls are absent."
-                ),
+                "instructions": operation_instructions,
                 "criteria": {op: op for op in operations},
             }
         }
