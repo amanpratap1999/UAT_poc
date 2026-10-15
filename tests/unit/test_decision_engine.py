@@ -148,6 +148,43 @@ async def test_laya_policy_receives_planned_values(sample_observation):
 
 
 @pytest.mark.asyncio
+async def test_laya_receives_overall_goal_with_current_step(sample_observation):
+    """LAYA gets recovery context when the current page does not match the micro-step."""
+    policy = MagicMock()
+    policy.is_configured.return_value = True
+    policy.choose_action = AsyncMock(
+        return_value=LayaActionDecision(
+            action=AgentAction(
+                action_type=ActionType.CLICK,
+                target="role:link:INC0010001 - Email server down",
+                reasoning="LAYA selected the visible incident record",
+            ),
+            operation="click",
+            target_index=1,
+            confidence=0.9,
+        )
+    )
+    engine = DecisionEngine(laya_action_policy=policy)
+    world_state = WorldModel().build_semantic_state(sample_observation)
+    intent = StructuredIntent(
+        intent_type="IncidentValidation",
+        goal="Open an existing incident in New state and validate it",
+        target_module="incident",
+    )
+    memory = SessionMemory(goal="Open an existing incident in New state and validate it")
+    plan = ExecutionPlan(goal=memory.goal)
+    plan.add_step("Set State to In Progress", "State changes to In Progress")
+    memory.plan = plan
+    memory.add_observation(sample_observation)
+
+    await engine.decide_next_action(intent, world_state, memory)
+
+    payload = policy.choose_action.await_args.args[0]
+    assert "Overall goal: Open an existing incident in New state and validate it" in payload.plan_step
+    assert "Current plan step: Set State to In Progress" in payload.plan_step
+
+
+@pytest.mark.asyncio
 async def test_step_cache_cannot_bypass_laya(sample_observation):
     """A prior cached action must never become the browser action source."""
     policy = MagicMock()
