@@ -38,8 +38,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 from dataclasses import dataclass, field
+from importlib.metadata import PackageNotFoundError, version as package_version
 from typing import Any
 
 from agent.core.logging import get_logger
@@ -285,6 +287,35 @@ class LayaActionPolicy:
             self._warm = False
             return False
 
+    @staticmethod
+    def _parse_version(value: str) -> tuple[int, int, int]:
+        """Parse a dotted package version without importing the package."""
+        core = (value or "").split("+", 1)[0]
+        numbers = [int(part) for part in re.split(r"[^0-9]+", core) if part]
+        numbers = (numbers + [0, 0, 0])[:3]
+        return numbers[0], numbers[1], numbers[2]
+
+    def _verify_runtime_dependencies(self) -> None:
+        """Reject stale LAYA/Torch installs before native model initialization."""
+        minimums = {
+            "laya": (0, 3, 29),
+            "torch": (2, 14, 1),
+        }
+        for package, minimum in minimums.items():
+            try:
+                installed = package_version(package)
+            except PackageNotFoundError as exc:
+                raise RuntimeError(
+                    f"Required package {package!r} is not installed; "
+                    "install the LAYA extra before browser action selection."
+                ) from exc
+            if self._parse_version(installed) < minimum:
+                required = ".".join(str(part) for part in minimum)
+                raise RuntimeError(
+                    f"Unsupported {package} version {installed}; "
+                    f"LAYA browser action selection requires {package}>={required}."
+                )
+
     def _load_model(self) -> None:
         """Load the LAYA model using the best available backend.
 
@@ -304,9 +335,10 @@ class LayaActionPolicy:
             return
 
         # Path 1: laya.Router (auto-download, simplest path)
-        # This is what the user tested successfully — just import laya,
-        # create a Router(), and call system_one(). The Router handles
-        # checkpoint downloading + device selection internally.
+        # Validate the installed package versions before any native Torch
+        # initialization. This prevents a known-stale runtime from reaching
+        # torch_cpu.dll and turns it into a normal fail-closed decision error.
+        self._verify_runtime_dependencies()
         try:
             from laya import Router  # type: ignore[import-not-found]
             # Use exactly one resident checkpoint on constrained local hosts.
