@@ -105,6 +105,7 @@ async def test_decision_engine_blocks_when_laya_fails(observation):
         return_value=LayaActionDecision(
             action=AgentAction(action_type=ActionType.WAIT),
             operation="fallback",
+            target_index=None,
             confidence=0.0,
             fallback_reason="inference_timeout",
         )
