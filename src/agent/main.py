@@ -856,18 +856,30 @@ class AgentOrchestrator:
             # Generate report
             try:
                 self._report = await self._generate_report()
-                if self._report:
-                    if self._report.status == "cleanup_failed":
-                        self._transition_safe(AgentState.CLEANUP_FAILED, "Report status is cleanup_failed")
-                    elif self._report.status == "precondition_failed":
-                        self._transition_safe(AgentState.PRECONDITION_FAILED, "Report status is precondition_failed")
-                    elif self._report.status == "blocked":
-                        self._transition_safe(AgentState.BLOCKED, "Report status is blocked")
-                    elif self._report.status == "failed":
-                        self._transition_safe(AgentState.FAILED, "Report status is failed")
-                    elif self._report.status == "passed" and len(self._memory.failures) == 0:
-                        self._transition_safe(AgentState.COMPLETED, "Report status is passed")
-            except Exception as e:
+if self._report:
+        exit_verdict = (
+                    (self._report.exit_criteria or {}).get("verdict", "")
+                    if isinstance(getattr(self._report, "exit_criteria", None), dict)
+                    else ""
+        )
+    if self._report.status == "cleanup_failed":
+                self._transition_safe(AgentState.CLEANUP_FAILED, "Report status is cleanup_failed")
+    elif self._report.status == "precondition_failed":
+                self._transition_safe(AgentState.PRECONDITION_FAILED, "Report status is precondition_failed")
+    elif exit_verdict in ("BLOCKED", "INCONCLUSIVE") or self._report.status == "blocked":
+                self._transition_safe(AgentState.BLOCKED, f"Report status={self._report.status}, verdict={exit_verdict or 'BLOCKED'}")
+    elif exit_verdict in ("FAIL", "INFRA_ERROR") or self._report.status in ("failed", "error"):
+                self._transition_safe(AgentState.FAILED, f"Report status={self._report.status}, verdict={exit_verdict or 'FAIL'}")
+    elif self._report.status == "partial":
+                if exit_verdict == "CONDITIONAL_PASS" and len(self._memory.failures) == 0:
+                                self._transition_safe(AgentState.COMPLETED, "Report status is partial (CONDITIONAL_PASS)")
+    else:
+                    self._transition_safe(AgentState.FAILED, f"Report status is partial with verdict={exit_verdict or 'UNVERIFIED'}")
+elif self._report.status == "passed" and exit_verdict in ("PASS", "CONDITIONAL_PASS", "") and len(self._memory.failures) == 0:
+        self._transition_safe(AgentState.COMPLETED, "Report status is passed")
+else:
+            self._transition_safe(AgentState.FAILED, f"Unverified run outcome: status={self._report.status}, verdict={exit_verdict}")
+except Exception as e:
                 logger.error("report_generation_failed", error=str(e))
                 
             if hasattr(self, "_lock_manager") and hasattr(self._cognitive_orchestrator, "_locked_records"):
