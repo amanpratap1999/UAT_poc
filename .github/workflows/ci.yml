@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [main, servicenow_testing]
 
+# A branch with an open PR receives both push and pull_request events.
+# Share the concurrency key so identical heavyweight test jobs don't pile up.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
