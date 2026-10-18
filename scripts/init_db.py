@@ -3,7 +3,7 @@ import os
 import sys
 import uuid
 
-from sqlalchemy import select, text
+from sqlalchemy import inspect as sa_inspect, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 # Ensure we can import from agent
@@ -18,9 +18,28 @@ async def init_db():
     print("Initializing database schema...")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-        # Idempotent forward-compatible migration for databases created before
-        # run persona attribution was added to the Run model.
-        await conn.execute(text("ALTER TABLE runs ADD COLUMN IF NOT EXISTS persona VARCHAR"))
+        # Idempotent migration for databases created before run persona
+        # attribution was added to the Run model. Support the production
+        # PostgreSQL backend and native SQLite development/test databases.
+        dialect = conn.dialect.name
+        if dialect == "postgresql":
+            await conn.execute(
+                text("ALTER TABLE runs ADD COLUMN IF NOT EXISTS persona VARCHAR")
+            )
+            await conn.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_runs_persona ON runs (persona)")
+            )
+        elif dialect == "sqlite":
+            columns = await conn.run_sync(
+                lambda sync_conn: {
+                    column["name"] for column in sa_inspect(sync_conn).get_columns("runs")
+                }
+            )
+            if "persona" not in columns:
+                await conn.execute(text("ALTER TABLE runs ADD COLUMN persona VARCHAR"))
+            await conn.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_runs_persona ON runs (persona)")
+            )
     print("Database schema created and persona column verified.")
 
     username = os.environ.get("QA_ADMIN_USERNAME")
