@@ -37,6 +37,8 @@ def mock_page_interactor() -> MagicMock:
     interactor.click = AsyncMock()
     interactor.fill = AsyncMock()
     interactor.select_option = AsyncMock()
+    # Default mocked select verification should not report a pre-existing no-op.
+    interactor.is_select_value = AsyncMock(return_value=False)
     interactor.press_key = AsyncMock()
     interactor.scroll = AsyncMock()
     interactor.wait_for_element = AsyncMock(return_value=True)

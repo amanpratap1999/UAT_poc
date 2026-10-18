@@ -282,6 +282,9 @@ async def test_recovery_tracks_attempts(
 ) -> None:
     """Test that recovery tracks attempt count."""
     page = _make_mock_page()
+    # Exercise the main-page path, not a MagicMock-generated frame collection.
+    page.frames = []
+    page.main_frame = None
     locator = MagicMock()
     locator.count = AsyncMock(return_value=1)
     locator.first = MagicMock()

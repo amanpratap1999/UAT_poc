@@ -301,6 +301,7 @@ async def test_orchestrator_browser_persistence_behavior() -> None:
         learning_service=AsyncMock(),
     )
     orchestrator1._cognitive_orchestrator = AsyncMock()
+    orchestrator1._cognitive_orchestrator.get_locked_records = MagicMock(return_value=[])
     await orchestrator1.run("Test Goal")
     mock_bm_persist.close.assert_not_awaited()
 
@@ -327,6 +328,8 @@ async def test_orchestrator_browser_persistence_behavior() -> None:
         learning_service=AsyncMock(),
     )
     orchestrator2._cognitive_orchestrator = AsyncMock()
+    orchestrator2._cognitive_orchestrator = AsyncMock()
+    orchestrator2._cognitive_orchestrator.get_locked_records = MagicMock(return_value=[])
     await orchestrator2.run("Test Goal")
     mock_bm_headless.close.assert_awaited_once()
 
