@@ -347,7 +347,13 @@ class ExecutionController:
                         retry_action = action
                         resolved_target = getattr(recovery_result, "resolved_target", None)
                         if resolved_target and resolved_target != action.target:
-                            retry_action = action.model_copy(update={"target": resolved_target})
+                            # Fill/select handlers prefer metadata["resolved_locator"]
+                            # over action.target; update both target channels on retry.
+                            retry_metadata = dict(action.metadata or {})
+                            retry_metadata["resolved_locator"] = resolved_target
+                            retry_action = action.model_copy(
+                                update={"target": resolved_target, "metadata": retry_metadata}
+                            )
                         try:
                             # Retry with the locator actually discovered by recovery.
                             # Wait/scroll/dialog strategies may leave it unset; in that

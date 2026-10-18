@@ -180,6 +180,7 @@ async def test_relocation_retry_uses_resolved_target(
         target="label:State",
         value="In Progress",
         reasoning="Change the incident state",
+        metadata={"field_label": "State"},
     )
 
     result = await controller.execute(action)

@@ -289,11 +289,16 @@ class RecoveryEngine:
         return context.locator(selector)
 
     @staticmethod
-    def _candidate_targets(target: str) -> list[str]:
-        """Build bounded, deterministic locator alternatives without inventing actions."""
+    def _candidate_targets(target: str, action_type: Any = None) -> list[str]:
+        """Build bounded alternatives appropriate for the action being retried.
+
+        SELECT recovery must not treat a generic visible caption as the
+        target control when the actual dropdown has a valid DOM selector.
+        """
         selector = (target or "").strip()
         if not selector:
             return []
+        action_kind = str(getattr(action_type, "value", action_type) or "").lower()
         if " >> nth=" in selector:
             base, nth = selector.rsplit(" >> nth=", 1)
             try:
@@ -302,12 +307,11 @@ class RecoveryEngine:
                 return [selector]
             return list(dict.fromkeys(
                 f"{candidate} >> nth={nth}"
-                for candidate in RecoveryEngine._candidate_targets(base)
+                for candidate in RecoveryEngine._candidate_targets(base, action_type)
             ))
         if selector.startswith(("css:", "xpath:")):
             return [selector]
 
-        candidates = [selector]
         if selector.startswith(("text:", "label:", "placeholder:", "title:")):
             hint = selector.split(":", 1)[1].strip()
         elif selector.startswith("role:"):
@@ -315,18 +319,8 @@ class RecoveryEngine:
             hint = parts[1].strip() if len(parts) > 1 else ""
         else:
             hint = selector
-
         if not hint:
-            return candidates
-        candidates.extend([
-            f"text:{hint}",
-            f"label:{hint}",
-            f"role:button:{hint}",
-            f"role:link:{hint}",
-            f"role:textbox:{hint}",
-            f"placeholder:{hint}",
-            f"title:{hint}",
-        ])
+            return [selector]
 
         normalized = " ".join(
             hint.lower().replace("_", " ").replace("-", " ").replace(".", " ").split()
@@ -344,6 +338,25 @@ class RecoveryEngine:
             "on hold reason": "select[id$='.hold_reason'], select[name$='.hold_reason']",
         }
         fallback_selector = field_fallbacks.get(normalized)
+
+        if action_kind == "select":
+            candidates = [selector, f"label:{hint}", f"role:combobox:{hint}"]
+            if fallback_selector:
+                candidates.append(f"css:{fallback_selector}")
+            return list(dict.fromkeys(candidates))
+
+        candidates = [selector]
+        if action_kind == "click":
+            candidates.extend([f"role:button:{hint}", f"role:link:{hint}"])
+        candidates.extend([
+            f"text:{hint}",
+            f"label:{hint}",
+            f"role:button:{hint}",
+            f"role:link:{hint}",
+            f"role:textbox:{hint}",
+            f"placeholder:{hint}",
+            f"title:{hint}",
+        ])
         if fallback_selector:
             candidates.append(f"css:{fallback_selector}")
         return list(dict.fromkeys(candidates))
@@ -355,7 +368,7 @@ class RecoveryEngine:
         await page.wait_for_timeout(2000)
 
         context = self._get_active_context(page)
-        for candidate in self._candidate_targets(action.target):
+        for candidate in self._candidate_targets(action.target, action.action_type):
             try:
                 locator = self._locator_for_target(context, candidate)
                 if await locator.count() > 0 and await locator.first.is_visible():
@@ -454,7 +467,7 @@ class RecoveryEngine:
         matched, rather than replaying the original failed target unchanged.
         """
         context = self._get_active_context(page)
-        for candidate in self._candidate_targets(action.target):
+        for candidate in self._candidate_targets(action.target, action.action_type):
             try:
                 locator = self._locator_for_target(context, candidate)
                 if await locator.count() > 0 and await locator.first.is_visible():

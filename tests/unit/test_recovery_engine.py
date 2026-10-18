@@ -106,7 +106,11 @@ async def test_relocate_state_finds_css_fallback_in_gsft_main_frame(
 
     missing_locator = make_locator(0, False)
     visible_state = make_locator(1, True)
-    for method_name in ("get_by_text", "get_by_label", "get_by_role", "get_by_placeholder", "get_by_title"):
+    visible_caption = make_locator(1, True)
+    # A static text caption exists, but SELECT recovery must still choose the
+    # actual dropdown rather than reporting the caption as its target.
+    active_frame.get_by_text.return_value = visible_caption
+    for method_name in ("get_by_label", "get_by_role", "get_by_placeholder", "get_by_title"):
         getattr(active_frame, method_name).return_value = missing_locator
 
     def frame_locator(selector: str):
@@ -131,6 +135,7 @@ async def test_relocate_state_finds_css_fallback_in_gsft_main_frame(
     assert result.strategy == "relocate_element"
     assert result.resolved_target is not None
     assert result.resolved_target.startswith("css:")
+    active_frame.get_by_text.assert_not_called()
     active_frame.locator.assert_called()
     main_frame.locator.assert_not_called()
 
