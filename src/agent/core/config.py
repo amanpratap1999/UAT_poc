@@ -164,7 +164,7 @@ class ServiceNowConfig(BaseSubConfig):
     # proceeding. If 'role' is absent, role verification is skipped (backward
     # compat with existing personas that only have username/password).
     require_persona_for_benchmark: bool = Field(
-               default=True,
+        default=True,
         description="INC-UAT-01 (Blocker): if True, the benchmark must run under a declared persona — admin/default credentials are rejected."
     )
     allow_mutations: bool = Field(
@@ -187,10 +187,10 @@ class ServiceNowConfig(BaseSubConfig):
     # INC-UAT-03 (Major, D3/D5): if True, the API oracle is constrained to
     # only query fields visible to the active persona's role. This prevents
     # the oracle from inspecting server-side fields/audit data outside the
-    # normal UI experience. When False (default for backward compat), the
-    # oracle queries all fields as before.
+    # normal UI experience. When False, the oracle queries the full field set
+    # for an explicitly configured compatibility use case.
     oracle_persona_constrained: bool = Field(
-       default=True,
+        default=True,
         description="INC-UAT-03: constrain API oracle queries to persona-visible fields only."
     )
 
@@ -202,10 +202,12 @@ class ServiceNowConfig(BaseSubConfig):
         as the wrong user (administrator). Now: if active_persona is set but
         not found in the personas dict, raise ValueError. No silent fallback.
         """
-               if not self.active_persona:
-       if self.require_persona_for_benchmark or self.username.strip().lower() == "admin":
-       raise ValueError("C6: No active_persona configured and fallback to default/admin credentials is forbidden.")
-           return self.username, self.password
+        if not self.active_persona:
+            if self.require_persona_for_benchmark or self.username.strip().lower() == "admin":
+                raise ValueError(
+                    "C6: No active_persona configured and fallback to default/admin credentials is forbidden."
+                )
+            return self.username, self.password
         if self.active_persona not in self.personas:
             raise ValueError(
                 f"Unknown persona '{self.active_persona}' — no credentials "
