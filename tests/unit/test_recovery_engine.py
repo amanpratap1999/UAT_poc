@@ -70,7 +70,9 @@ async def test_recovery_wait_and_retry_success(
     # Element found after waiting
     locator = MagicMock()
     locator.count = AsyncMock(return_value=1)
-    page.locator = MagicMock(return_value=locator)
+    locator.first = MagicMock()
+    locator.first.is_visible = AsyncMock(return_value=True)
+    page.get_by_text = MagicMock(return_value=locator)
 
     result = await engine.attempt_recovery(
         error=SelectorNotFoundError("Element not found"),
@@ -80,6 +82,57 @@ async def test_recovery_wait_and_retry_success(
 
     assert result.success is True
     assert "wait_and_retry" in result.strategy
+    assert result.resolved_target == "text:Update"
+
+
+@pytest.mark.asyncio
+async def test_relocate_state_finds_css_fallback_in_gsft_main_frame(
+    engine: RecoveryEngine,
+) -> None:
+    """Recovery must search the active ServiceNow frame and return its target."""
+    def make_locator(count: int, visible: bool) -> MagicMock:
+        locator = MagicMock()
+        locator.count = AsyncMock(return_value=count)
+        locator.first = MagicMock()
+        locator.first.is_visible = AsyncMock(return_value=visible)
+        return locator
+
+    main_frame = MagicMock()
+    main_frame.name = ""
+    main_frame.url = "https://test.service-now.com/"
+    active_frame = MagicMock()
+    active_frame.name = "gsft_main"
+    active_frame.url = "https://test.service-now.com/incident.do"
+
+    missing_locator = make_locator(0, False)
+    visible_state = make_locator(1, True)
+    for method_name in ("get_by_text", "get_by_label", "get_by_role", "get_by_placeholder", "get_by_title"):
+        getattr(active_frame, method_name).return_value = missing_locator
+
+    def frame_locator(selector: str):
+        if "select[id$='.state']" in selector:
+            return visible_state
+        return missing_locator
+
+    active_frame.locator.side_effect = frame_locator
+    page = MagicMock()
+    page.frames = [main_frame, active_frame]
+    page.main_frame = main_frame
+    action = AgentAction(
+        action_type=ActionType.SELECT,
+        target="label:State",
+        value="In Progress",
+        reasoning="Select state",
+    )
+
+    result = await engine._relocate_element(action, page)
+
+    assert result.success is True
+    assert result.strategy == "relocate_element"
+    assert result.resolved_target is not None
+    assert result.resolved_target.startswith("css:")
+    active_frame.locator.assert_called()
+    main_frame.locator.assert_not_called()
 
 
 @pytest.mark.asyncio

@@ -158,6 +158,42 @@ async def test_execute_with_failure_and_recovery(
 
 
 @pytest.mark.asyncio
+async def test_relocation_retry_uses_resolved_target(
+    controller: ExecutionController,
+    mock_page_interactor: MagicMock,
+    mock_recovery_engine: MagicMock,
+) -> None:
+    """A successful relocation must not retry the original broken selector."""
+    resolved_target = r"css:select[id$='.state'], select[name$='.state'], select#incident\.state"
+    mock_page_interactor.select_option.side_effect = [
+        SelectorNotFoundError("State label is not associated with a select"),
+        None,
+    ]
+    mock_recovery_engine.attempt_recovery.return_value = RecoveryResult(
+        success=True,
+        strategy="relocate_element",
+        details="State select found in the active frame",
+        resolved_target=resolved_target,
+    )
+    action = AgentAction(
+        action_type=ActionType.SELECT,
+        target="label:State",
+        value="In Progress",
+        reasoning="Change the incident state",
+    )
+
+    result = await controller.execute(action)
+
+    assert result.success is True
+    calls = mock_page_interactor.select_option.call_args_list
+    assert calls[0].args == ("label:State", "In Progress")
+    assert calls[1].args == (resolved_target, "In Progress")
+    assert result.details["recovered"] is True
+    assert result.details["original_target"] == "label:State"
+    assert result.details["resolved_target"] == resolved_target
+
+
+@pytest.mark.asyncio
 async def test_execute_with_failure_no_recovery(
     controller: ExecutionController,
     mock_page_interactor: MagicMock,
