@@ -454,6 +454,7 @@ async def create_run(
         tenant_id=token.tenant_id or "unknown",
         requester_id=token.user_id,
         goal=request.goal,
+        persona=selected_persona,
         status="queued",
     )
     db.add(new_run)
@@ -1316,6 +1317,7 @@ async def execute_test_case(
         tenant_id=token.tenant_id or "unknown",
         requester_id=token.user_id,
         goal=goal,
+        persona=selected_persona,
         status="queued",
     )
     db.add(new_run)

@@ -3,7 +3,7 @@ import os
 import sys
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 # Ensure we can import from agent
@@ -18,7 +18,10 @@ async def init_db():
     print("Initializing database schema...")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    print("Database schema created successfully.")
+        # Idempotent forward-compatible migration for databases created before
+        # run persona attribution was added to the Run model.
+        await conn.execute(text("ALTER TABLE runs ADD COLUMN IF NOT EXISTS persona VARCHAR"))
+    print("Database schema created and persona column verified.")
 
     username = os.environ.get("QA_ADMIN_USERNAME")
     password = os.environ.get("QA_ADMIN_PASSWORD")
