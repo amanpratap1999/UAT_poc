@@ -63,6 +63,12 @@ def controller(
     config.is_subproduction = True
     config.instance_url = "https://test.service-now.com"
     config.allowed_instances = ["test.service-now.com"]
+    config.username = "admin"
+    config.password = "default-admin-secret"
+    config.personas = {
+        "itil_user": {"username": "qa-itil-user", "password": "qa-persona-secret", "role": "itil"}
+    }
+    config.active_persona = "itil_user"
     return ExecutionController(
         browser_manager=mock_browser_manager,
         page_interactor=mock_page_interactor,

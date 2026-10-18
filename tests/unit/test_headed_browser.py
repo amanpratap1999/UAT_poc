@@ -43,8 +43,10 @@ def test_headed_browser_config_env_overrides(monkeypatch: pytest.MonkeyPatch) ->
 
 
 @pytest.mark.asyncio
-async def test_browser_manager_passes_headed_params_to_playwright() -> None:
+async def test_browser_manager_passes_headed_params_to_playwright(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that BrowserManager passes headless=False and slow_mo to Chromium."""
+    # Chromium is mocked; a display marker allows this test to exercise launch kwargs on Linux CI.
+    monkeypatch.setenv("DISPLAY", ":99")
     browser_cfg = BrowserConfig.model_construct(
         headless=False,
         slow_mo=250,
@@ -88,8 +90,10 @@ async def test_browser_manager_passes_headed_params_to_playwright() -> None:
 
 
 @pytest.mark.asyncio
-async def test_browser_manager_persistent_context_headed_params() -> None:
+async def test_browser_manager_persistent_context_headed_params(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that persistent context launch receives headless=False and slow_mo."""
+    # The browser is mocked; no graphical server is actually needed.
+    monkeypatch.setenv("DISPLAY", ":99")
     browser_cfg = BrowserConfig.model_construct(
         headless=False,
         slow_mo=250,
@@ -268,7 +272,8 @@ async def test_orchestrator_browser_persistence_behavior() -> None:
     """Test that keep_browser_open=True preserves the browser only when headed."""
     # Case 1: Headed + keep_browser_open=True -> DO NOT close browser
     settings_headed_persist = Settings(
-        browser=BrowserConfig.model_construct(headless=False, keep_browser_open=True)
+        browser=BrowserConfig.model_construct(headless=False, keep_browser_open=True),
+        servicenow=ServiceNowConfig(require_persona_for_benchmark=False),
     )
     mock_bm_persist = AsyncMock()
     mock_bm_persist.get_console_logs.return_value = []
@@ -301,7 +306,8 @@ async def test_orchestrator_browser_persistence_behavior() -> None:
 
     # Case 2: Headless + keep_browser_open=True -> MUST close browser
     settings_headless = Settings(
-        browser=BrowserConfig.model_construct(headless=True, keep_browser_open=True)
+        browser=BrowserConfig.model_construct(headless=True, keep_browser_open=True),
+        servicenow=ServiceNowConfig(require_persona_for_benchmark=False),
     )
     mock_bm_headless = AsyncMock()
     mock_bm_headless.get_console_logs.return_value = []

@@ -76,7 +76,11 @@ async def test_readiness_probe_healthy() -> None:
     else:
         assert data["checks"]["database"]["backend"] == "sqlite"
         assert data["checks"]["database"]["pgvector"] is False
-    assert data["checks"]["redis"]["status"] == "ok"
+    redis_check = data["checks"]["redis"]
+    if redis_check["status"] == "skipped":
+        assert "SESSION_STORE_TYPE=memory" in redis_check["reason"]
+    else:
+        assert redis_check["status"] == "ok"
     assert data["checks"]["directories"]["status"] == "ok"
     assert data["checks"]["embedding_client"]["status"] == "ok"
 

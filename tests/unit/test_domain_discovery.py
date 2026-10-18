@@ -6,6 +6,7 @@ import pytest
 
 from agent.core.config import ServiceNowConfig
 from agent.domain.discovery import CustomerDiscoveryAgent
+from agent.domain.knowledge_model import DiscoveryStatus
 
 
 @pytest.fixture
@@ -58,7 +59,7 @@ async def test_discover_table_metadata(mock_httpx_client):
 
 @pytest.mark.asyncio
 async def test_discovery_http_401(mock_httpx_client):
-    """Test discovery raises RuntimeError on 401 Unauthorized."""
+    """Test discovery records a failed status and diagnostic on 401 Unauthorized."""
     import httpx
 
     mock_response = MagicMock()
@@ -72,13 +73,15 @@ async def test_discovery_http_401(mock_httpx_client):
     )
     agent = CustomerDiscoveryAgent(config=config, client=mock_httpx_client)
 
-    with pytest.raises(RuntimeError, match="ServiceNow Discovery Failed"):
-        await agent.discover_table("incident")
+    result = await agent.discover_table("incident")
+    assert result.discovery_status == DiscoveryStatus.FAILED
+    assert "ServiceNow Discovery Failed" in (result.discovery_error or "")
+    assert "401" in (result.discovery_error or "")
 
 
 @pytest.mark.asyncio
 async def test_discovery_http_403(mock_httpx_client):
-    """Test discovery raises RuntimeError on 403 Forbidden."""
+    """Test discovery records a failed status and diagnostic on 403 Forbidden."""
     import httpx
 
     mock_response = MagicMock()
@@ -92,8 +95,10 @@ async def test_discovery_http_403(mock_httpx_client):
     )
     agent = CustomerDiscoveryAgent(config=config, client=mock_httpx_client)
 
-    with pytest.raises(RuntimeError, match="ServiceNow Discovery Failed"):
-        await agent.discover_table("incident")
+    result = await agent.discover_table("incident")
+    assert result.discovery_status == DiscoveryStatus.FAILED
+    assert "ServiceNow Discovery Failed" in (result.discovery_error or "")
+    assert "403" in (result.discovery_error or "")
 
 
 @pytest.mark.asyncio
