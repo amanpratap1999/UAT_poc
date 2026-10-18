@@ -2602,6 +2602,11 @@ websockets==16.1.1 \
     --hash=sha256:fd46fff7eb62c24804d234f0051c7a8ea81285ad63e0337d3dcf33ca82aee58a
     # via uvicorn
 
+# Pinned to satisfy torch 2.14.0's Linux dependency; hash verified against PyPI's published wheel metadata.
+triton==3.8.0 ; sys_platform == "linux" \
+    --hash=sha256:68988ac85d5e7086baeda0ddc175af9667db7529b3c5e11a5c0601b8bef2200a
+    # via torch
+
 # WARNING: The following packages were not pinned, but pip requires them to be
 # pinned when the requirements file includes hashes and the requirement is not
 # satisfied by a package already installed. Consider using the --allow-unsafe flag.
