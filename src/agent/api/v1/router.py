@@ -1383,12 +1383,12 @@ _MAX_IMPORT_BYTES = 10 * 1024 * 1024  # 10 MB workbook cap
 @router.post("/test-cases/import", response_model=list[ImportTestCasesResponse])
 async def import_test_cases(
     token: Annotated[TokenData, Depends(require_qa_engineer)],
+    db: Annotated[AsyncSession, Depends(get_db_session)],
     # audit issue I12 (P0): mutating endpoint requires qa engineer role
     file: UploadFile = File(...),
     execute: bool = Form(False),
     personas: str | None = Form(None),
     sheet_name: str | None = Form(None),
-    db: Annotated[AsyncSession, Depends(get_db_session)] = None,  # type: ignore[assignment]
 ) -> list[ImportTestCasesResponse]:
     """Import human-authored test cases from an XLSX workbook.
 
