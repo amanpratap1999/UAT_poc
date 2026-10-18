@@ -145,11 +145,13 @@ async def test_scroll_into_view_uses_active_service_now_frame(
     engine: RecoveryEngine,
 ) -> None:
     """Scroll recovery must inspect and return the locator from gsft_main."""
-    locator = MagicMock()
-    locator.count = AsyncMock(return_value=1)
-    locator.first = MagicMock()
-    locator.first.is_visible = AsyncMock(return_value=True)
-    locator.first.scroll_into_view_if_needed = AsyncMock()
+    missing_locator = MagicMock()
+    missing_locator.count = AsyncMock(return_value=0)
+    visible_locator = MagicMock()
+    visible_locator.count = AsyncMock(return_value=1)
+    visible_locator.first = MagicMock()
+    visible_locator.first.is_visible = AsyncMock(return_value=True)
+    visible_locator.first.scroll_into_view_if_needed = AsyncMock()
 
     main_frame = MagicMock()
     main_frame.name = ""
@@ -157,9 +159,15 @@ async def test_scroll_into_view_uses_active_service_now_frame(
     active_frame = MagicMock()
     active_frame.name = "gsft_main"
     active_frame.url = "https://test.service-now.com/incident.do"
-    active_frame.locator.return_value = locator
     for method_name in ("get_by_label", "get_by_role", "get_by_placeholder", "get_by_title"):
-        getattr(active_frame, method_name).return_value = locator
+        getattr(active_frame, method_name).return_value = missing_locator
+
+    def frame_locator(selector: str):
+        if "select[id$='.state']" in selector:
+            return visible_locator
+        return missing_locator
+
+    active_frame.locator.side_effect = frame_locator
 
     page = MagicMock()
     page.frames = [main_frame, active_frame]
@@ -175,9 +183,10 @@ async def test_scroll_into_view_uses_active_service_now_frame(
 
     assert result.success is True
     assert result.resolved_target is not None
+    assert result.resolved_target.startswith("css:")
     active_frame.locator.assert_called()
     main_frame.locator.assert_not_called()
-    locator.first.scroll_into_view_if_needed.assert_awaited_once_with(timeout=5000)
+    visible_locator.first.scroll_into_view_if_needed.assert_awaited_once_with(timeout=5000)
 
 
 @pytest.mark.asyncio
