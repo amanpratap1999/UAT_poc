@@ -209,10 +209,17 @@ describe("AuthedImage", () => {
 
     const img = screen.getByRole("img", { name: "Test Screenshot" });
     // Fire image load event
-    Object.defineProperty(img, "clientWidth", { value: 1920, configurable: true });
-    Object.defineProperty(img, "clientHeight", { value: 1080, configurable: true });
+    Object.defineProperty(img, "clientWidth", { value: 960, configurable: true });
+    Object.defineProperty(img, "clientHeight", { value: 540, configurable: true });
+    Object.defineProperty(img, "naturalWidth", { value: 1920, configurable: true });
+    Object.defineProperty(img, "naturalHeight", { value: 1080, configurable: true });
     img.dispatchEvent(new Event("load"));
 
-    expect(onLoadMock).toHaveBeenCalledWith({ width: 1920, height: 1080 });
+    expect(onLoadMock).toHaveBeenCalledWith({
+      width: 960,
+      height: 540,
+      naturalWidth: 1920,
+      naturalHeight: 1080,
+    });
   });
 });

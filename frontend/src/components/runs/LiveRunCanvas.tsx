@@ -43,6 +43,9 @@ export function LiveRunCanvas({ runId }: LiveRunCanvasProps) {
   const [clarifyAnswer, setClarifyAnswer] = useState("");
   const [approval, setApproval] = useState<ApprovalPrompt | null>(null);
   const [isSubmittingControl, setIsSubmittingControl] = useState(false);
+  const [controlError, setControlError] = useState<string | null>(null);
+  const [streamStatus, setStreamStatus] = useState<"connecting" | "connected" | "reconnecting" | "unavailable">("connecting");
+  const [streamError, setStreamError] = useState<string | null>(null);
   const [preconditionFailureNotice, setPreconditionFailureNotice] = useState<string | null>(null);
 
   const currentStatus = liveStatus || run?.status || "queued";
@@ -62,29 +65,59 @@ export function LiveRunCanvas({ runId }: LiveRunCanvasProps) {
     }
   }, [isLive, total]);
 
-  // Connect to SSE Stream
+  // Connect to the short-lived, run-scoped SSE ticket. Do not put a full JWT
+  // into the URL: query strings can be retained in proxy and access logs.
   useEffect(() => {
     let es: EventSource | null = null;
     let cancelled = false;
 
     async function connectSSE() {
-      const token = getToken();
-      let queryParam = "";
-      if (token) {
-        try {
-          const res = await api.getStreamTicket(runId);
-          if (res?.ticket) {
-            queryParam = `ticket=${encodeURIComponent(res.ticket)}`;
-          }
-        } catch {
-          queryParam = `token=${encodeURIComponent(token)}`;
+      setStreamStatus("connecting");
+      setStreamError(null);
+
+      if (!getToken()) {
+        setStreamStatus("unavailable");
+        setStreamError("Your session is unavailable. Sign in again to receive live events.");
+        return;
+      }
+
+      let ticket: string;
+      try {
+        const res = await api.getStreamTicket(runId);
+        if (!res?.ticket) throw new Error("The server did not return a live-stream ticket.");
+        ticket = res.ticket;
+      } catch (error) {
+        if (!cancelled) {
+          setStreamStatus("unavailable");
+          setStreamError(
+            error instanceof Error
+              ? `Live events could not be authorized: ${error.message}`
+              : "Live events could not be authorized. Run status will continue to refresh."
+          );
         }
+        return;
       }
 
       if (cancelled) return;
 
-      const sseUrl = resolveApiUrl(`/api/v1/runs/${runId}/events${queryParam ? `?${queryParam}` : ""}`);
+      const sseUrl = resolveApiUrl(
+        `/api/v1/runs/${runId}/events?ticket=${encodeURIComponent(ticket)}`
+      );
       es = new EventSource(sseUrl);
+
+      es.onopen = () => {
+        if (!cancelled) {
+          setStreamStatus("connected");
+          setStreamError(null);
+        }
+      };
+
+      es.addEventListener("connected", () => {
+        if (!cancelled) {
+          setStreamStatus("connected");
+          setStreamError(null);
+        }
+      });
 
       es.onmessage = (event) => {
         try {
@@ -180,8 +213,8 @@ export function LiveRunCanvas({ runId }: LiveRunCanvasProps) {
             default:
               break;
           }
-        } catch (err) {
-          // Heartbeat or malformed json
+        } catch {
+          // Ignore malformed event data; polling keeps the run summary current.
         }
       };
 
@@ -191,22 +224,38 @@ export function LiveRunCanvas({ runId }: LiveRunCanvasProps) {
           if (state.status) setLiveStatus(state.status);
           if (state.current_step_index !== undefined) setActiveStepIndex(state.current_step_index);
         } catch {
-          // ignore
+          // Ignore malformed snapshot data.
+        }
+      });
+
+      // The server can send an explicit named error event; EventSource also uses
+      // onerror for transport failures. Keep those states distinguishable.
+      es.addEventListener("error", (event: Event) => {
+        const messageEvent = event as MessageEvent<string>;
+        if (messageEvent.data) {
+          try {
+            const payload = JSON.parse(messageEvent.data);
+            const message = payload?.payload?.error || payload?.error;
+            if (message) setStreamError(`Live event server reported an error: ${String(message)}`);
+          } catch {
+            setStreamError("Live event server reported an unreadable error.");
+          }
         }
       });
 
       es.onerror = () => {
-        // EventSource automatically retries
+        if (!cancelled) {
+          setStreamStatus("reconnecting");
+          setStreamError((current) => current || "Live events disconnected; the browser is attempting to reconnect.");
+        }
       };
     }
 
-    connectSSE();
+    void connectSSE();
 
     return () => {
       cancelled = true;
-      if (es) {
-        es.close();
-      }
+      if (es) es.close();
     };
   }, [runId, refetchRun, refetchEvidence]);
 
@@ -216,12 +265,16 @@ export function LiveRunCanvas({ runId }: LiveRunCanvasProps) {
   const prevFrame = () => setFrameIdx((i) => Math.max(0, (i ?? total - 1) - 1));
   const nextFrame = () => setFrameIdx((i) => Math.min(total - 1, (i ?? total - 1) + 1));
 
-  // Interactive control actions
+  // Interactive control actions — surface failures instead of silently rejecting.
   const handlePause = async () => {
     setIsSubmittingControl(true);
+    setControlError(null);
     try {
       await api.pauseRun(runId);
       setLiveStatus("paused");
+    } catch (error) {
+      setControlError(error instanceof Error ? error.message : "Unable to pause the run.");
+      void refetchRun();
     } finally {
       setIsSubmittingControl(false);
     }
@@ -229,9 +282,13 @@ export function LiveRunCanvas({ runId }: LiveRunCanvasProps) {
 
   const handleResume = async () => {
     setIsSubmittingControl(true);
+    setControlError(null);
     try {
       await api.resumeRun(runId);
       setLiveStatus("running");
+    } catch (error) {
+      setControlError(error instanceof Error ? error.message : "Unable to resume the run.");
+      void refetchRun();
     } finally {
       setIsSubmittingControl(false);
     }
@@ -240,10 +297,14 @@ export function LiveRunCanvas({ runId }: LiveRunCanvasProps) {
   const handleCancel = async () => {
     if (!confirm("Are you sure you want to cancel this agent run?")) return;
     setIsSubmittingControl(true);
+    setControlError(null);
     try {
       await api.cancelRun(runId);
       setLiveStatus("cancelled");
-      refetchRun();
+      void refetchRun();
+    } catch (error) {
+      setControlError(error instanceof Error ? error.message : "Unable to cancel the run.");
+      void refetchRun();
     } finally {
       setIsSubmittingControl(false);
     }
@@ -252,11 +313,15 @@ export function LiveRunCanvas({ runId }: LiveRunCanvasProps) {
   const handleSendClarification = async () => {
     if (!clarification || !clarifyAnswer.trim()) return;
     setIsSubmittingControl(true);
+    setControlError(null);
     try {
       await api.clarifyRun(runId, clarification.request_id, clarifyAnswer.trim());
       setClarification(null);
       setClarifyAnswer("");
       setLiveStatus("running");
+    } catch (error) {
+      setControlError(error instanceof Error ? error.message : "Unable to submit clarification.");
+      void refetchRun();
     } finally {
       setIsSubmittingControl(false);
     }
@@ -265,10 +330,14 @@ export function LiveRunCanvas({ runId }: LiveRunCanvasProps) {
   const handleApprovalDecision = async (approved: boolean) => {
     if (!approval) return;
     setIsSubmittingControl(true);
+    setControlError(null);
     try {
       await api.approveRun(runId, approval.prompt_id, approved);
       setApproval(null);
       setLiveStatus("running");
+    } catch (error) {
+      setControlError(error instanceof Error ? error.message : "Unable to submit approval decision.");
+      void refetchRun();
     } finally {
       setIsSubmittingControl(false);
     }
@@ -349,6 +418,22 @@ export function LiveRunCanvas({ runId }: LiveRunCanvasProps) {
           </Link>
         </div>
       </div>
+
+      {controlError && (
+        <div role="alert" className="flex items-start justify-between gap-3 border-b border-red-500/40 bg-red-950/30 px-6 py-3 text-sm text-red-200">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 shrink-0 text-red-400" size={16} aria-hidden="true" />
+            <p>{controlError}</p>
+          </div>
+          <button
+            type="button"
+            className="text-xs text-red-200 underline hover:text-white"
+            onClick={() => setControlError(null)}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Clarification Gate Modal Banner */}
       {clarification && (
@@ -618,11 +703,31 @@ export function LiveRunCanvas({ runId }: LiveRunCanvasProps) {
                 )}
               </div>
 
-              {/* Polling/SSE Status */}
+              {/* Live event transport status; run details continue polling independently. */}
               {isLive && (
-                <div className="flex items-center gap-2 text-2xs text-signal-teal pt-1">
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-signal-teal" aria-hidden="true" />
-                  <span className="font-mono">Real-time SSE event stream connected</span>
+                <div className="pt-1" role="status" aria-live="polite">
+                  <div className={`flex items-center gap-2 text-2xs ${
+                    streamStatus === "connected" ? "text-signal-teal" : "text-amber-300"
+                  }`}>
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        streamStatus === "connected" ? "animate-pulse bg-signal-teal" : "bg-amber-300"
+                      }`}
+                      aria-hidden="true"
+                    />
+                    <span className="font-mono">
+                      {streamStatus === "connected"
+                        ? "Real-time event stream connected"
+                        : streamStatus === "connecting"
+                        ? "Connecting to live event stream…"
+                        : streamStatus === "reconnecting"
+                        ? "Live event stream disconnected; reconnecting…"
+                        : "Live event stream unavailable; run status is still polling"}
+                    </span>
+                  </div>
+                  {streamError && streamStatus !== "connected" && (
+                    <p className="mt-1 text-2xs text-amber-200">{streamError}</p>
+                  )}
                 </div>
               )}
             </div>

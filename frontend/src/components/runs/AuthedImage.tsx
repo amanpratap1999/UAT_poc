@@ -7,7 +7,7 @@ interface AuthedImageProps {
   path: string;
   alt: string;
   className?: string;
-  onLoad?: (dims: { width: number; height: number }) => void;
+  onLoad?: (dims: { width: number; height: number; naturalWidth: number; naturalHeight: number }) => void;
 }
 
 interface LoadErrorInfo {
@@ -127,6 +127,8 @@ export function AuthedImage({ path, alt, className, onLoad }: AuthedImageProps) 
         onLoad?.({
           width: img.clientWidth || img.naturalWidth,
           height: img.clientHeight || img.naturalHeight,
+          naturalWidth: img.naturalWidth,
+          naturalHeight: img.naturalHeight,
         });
       }}
       onError={() => {
