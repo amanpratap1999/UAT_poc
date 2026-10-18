@@ -327,8 +327,8 @@ export const api = {
     return this.postBlob("/api/v1/test-cases/export-results", runIds);
   },
 
-  executeTestCase(testCaseId: string): Promise<{ session_id: string; status: string; message: string }> {
-    return this.post(`/api/v1/test-cases/${testCaseId}/execute`, {});
+  executeTestCase(testCaseId: string, persona?: string): Promise<{ session_id: string; status: string; message: string }> {
+    return this.post(`/api/v1/test-cases/${testCaseId}/execute`, persona ? { persona } : {});
   },
 
   getStreamTicket(runId: string): Promise<{ ticket: string }> {

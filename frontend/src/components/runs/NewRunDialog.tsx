@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Play, Sparkles, Wand2, Loader2 } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api, ApiError } from "@/lib/api-client";
 import { RUNS_QUERY_KEY } from "@/hooks/use-runs";
+import { useServiceNowPersonas } from "@/hooks/use-servicenow-personas";
 import type { RunRequest, RunResponse } from "@/types/run";
 
 interface NewRunDialogProps {
@@ -32,6 +33,27 @@ export function NewRunDialog({ open, onClose }: NewRunDialogProps) {
   const [generatedCases, setGeneratedCases] = useState<GeneratedCase[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedPersona, setSelectedPersona] = useState("");
+  const personaQuery = useServiceNowPersonas(open);
+  const personaInfo = personaQuery.data;
+  const personaReady = Boolean(
+    personaInfo &&
+    !personaQuery.isLoading &&
+    !personaQuery.isError &&
+    (!personaInfo.requires_persona ||
+      (Boolean(selectedPersona) && personaInfo.personas.some((item) => item.name === selectedPersona))),
+  );
+
+  useEffect(() => {
+    if (!personaInfo) return;
+    setSelectedPersona((current) => {
+      if (current && personaInfo.personas.some((item) => item.name === current)) return current;
+      if (personaInfo.active_persona && personaInfo.personas.some((item) => item.name === personaInfo.active_persona)) {
+        return personaInfo.active_persona;
+      }
+      return personaInfo.personas[0]?.name ?? "";
+    });
+  }, [personaInfo]);
 
   const createRunMutation = useMutation({
     mutationFn: (req: RunRequest) => api.post<RunResponse>("/api/v1/runs", req),
@@ -53,8 +75,19 @@ export function NewRunDialog({ open, onClose }: NewRunDialogProps) {
   const handleDirectSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!goal.trim()) return;
+    if (personaQuery.isError || !personaInfo) {
+      setError("Could not load configured ServiceNow personas. Refresh and try again.");
+      return;
+    }
+    if (personaInfo.requires_persona && !selectedPersona) {
+      setError("This environment requires a configured non-admin ServiceNow persona.");
+      return;
+    }
     setError(null);
-    createRunMutation.mutate({ goal: goal.trim() });
+    createRunMutation.mutate({
+      goal: goal.trim(),
+      ...(selectedPersona ? { persona: selectedPersona } : {}),
+    });
   };
 
   const handleGenerateStory = async () => {
@@ -81,7 +114,8 @@ export function NewRunDialog({ open, onClose }: NewRunDialogProps) {
   };
 
   const executeTestCaseMutation = useMutation({
-    mutationFn: (testCaseId: string) => api.executeTestCase(testCaseId),
+    mutationFn: ({ testCaseId, persona }: { testCaseId: string; persona?: string }) =>
+      api.executeTestCase(testCaseId, persona),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: RUNS_QUERY_KEY });
       setGoal("");
@@ -98,8 +132,19 @@ export function NewRunDialog({ open, onClose }: NewRunDialogProps) {
   });
 
   const handleExecuteCase = (tc: GeneratedCase) => {
+    if (!personaReady || (personaInfo?.requires_persona && !selectedPersona)) {
+      setError(
+        personaQuery.isError
+          ? "Could not load configured ServiceNow personas. Refresh and try again."
+          : "This environment requires a configured non-admin ServiceNow persona.",
+      );
+      return;
+    }
     setError(null);
-    executeTestCaseMutation.mutate(tc.id);
+    executeTestCaseMutation.mutate({
+      testCaseId: tc.id,
+      ...(selectedPersona ? { persona: selectedPersona } : {}),
+    });
   };
 
   return (
@@ -136,6 +181,41 @@ export function NewRunDialog({ open, onClose }: NewRunDialogProps) {
         </button>
       </div>
 
+      <div className="mb-5 flex flex-col gap-1.5">
+        <label htmlFor="servicenow-persona" className="text-xs font-semibold text-body">
+          ServiceNow execution persona {personaInfo?.requires_persona ? "(required)" : "(optional)"}
+        </label>
+        {personaQuery.isLoading ? (
+          <p role="status" className="text-xs text-muted">Loading configured personas…</p>
+        ) : personaQuery.isError ? (
+          <p role="alert" className="text-xs text-status-failed">
+            Could not load configured ServiceNow personas. Refresh the page and try again.
+          </p>
+        ) : (
+          <>
+            <select
+              id="servicenow-persona"
+              value={selectedPersona}
+              onChange={(event) => setSelectedPersona(event.target.value)}
+              disabled={createRunMutation.isPending || executeTestCaseMutation.isPending}
+              className="w-full rounded-md border border-line bg-card px-3 py-2 text-xs text-ink focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-accent/20"
+            >
+              {!personaInfo?.requires_persona && <option value="">Use configured default</option>}
+              {personaInfo?.personas.map((persona) => (
+                <option key={persona.name} value={persona.name}>
+                  {persona.name}{persona.role ? ` — ${persona.role}` : ""}
+                </option>
+              ))}
+            </select>
+            {personaInfo?.requires_persona && personaInfo.personas.length === 0 && (
+              <p role="alert" className="text-xs text-status-failed">
+                No ServiceNow personas are configured. Configure SERVICENOW_PERSONAS with a non-admin username, password, and role before executing UAT.
+              </p>
+            )}
+          </>
+        )}
+      </div>
+
       {activeTab === "direct" ? (
         <form onSubmit={handleDirectSubmit} className="flex flex-col gap-4">
           <Input
@@ -170,7 +250,7 @@ export function NewRunDialog({ open, onClose }: NewRunDialogProps) {
               type="submit"
               variant="primary"
               isLoading={createRunMutation.isPending}
-              disabled={!goal.trim()}
+              disabled={!goal.trim() || !personaReady}
               className="gap-2"
             >
               <Play size={14} aria-hidden="true" />
@@ -255,7 +335,7 @@ export function NewRunDialog({ open, onClose }: NewRunDialogProps) {
                       size="sm"
                       variant="primary"
                       onClick={() => handleExecuteCase(tc)}
-                      disabled={createRunMutation.isPending || executeTestCaseMutation.isPending}
+                      disabled={createRunMutation.isPending || executeTestCaseMutation.isPending || !personaReady}
                       className="shrink-0 gap-1 text-xs"
                     >
                       <Play size={11} className="fill-current" aria-hidden="true" />

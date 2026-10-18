@@ -36,6 +36,7 @@ export type RunDetail = Run;
 /** Request body for POST /api/v1/runs */
 export interface RunRequest {
   goal: string;
+  persona?: string;
 }
 
 /** Response from POST /api/v1/runs */
