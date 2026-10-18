@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, servicenow_testing]
+    branches: [main, servicenow_testing, fix/uat-evaluation-remediation]
   pull_request:
     branches: [main, servicenow_testing]
 
@@ -65,12 +65,34 @@ jobs:
             build-essential
           # Playwright browser deps are installed via `playwright install-deps` below
 
-      - name: Install Python dependencies
+      - name: Compile hash-locked CI dependency set
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -e ".[dev,laya]"
-          pip install pytest pytest-asyncio pytest-cov
+          python -m pip install pip-tools
+          # Unit and integration CI do not require CUDA acceleration. Pin the
+          # official CPU wheel so the resolver does not select the currently
+          # inconsistent CUDA 13 transitive metadata from the generated lock.
+          printf 'torch==2.14.0+cpu\n' > /tmp/ci-constraints.txt
+          pip-compile pyproject.toml \
+            --extra dev \
+            --extra laya \
+            --generate-hashes \
+            --extra-index-url https://download.pytorch.org/whl/cpu \
+            --constraint /tmp/ci-constraints.txt \
+            --output-file /tmp/requirements-ci.txt
+          cat /tmp/requirements-ci.txt | head -n 30
+
+      - name: Preserve resolved CI lock for release follow-up
+        uses: actions/upload-artifact@v4
+        with:
+          name: resolved-python-lock-${{ github.sha }}
+          path: /tmp/requirements-ci.txt
+          retention-days: 7
+
+      - name: Install Python dependencies
+        run: |
+          pip install --require-hashes -r /tmp/requirements-ci.txt
+          pip install --no-deps -e ".[dev,laya]"
 
       - name: Verify LAYA package
         run: |
