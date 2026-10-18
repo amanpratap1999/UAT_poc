@@ -1388,6 +1388,7 @@ async def import_test_cases(
     execute: bool = Form(False),
     personas: str | None = Form(None),
     sheet_name: str | None = Form(None),
+    db: Annotated[AsyncSession, Depends(get_db_session)] = None,  # type: ignore[assignment]
 ) -> list[ImportTestCasesResponse]:
     """Import human-authored test cases from an XLSX workbook.
 
@@ -1422,7 +1423,13 @@ async def import_test_cases(
 
     persona_list: list[str] = []
     if personas:
-        persona_list = [p.strip() for p in personas.split(",") if p.strip()]
+        persona_list = list(dict.fromkeys(p.strip() for p in personas.split(",") if p.strip()))
+
+    execution_personas: list[str | None] = []
+    if execute:
+        execution_personas = persona_list or [settings.servicenow.active_persona]
+        for candidate in execution_personas:
+            _validate_persona_selection(settings, candidate or settings.servicenow.active_persona)
 
     fd, temp_path = tempfile.mkstemp(suffix=".xlsx")
     try:
@@ -1457,33 +1464,46 @@ async def import_test_cases(
 
             runs: list[ImportedTestRunResponse] = []
             if execute:
-                for persona in (persona_list or [None]):  # type: ignore[list-item]
+                for persona in execution_personas:
+                    effective_persona = persona or settings.servicenow.active_persona
                     goal = tc.title or tc.source_user_story
                     run_id = str(uuid.uuid4())
+                    new_run = Run(
+                        id=run_id,
+                        tenant_id=token.tenant_id or "unknown",
+                        requester_id=token.user_id,
+                        goal=goal,
+                        persona=effective_persona,
+                        status="queued",
+                    )
+                    db.add(new_run)
+                    await db.commit()
                     try:
                         execute_run.delay(
                             run_id=run_id,
                             goal=goal,
-                            tenant_id=token.tenant_id,
+                            tenant_id=token.tenant_id or "unknown",
                             test_case_id=tc.id,
-                            persona=persona,
+                            persona=effective_persona,
                             tc_data=tc_dict,
                         )
                         runs.append(
                             ImportedTestRunResponse(
                                 test_case_id=tc.id,
                                 run_id=run_id,
-                                persona=persona,
+                                persona=effective_persona,
                                 status="queued",
-                                message=f"Run queued for persona {persona or 'default'}",
+                                message=f"Run queued for persona {effective_persona or 'default'}",
                             )
                         )
                     except Exception as exc:
+                        new_run.status = "failed"  # type: ignore[assignment]
+                        await db.commit()
                         runs.append(
                             ImportedTestRunResponse(
                                 test_case_id=tc.id,
                                 run_id=run_id,
-                                persona=persona,
+                                persona=effective_persona,
                                 status="failed",
                                 message=f"Failed to enqueue execution: {exc}",
                             )
@@ -1542,6 +1562,10 @@ async def execute_test_case_sweep(
     from agent.api.v1.dependencies import get_cached_settings, get_test_intelligence_store
     
     s = get_cached_settings()
+    if not request.personas:
+        raise HTTPException(status_code=400, detail="No personas provided for sweep.")
+    for persona in request.personas:
+        _validate_persona_selection(s, persona)
     store = get_test_intelligence_store(s)
 
     tc = await store.get_test_case_async(test_case_id, tenant_id=token.tenant_id or "unknown")
@@ -1562,17 +1586,19 @@ async def execute_test_case_sweep(
             tenant_id=token.tenant_id or "unknown",
             requester_id=token.user_id,
             goal=f"{goal} (Persona: {persona})",
+            persona=persona,
             status="queued",
         )
         db.add(new_run)
+        await db.commit()
         try:
             execute_run.delay(
                 run_id=run_id,
                 goal=goal,
-                tenant_id=token.tenant_id,
+                tenant_id=token.tenant_id or "unknown",
                 test_case_id=test_case_id,
                 persona=persona,
-                tc_data=tc
+                tc_data=tc,
             )
             responses.append(RunResponse(
                 session_id=run_id,
@@ -1581,6 +1607,7 @@ async def execute_test_case_sweep(
             ))
         except Exception as exc:
             new_run.status = "failed"  # type: ignore[assignment]
+            await db.commit()
             responses.append(RunResponse(
                 session_id=run_id,
                 status="failed",

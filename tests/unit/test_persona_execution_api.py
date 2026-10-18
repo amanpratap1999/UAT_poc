@@ -217,3 +217,50 @@ async def test_create_run_rejects_persona_without_declared_role(monkeypatch: pyt
     assert error.value.status_code == 422
     assert db.added == []
     task.delay.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_sweep_validates_personas_and_commits_before_dispatch(monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = _settings()
+    monkeypatch.setattr(api_router, "get_cached_settings", lambda: settings)
+    monkeypatch.setattr(dependencies, "get_cached_settings", lambda: settings)
+    monkeypatch.setattr(dependencies, "get_test_intelligence_store", lambda _settings: _FakeTestStore())
+    db = _FakeDb()
+    task = SimpleNamespace(delay=Mock(side_effect=lambda **_kwargs: _assert_committed(db)))
+    monkeypatch.setattr(api_router, "execute_run", task)
+
+    response = await api_router.execute_test_case_sweep(
+        "TC-1",
+        request=api_router.SweepRequest(personas=["itil_user"]),
+        token=_token(),
+        db=db,  # type: ignore[arg-type]
+    )
+
+    assert len(response) == 1
+    assert response[0].status == "queued"
+    assert len(db.added) == 1
+    assert isinstance(db.added[0], Run)
+    assert db.added[0].persona == "itil_user"
+    assert db.commits == 1
+    assert task.delay.call_args.kwargs["persona"] == "itil_user"
+
+
+@pytest.mark.asyncio
+async def test_sweep_rejects_invalid_persona_before_any_run_is_created(monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = _settings()
+    monkeypatch.setattr(api_router, "get_cached_settings", lambda: settings)
+    task = SimpleNamespace(delay=Mock(return_value=None))
+    monkeypatch.setattr(api_router, "execute_run", task)
+    db = _FakeDb()
+
+    with pytest.raises(HTTPException) as error:
+        await api_router.execute_test_case_sweep(
+            "TC-1",
+            request=api_router.SweepRequest(personas=["missing-persona"]),
+            token=_token(),
+            db=db,  # type: ignore[arg-type]
+        )
+
+    assert error.value.status_code == 422
+    assert db.added == []
+    task.delay.assert_not_called()
