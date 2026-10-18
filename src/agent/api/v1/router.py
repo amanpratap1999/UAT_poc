@@ -1321,6 +1321,9 @@ async def execute_test_case(
         status="queued",
     )
     db.add(new_run)
+    # Commit the queued run before dispatching work so a fast worker cannot
+    # start and update the run before its row is visible in the database.
+    await db.commit()
     # Enqueue Celery task with error handling and test_case_id
     try:
         execute_run.delay(

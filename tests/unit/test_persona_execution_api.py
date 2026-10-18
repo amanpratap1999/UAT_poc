@@ -9,8 +9,10 @@ import pytest
 from fastapi import HTTPException
 
 from agent.api.v1 import dependencies
-from agent.api.v1 import router as api_router
-from agent.api.v1.schemas import RunRequest, TestCaseExecutionRequest
+import importlib
+
+api_router = importlib.import_module("agent.api.v1.router")
+from agent.api.v1.schemas import RunRequest, TestCaseExecutionRequest as CaseExecutionRequest
 from agent.domain.models import Run
 
 
@@ -56,6 +58,10 @@ def _settings(*, require_persona: bool = True) -> SimpleNamespace:
 
 def _token() -> SimpleNamespace:
     return SimpleNamespace(tenant_id="tenant-1", user_id="user-1")
+
+
+def _assert_committed(db: _FakeDb) -> None:
+    assert db.commits == 1, "run row must be committed before worker dispatch"
 
 
 @pytest.mark.asyncio
@@ -123,21 +129,22 @@ async def test_execute_test_case_dispatches_selected_persona(monkeypatch: pytest
     monkeypatch.setattr(api_router, "get_cached_settings", lambda: settings)
     monkeypatch.setattr(dependencies, "get_cached_settings", lambda: settings)
     monkeypatch.setattr(dependencies, "get_test_intelligence_store", lambda _settings: _FakeTestStore())
-    task = SimpleNamespace(delay=Mock(return_value=None))
-    monkeypatch.setattr(api_router, "execute_run", task)
     db = _FakeDb()
+    task = SimpleNamespace(delay=Mock(side_effect=lambda **_kwargs: _assert_committed(db)))
+    monkeypatch.setattr(api_router, "execute_run", task)
 
     response = await api_router.execute_test_case(
         "TC-1",
         token=_token(),
         db=db,  # type: ignore[arg-type]
-        request=TestCaseExecutionRequest(persona="itil_user"),
+        request=CaseExecutionRequest(persona="itil_user"),
     )
 
     assert response.status == "queued"
     assert task.delay.call_args.kwargs["persona"] == "itil_user"
     assert isinstance(db.added[0], Run)
     assert db.added[0].persona == "itil_user"
+    assert db.commits == 1
 
 
 @pytest.mark.asyncio
