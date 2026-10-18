@@ -429,34 +429,29 @@ class RecoveryEngine:
                 details="No target to scroll to",
             )
 
-        try:
-            # Try to find the element and scroll it into view
-            locator = page.get_by_text(action.target, exact=False)
-            if await locator.count() > 0:
-                await locator.first.scroll_into_view_if_needed(timeout=5000)
-                return RecoveryResult(
-                    success=True,
-                    strategy=RecoveryStrategy.SCROLL_INTO_VIEW.value,
-                    details="Scrolled element into view",
+        context = self._get_active_context(page)
+        for candidate in self._candidate_targets(action.target, action.action_type):
+            try:
+                locator = self._locator_for_target(context, candidate)
+                if await locator.count() > 0 and await locator.first.is_visible():
+                    await locator.first.scroll_into_view_if_needed(timeout=5000)
+                    return RecoveryResult(
+                        success=True,
+                        strategy=RecoveryStrategy.SCROLL_INTO_VIEW.value,
+                        details=f"Scrolled element into view via {candidate}",
+                        resolved_target=candidate,
+                    )
+            except Exception as e:
+                logger.debug(
+                    "scroll_into_view_candidate_failed",
+                    candidate=candidate,
+                    error=str(e),
                 )
-
-            # Try CSS selector
-            locator = page.locator(action.target)
-            if await locator.count() > 0:
-                await locator.first.scroll_into_view_if_needed(timeout=5000)
-                return RecoveryResult(
-                    success=True,
-                    strategy=RecoveryStrategy.SCROLL_INTO_VIEW.value,
-                    details="Scrolled element into view via CSS",
-                )
-
-        except Exception as e:
-            logger.debug("scroll_into_view_error", error=str(e))
 
         return RecoveryResult(
             success=False,
             strategy=RecoveryStrategy.SCROLL_INTO_VIEW.value,
-            details="Could not find element to scroll to",
+            details="Could not find target in the active context to scroll into view",
         )
 
     async def _relocate_element(self, action: AgentAction, page: Page) -> RecoveryResult:

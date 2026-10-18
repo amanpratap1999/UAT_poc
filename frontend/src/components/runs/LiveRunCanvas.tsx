@@ -70,14 +70,35 @@ export function LiveRunCanvas({ runId }: LiveRunCanvasProps) {
   useEffect(() => {
     let es: EventSource | null = null;
     let cancelled = false;
+    let connectionInFlight = false;
+    let reconnectAttempts = 0;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleReconnect = (message: string) => {
+      if (cancelled || reconnectTimer) return;
+      if (es) {
+        es.close();
+        es = null;
+      }
+      setStreamStatus("reconnecting");
+      setStreamError((current) => current || message);
+      const delayMs = Math.min(30_000, 1_000 * 2 ** Math.min(reconnectAttempts, 5));
+      reconnectAttempts += 1;
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        void connectSSE();
+      }, delayMs);
+    };
 
     async function connectSSE() {
-      setStreamStatus("connecting");
-      setStreamError(null);
+      if (cancelled || connectionInFlight) return;
+      connectionInFlight = true;
+      setStreamStatus(reconnectAttempts > 0 ? "reconnecting" : "connecting");
 
       if (!getToken()) {
         setStreamStatus("unavailable");
         setStreamError("Your session is unavailable. Sign in again to receive live events.");
+        connectionInFlight = false;
         return;
       }
 
@@ -87,39 +108,51 @@ export function LiveRunCanvas({ runId }: LiveRunCanvasProps) {
         if (!res?.ticket) throw new Error("The server did not return a live-stream ticket.");
         ticket = res.ticket;
       } catch (error) {
+        connectionInFlight = false;
         if (!cancelled) {
-          setStreamStatus("unavailable");
-          setStreamError(
-            error instanceof Error
-              ? `Live events could not be authorized: ${error.message}`
-              : "Live events could not be authorized. Run status will continue to refresh."
-          );
+          const statusCode = (error as { response?: { status?: number } })?.response?.status;
+          const message = error instanceof Error
+            ? `Live events could not be authorized: ${error.message}`
+            : "Live events could not be authorized. Run status will continue to refresh.";
+          setStreamError(message);
+          if (statusCode === 401 || statusCode === 403 || !getToken()) {
+            setStreamStatus("unavailable");
+          } else {
+            scheduleReconnect("Live ticket request failed; retrying with a fresh ticket.");
+          }
         }
         return;
       }
 
-      if (cancelled) return;
+      if (cancelled) {
+        connectionInFlight = false;
+        return;
+      }
 
       const sseUrl = resolveApiUrl(
         `/api/v1/runs/${runId}/events?ticket=${encodeURIComponent(ticket)}`
       );
-      es = new EventSource(sseUrl);
+      const eventSource = new EventSource(sseUrl);
+      es = eventSource;
+      connectionInFlight = false;
 
-      es.onopen = () => {
+      eventSource.onopen = () => {
         if (!cancelled) {
           setStreamStatus("connected");
           setStreamError(null);
+          reconnectAttempts = 0;
         }
       };
 
-      es.addEventListener("connected", () => {
+      eventSource.addEventListener("connected", () => {
         if (!cancelled) {
           setStreamStatus("connected");
           setStreamError(null);
+          reconnectAttempts = 0;
         }
       });
 
-      es.onmessage = (event) => {
+      eventSource.onmessage = (event) => {
         try {
           const raw = JSON.parse(event.data);
           const eventType = raw?.event_type || raw?.type;
@@ -218,7 +251,7 @@ export function LiveRunCanvas({ runId }: LiveRunCanvasProps) {
         }
       };
 
-      es.addEventListener("state_snapshot", (event: MessageEvent) => {
+      eventSource.addEventListener("state_snapshot", (event: MessageEvent) => {
         try {
           const state = JSON.parse(event.data);
           if (state.status) setLiveStatus(state.status);
@@ -230,7 +263,7 @@ export function LiveRunCanvas({ runId }: LiveRunCanvasProps) {
 
       // The server can send an explicit named error event; EventSource also uses
       // onerror for transport failures. Keep those states distinguishable.
-      es.addEventListener("error", (event: Event) => {
+      eventSource.addEventListener("error", (event: Event) => {
         const messageEvent = event as MessageEvent<string>;
         if (messageEvent.data) {
           try {
@@ -243,11 +276,11 @@ export function LiveRunCanvas({ runId }: LiveRunCanvasProps) {
         }
       });
 
-      es.onerror = () => {
-        if (!cancelled) {
-          setStreamStatus("reconnecting");
-          setStreamError((current) => current || "Live events disconnected; the browser is attempting to reconnect.");
-        }
+      eventSource.onerror = () => {
+        if (cancelled || es !== eventSource) return;
+        scheduleReconnect(
+          "Live event stream disconnected or its short-lived ticket expired; requesting a fresh ticket."
+        );
       };
     }
 
@@ -255,6 +288,7 @@ export function LiveRunCanvas({ runId }: LiveRunCanvasProps) {
 
     return () => {
       cancelled = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       if (es) es.close();
     };
   }, [runId, refetchRun, refetchEvidence]);

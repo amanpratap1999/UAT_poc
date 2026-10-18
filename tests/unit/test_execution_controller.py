@@ -187,7 +187,7 @@ async def test_relocation_retry_uses_resolved_target(
 
     assert result.success is True
     calls = mock_page_interactor.select_option.call_args_list
-    assert calls[0].args == ("label:State", "In Progress")
+    assert calls[0].args == ("State", "In Progress")
     assert calls[1].args == (resolved_target, "In Progress")
     assert result.details["recovered"] is True
     assert result.details["original_target"] == "label:State"

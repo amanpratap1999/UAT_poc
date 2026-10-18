@@ -141,6 +141,46 @@ async def test_relocate_state_finds_css_fallback_in_gsft_main_frame(
 
 
 @pytest.mark.asyncio
+async def test_scroll_into_view_uses_active_service_now_frame(
+    engine: RecoveryEngine,
+) -> None:
+    """Scroll recovery must inspect and return the locator from gsft_main."""
+    locator = MagicMock()
+    locator.count = AsyncMock(return_value=1)
+    locator.first = MagicMock()
+    locator.first.is_visible = AsyncMock(return_value=True)
+    locator.first.scroll_into_view_if_needed = AsyncMock()
+
+    main_frame = MagicMock()
+    main_frame.name = ""
+    main_frame.url = "https://test.service-now.com/"
+    active_frame = MagicMock()
+    active_frame.name = "gsft_main"
+    active_frame.url = "https://test.service-now.com/incident.do"
+    active_frame.locator.return_value = locator
+    for method_name in ("get_by_label", "get_by_role", "get_by_placeholder", "get_by_title"):
+        getattr(active_frame, method_name).return_value = locator
+
+    page = MagicMock()
+    page.frames = [main_frame, active_frame]
+    page.main_frame = main_frame
+    action = AgentAction(
+        action_type=ActionType.SELECT,
+        target="label:State",
+        value="In Progress",
+        reasoning="Select incident state",
+    )
+
+    result = await engine._scroll_into_view(action, page)
+
+    assert result.success is True
+    assert result.resolved_target is not None
+    active_frame.locator.assert_called()
+    main_frame.locator.assert_not_called()
+    locator.first.scroll_into_view_if_needed.assert_awaited_once_with(timeout=5000)
+
+
+@pytest.mark.asyncio
 async def test_recovery_dismiss_dialog_success(
     sample_action: AgentAction,
 ) -> None:
