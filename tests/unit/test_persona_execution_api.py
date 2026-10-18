@@ -51,6 +51,8 @@ def _settings(*, require_persona: bool = True) -> SimpleNamespace:
                 },
             },
             active_persona=None,
+            username="admin",
+            password="default-admin-secret",
             require_persona_for_benchmark=require_persona,
         )
     )
@@ -159,6 +161,55 @@ async def test_create_run_requires_a_persona_when_benchmark_guard_is_enabled(mon
     with pytest.raises(HTTPException) as error:
         await api_router.create_run(
             RunRequest(goal="Verify an incident transition"),
+            token=_token(),
+            db=db,  # type: ignore[arg-type]
+        )
+
+    assert error.value.status_code == 422
+    assert db.added == []
+    task.delay.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_create_run_rejects_persona_reusing_default_admin_username(monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = _settings()
+    settings.servicenow.personas["looks_like_itil"] = {
+        "username": "admin",
+        "password": "separate-password",
+        "role": "itil",
+    }
+    monkeypatch.setattr(api_router, "get_cached_settings", lambda: settings)
+    task = SimpleNamespace(delay=Mock(return_value=None))
+    monkeypatch.setattr(api_router, "execute_run", task)
+    db = _FakeDb()
+
+    with pytest.raises(HTTPException, match="Administrator/default credentials") as error:
+        await api_router.create_run(
+            RunRequest(goal="Verify an incident transition", persona="looks_like_itil"),
+            token=_token(),
+            db=db,  # type: ignore[arg-type]
+        )
+
+    assert error.value.status_code == 422
+    assert db.added == []
+    task.delay.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_create_run_rejects_persona_without_declared_role(monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = _settings()
+    settings.servicenow.personas["missing_role"] = {
+        "username": "qa-roleless",
+        "password": "distinct-password",
+    }
+    monkeypatch.setattr(api_router, "get_cached_settings", lambda: settings)
+    task = SimpleNamespace(delay=Mock(return_value=None))
+    monkeypatch.setattr(api_router, "execute_run", task)
+    db = _FakeDb()
+
+    with pytest.raises(HTTPException, match="declare its expected role") as error:
+        await api_router.create_run(
+            RunRequest(goal="Verify an incident transition", persona="missing_role"),
             token=_token(),
             db=db,  # type: ignore[arg-type]
         )

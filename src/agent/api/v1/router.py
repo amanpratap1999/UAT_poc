@@ -429,6 +429,44 @@ async def get_diagnostic_paths(
     }
 
 
+def _validate_persona_selection(settings: Any, persona_name: str | None) -> None:
+    """Reject unsafe/incomplete persona selections before any run is queued."""
+    sn = settings.servicenow
+    configured = sn.personas or {}
+    if not persona_name:
+        if sn.require_persona_for_benchmark or str(sn.username or "").strip().lower() == "admin":
+            raise HTTPException(
+                status_code=422,
+                detail="A configured non-admin ServiceNow persona is required before a run can be queued.",
+            )
+        return
+
+    persona = configured.get(persona_name)
+    if persona is None:
+        raise HTTPException(status_code=422, detail="Selected ServiceNow persona is not configured on this server.")
+    username = str(persona.get("username") or "").strip()
+    password = str(persona.get("password") or "")
+    if not username or not password:
+        raise HTTPException(
+            status_code=422,
+            detail="Selected ServiceNow persona must have its own configured username and password.",
+        )
+    default_username = str(sn.username or "").strip()
+    if username.lower() == "admin" or (
+        default_username and username.casefold() == default_username.casefold()
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="Administrator/default credentials cannot be used as a benchmark persona.",
+        )
+    expected_role = str(persona.get("role") or "").strip()
+    if sn.require_persona_for_benchmark and not expected_role:
+        raise HTTPException(
+            status_code=422,
+            detail="Selected ServiceNow persona must declare its expected role.",
+        )
+
+
 @router.post("/runs", response_model=RunResponse)
 async def create_run(
     request: RunRequest,
@@ -439,14 +477,7 @@ async def create_run(
     """Start an autonomous agent run. Queues a Celery task."""
     settings = get_cached_settings()
     selected_persona = request.persona or settings.servicenow.active_persona
-    configured_personas = settings.servicenow.personas or {}
-    if selected_persona and selected_persona not in configured_personas:
-        raise HTTPException(status_code=422, detail="Selected ServiceNow persona is not configured on this server.")
-    if settings.servicenow.require_persona_for_benchmark and not selected_persona:
-        raise HTTPException(
-            status_code=422,
-            detail="A configured ServiceNow persona is required. Select one or configure SERVICENOW_ACTIVE_PERSONA.",
-        )
+    _validate_persona_selection(settings, selected_persona)
     run_id = str(uuid.uuid4())
 
     new_run = Run(
@@ -1295,11 +1326,7 @@ async def execute_test_case(
 
     s = get_cached_settings()
     selected_persona = request.persona or s.servicenow.active_persona
-    configured_personas = s.servicenow.personas or {}
-    if selected_persona and selected_persona not in configured_personas:
-        raise HTTPException(status_code=422, detail="Selected ServiceNow persona is not configured on this server.")
-    if s.servicenow.require_persona_for_benchmark and not selected_persona:
-        raise HTTPException(status_code=422, detail="A configured ServiceNow persona is required to execute a test case.")
+    _validate_persona_selection(s, selected_persona)
     store = get_test_intelligence_store(s)
 
     tc = await store.get_test_case_async(test_case_id, tenant_id=token.tenant_id or "unknown")
