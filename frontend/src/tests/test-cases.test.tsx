@@ -36,6 +36,16 @@ describe("Test Cases execution flow", () => {
       status: "queued",
       message: "Agent run queued for test case",
     });
+    vi.spyOn(api, "importTestCases").mockResolvedValue([{
+      test_cases: [{
+        id: "TC-IMPORT-1",
+        title: "Imported incident test",
+        description: "Imported from XLSX",
+        steps: [{ action_type: "select", target: "State", value: "In Progress" }],
+        expected_outcomes: ["State is In Progress"],
+      }],
+      runs: [{ run_id: "run-import-1", status: "queued", message: "queued" }],
+    }]);
   });
 
   it("executes a generated test case with the selected persona and links to its live run", async () => {
@@ -52,3 +62,29 @@ describe("Test Cases execution flow", () => {
     expect(await screen.findByRole("link", { name: /open live run/i })).toHaveAttribute("href", "/runs/run-123");
   });
 });
+
+
+  it("can queue imported workbook cases and links to the first created run", async () => {
+    const { container } = render(<MemoryRouter><TestCases /></MemoryRouter>);
+    const file = new File(["xlsx-content"], "incident-tests.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    fireEvent.change(screen.getByLabelText("Test case workbook"), {
+      target: { files: [file] },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Execute imported test cases after import" }));
+    fireEvent.click(screen.getByRole("button", { name: /import xlsx/i }));
+
+    await waitFor(() => {
+      expect(api.importTestCases).toHaveBeenCalledWith(file, {
+        personas: ["itil_user"],
+        execute: true,
+      });
+    });
+    expect(await screen.findByText("Imported incident test")).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: /open live run/i })).toHaveAttribute(
+      "href",
+      "/runs/run-import-1",
+    );
+    expect(container.querySelector('input[type="file"]')).not.toBeNull();
+  });

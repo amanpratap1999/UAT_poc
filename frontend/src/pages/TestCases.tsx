@@ -36,6 +36,7 @@ export default function TestCases() {
   const [personaDefaultsApplied, setPersonaDefaultsApplied] = useState(false);
   const [lastExecutedRun, setLastExecutedRun] = useState<{ id: string; status: string } | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [executeOnImport, setExecuteOnImport] = useState(false);
   const [cases, setCases] = useState<TestCase[]>([]);
   const [runIds, setRunIds] = useState<string[]>([]);
   const [comparison, setComparison] = useState<any>(null);
@@ -84,15 +85,38 @@ export default function TestCases() {
 
   async function importWorkbook() {
     if (!selectedFile) return;
+    if (executeOnImport) {
+      if (!personaInfo || personaQuery.isLoading || personaQuery.isError || !personaList.length) {
+        setMessage("Select at least one configured ServiceNow persona before executing imported tests.");
+        return;
+      }
+      const configured = new Set(personaInfo.personas.map((persona) => persona.name));
+      if (personaList.some((persona) => !configured.has(persona))) {
+        setMessage("Imported-test execution accepts configured personas only. Correct the persona list and retry.");
+        return;
+      }
+    }
     setBusy(true);
     setMessage("");
     try {
-      const batches = (await api.importTestCases(selectedFile, { personas: personaList })) as ImportBatch[];
+      const batches = (await api.importTestCases(selectedFile, {
+        personas: personaList,
+        execute: executeOnImport,
+      })) as ImportBatch[];
       const imported = batches.flatMap((batch) => batch.test_cases ?? []);
-      const importedRuns = batches.flatMap((batch) => (batch.runs ?? []).flatMap((run) => run.run_id ? [run.run_id] : []));
+      const importedRuns = batches.flatMap((batch) =>
+        (batch.runs ?? []).flatMap((run) => run.run_id ? [run.run_id] : []),
+      );
+      const firstRun = batches.flatMap((batch) => batch.runs ?? []).find((run) => Boolean(run.run_id));
       setCases(imported);
-      setRunIds(importedRuns);
-      setMessage(`${imported.length} test case(s) imported.`);
+      setRunIds((current) => [...new Set([...current, ...importedRuns])]);
+      setLastExecutedRun(firstRun?.run_id
+        ? { id: firstRun.run_id, status: firstRun.status || "queued" }
+        : null);
+      setMessage(
+        imported.length + " test case(s) imported" +
+        (executeOnImport ? "; " + importedRuns.length + " run(s) created." : "."),
+      );
     } catch (error) {
       setMessage(error instanceof ApiError ? error.message : "Import failed.");
     } finally {
@@ -189,8 +213,35 @@ export default function TestCases() {
           <CardHeader><CardTitle><span className="flex items-center gap-2"><FileSpreadsheet size={16} /> Import workbook</span></CardTitle></CardHeader>
           <CardContent className="flex flex-col gap-4">
             <Input label="Personas" value={personas} onChange={(event) => setPersonas(event.target.value)} hint="Comma-separated personas used for sweeps and comparisons." />
-            <input type="file" accept=".xlsx" onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)} className="block w-full rounded-md border border-line bg-card p-2 text-sm text-body" />
-            <Button variant="secondary" onClick={() => void importWorkbook()} disabled={!selectedFile} isLoading={busy} className="gap-2"><Upload size={15} /> Import XLSX</Button>
+            <label className="flex items-start gap-2 text-sm text-body">
+              <input
+                aria-label="Execute imported test cases after import"
+                type="checkbox"
+                checked={executeOnImport}
+                onChange={(event) => setExecuteOnImport(event.target.checked)}
+                disabled={busy}
+                className="mt-1"
+              />
+              <span>
+                <span className="block font-medium">Execute imported cases after import</span>
+                <span className="block text-xs text-muted">
+                  Queues each imported case for every listed configured persona. Leave unchecked to import only.
+                </span>
+              </span>
+            </label>
+            <input type="file" accept=".xlsx" aria-label="Test case workbook" onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)} className="block w-full rounded-md border border-line bg-card p-2 text-sm text-body" />
+            <Button
+              variant="secondary"
+              onClick={() => void importWorkbook()}
+              disabled={!selectedFile || busy || (executeOnImport && (
+                !personaInfo || !personaList.length ||
+                personaList.some((name) => !personaInfo.personas.some((persona) => persona.name === name))
+              ))}
+              isLoading={busy}
+              className="gap-2"
+            >
+              <Upload size={15} /> Import XLSX
+            </Button>
           </CardContent>
         </Card>
       </div>
