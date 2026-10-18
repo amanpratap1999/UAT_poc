@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { useServiceNowPersonas } from "@/hooks/use-servicenow-personas";
 import { Download, FileSpreadsheet, GitCompare, Play, Upload, WandSparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,7 +31,10 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export default function TestCases() {
   const [requirement, setRequirement] = useState("");
-  const [personas, setPersonas] = useState("itil,approver");
+  const [personas, setPersonas] = useState("");
+  const [selectedPersona, setSelectedPersona] = useState("");
+  const [personaDefaultsApplied, setPersonaDefaultsApplied] = useState(false);
+  const [lastExecutedRun, setLastExecutedRun] = useState<{ id: string; status: string } | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [cases, setCases] = useState<TestCase[]>([]);
   const [runIds, setRunIds] = useState<string[]>([]);
@@ -37,7 +42,30 @@ export default function TestCases() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
+  const personaQuery = useServiceNowPersonas();
+  const personaInfo = personaQuery.data;
   const personaList = personas.split(",").map((item) => item.trim()).filter(Boolean);
+  const personaReady = Boolean(
+    personaInfo &&
+    !personaQuery.isLoading &&
+    !personaQuery.isError &&
+    (!personaInfo.requires_persona ||
+      (Boolean(selectedPersona) && personaInfo.personas.some((item) => item.name === selectedPersona))),
+  );
+
+  useEffect(() => {
+    if (!personaInfo || personaDefaultsApplied) return;
+    const preferred = personaInfo.active_persona && personaInfo.personas.some((p) => p.name === personaInfo.active_persona)
+      ? personaInfo.active_persona
+      : personaInfo.personas[0]?.name ?? "";
+    setSelectedPersona(preferred);
+    setPersonas(personaInfo.personas.length
+      ? (personaInfo.active_persona && personaInfo.personas.some((p) => p.name === personaInfo.active_persona)
+          ? personaInfo.active_persona
+          : personaInfo.personas.map((p) => p.name).join(", "))
+      : "");
+    setPersonaDefaultsApplied(true);
+  }, [personaInfo, personaDefaultsApplied]);
 
   async function generate() {
     if (!requirement.trim()) return;
@@ -73,6 +101,10 @@ export default function TestCases() {
   }
 
   async function sweep(testCaseId: string) {
+    if (!personaList.length) {
+      setMessage("Enter at least one configured persona before running a persona sweep.");
+      return;
+    }
     setBusy(true);
     try {
       const responses = await api.sweepTestCase(testCaseId, personaList);
@@ -86,11 +118,39 @@ export default function TestCases() {
   }
 
   async function compare(testCaseId: string) {
+    if (!personaList.length) {
+      setMessage("Enter at least one configured persona before comparing personas.");
+      return;
+    }
     setBusy(true);
     try {
       setComparison(await api.comparePersonas(testCaseId, personaList));
     } catch (error) {
       setMessage(error instanceof ApiError ? error.message : "Comparison failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function execute(testCaseId: string) {
+    if (!personaReady || (personaInfo?.requires_persona && !selectedPersona)) {
+      setMessage(
+        personaQuery.isError
+          ? "Could not load configured ServiceNow personas. Refresh and try again."
+          : "A configured non-admin ServiceNow persona is required before executing a test case.",
+      );
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    setLastExecutedRun(null);
+    try {
+      const response = await api.executeTestCase(testCaseId, selectedPersona || undefined);
+      setRunIds((current) => current.includes(response.session_id) ? current : [...current, response.session_id]);
+      setLastExecutedRun({ id: response.session_id, status: response.status });
+      setMessage(response.message || `Test case queued with status: ${response.status}`);
+    } catch (error) {
+      setMessage(error instanceof ApiError ? error.message : "Test case execution failed.");
     } finally {
       setBusy(false);
     }
@@ -135,7 +195,53 @@ export default function TestCases() {
         </Card>
       </div>
 
+      {lastExecutedRun && (
+        <p className="rounded-md border border-line bg-card px-4 py-3 text-sm text-body">
+          Run {lastExecutedRun.id} is {lastExecutedRun.status}.{" "}
+          <Link className="font-medium text-accent underline" to={`/runs/${lastExecutedRun.id}`}>
+            Open live run
+          </Link>
+        </p>
+      )}
       {message && <p role="status" className="rounded-md border border-line bg-card px-4 py-3 text-sm text-body">{message}</p>}
+
+      <Card>
+        <CardContent className="flex flex-col gap-2 py-4">
+          <label htmlFor="execute-persona" className="text-xs font-semibold text-body">
+            Execute a test case as
+          </label>
+          {personaQuery.isLoading ? (
+            <p role="status" className="text-xs text-muted">Loading configured ServiceNow personas…</p>
+          ) : personaQuery.isError ? (
+            <p role="alert" className="text-xs text-status-failed">
+              Could not load configured ServiceNow personas. Refresh the page before executing tests.
+            </p>
+          ) : (
+            <>
+              <select
+                id="execute-persona"
+                value={selectedPersona}
+                onChange={(event) => setSelectedPersona(event.target.value)}
+                disabled={busy}
+                className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-body"
+              >
+                {!personaInfo?.requires_persona && <option value="">Use configured default</option>}
+                {personaInfo?.personas.map((persona) => (
+                  <option key={persona.name} value={persona.name}>
+                    {persona.name}{persona.role ? ` — ${persona.role}` : ""}
+                  </option>
+                ))}
+              </select>
+              {personaInfo?.requires_persona && personaInfo.personas.length === 0 && (
+                <p className="text-xs text-status-failed">
+                  No personas are configured on the backend. Configure SERVICENOW_PERSONAS before starting UAT.
+                </p>
+              )}
+            </>
+          )}
+          <Input label="Personas for sweep/comparison" value={personas} onChange={(event) => setPersonas(event.target.value)} hint="Comma-separated configured persona names." />
+        </CardContent>
+      </Card>
 
       <div className="flex items-center justify-between gap-3">
         <h2 className="section-title">Available test cases</h2>
@@ -155,8 +261,9 @@ export default function TestCases() {
                     <p className="mt-1 text-sm text-body">{testCase.description || "No description provided."}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => void sweep(testCase.id)} disabled={busy} className="gap-1"><Play size={13} /> Sweep personas</Button>
-                    <Button size="sm" variant="outline" onClick={() => void compare(testCase.id)} disabled={busy} className="gap-1"><GitCompare size={13} /> Compare</Button>
+                    <Button size="sm" variant="primary" onClick={() => void execute(testCase.id)} disabled={busy || !personaReady} className="gap-1"><Play size={13} /> Execute</Button>
+                    <Button size="sm" variant="secondary" onClick={() => void sweep(testCase.id)} disabled={busy || !personaList.length} className="gap-1"><Play size={13} /> Sweep personas</Button>
+                    <Button size="sm" variant="outline" onClick={() => void compare(testCase.id)} disabled={busy || !personaList.length} className="gap-1"><GitCompare size={13} /> Compare</Button>
                   </div>
                 </div>
                 <p className="font-mono text-xs text-muted">{testCase.steps?.length ?? 0} steps · {testCase.expected_outcomes?.length ?? 0} assertions · {testCase.id}</p>

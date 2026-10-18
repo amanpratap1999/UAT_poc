@@ -62,9 +62,8 @@ export function PerceptionOverlay({ frame, isLive }: PerceptionOverlayProps) {
         <div className="max-w-xs">
           <p className="font-mono text-sm text-ink-400">Perception data unavailable</p>
           <p className="mt-2 text-xs text-ink-600">
-            The backend does not yet persist perception frames.{" "}
-            <code className="font-mono">PerceptionFrame</code> data will appear here
-            once the backend grounding step stores screenshots and bounding box coordinates.
+            No screenshot evidence is available for this step yet. Captured screenshots and
+            grounding boxes appear here when the worker has persisted evidence for this run.
           </p>
         </div>
       </div>

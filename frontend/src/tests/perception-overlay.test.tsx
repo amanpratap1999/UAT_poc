@@ -19,6 +19,7 @@ describe("PerceptionOverlay", () => {
   it("shows unavailable state when no frame is provided", () => {
     render(<PerceptionOverlay />);
     expect(screen.getByText("Perception data unavailable")).toBeInTheDocument();
+    expect(screen.getByText(/No screenshot evidence is available for this step yet/i)).toBeInTheDocument();
   });
 
   it("shows unavailable state when frame has no screenshot", () => {
