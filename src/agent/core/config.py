@@ -95,6 +95,7 @@ class LLMConfig(BaseSubConfig):
         env_file_encoding="utf-8",
         env_prefix="LLM_",
         extra="ignore",
+        populate_by_name=True,
     )
 
     provider: Literal["openai", "groq", "anthropic", "nvidia", "google"] = "openai"

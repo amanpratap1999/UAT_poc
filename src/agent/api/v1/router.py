@@ -1614,7 +1614,6 @@ async def execute_test_case_sweep(
                 message=f"Failed to enqueue execution task: {exc}",
             ))
             
-    await db.commit()
     return responses
 
 

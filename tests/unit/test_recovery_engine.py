@@ -284,7 +284,9 @@ async def test_recovery_tracks_attempts(
     page = _make_mock_page()
     locator = MagicMock()
     locator.count = AsyncMock(return_value=1)
-    page.locator = MagicMock(return_value=locator)
+    locator.first = MagicMock()
+    locator.first.is_visible = AsyncMock(return_value=True)
+    page.get_by_text = MagicMock(return_value=locator)
 
     result = await engine.attempt_recovery(
         error=SelectorNotFoundError("not found"),

@@ -25,7 +25,7 @@ IntelligenceStore.__test__ = False
 def tenant_a_token() -> str:
     return create_access_token({
         "sub": "user_a",
-        "role": "tester",
+        "role": "QA Engineer",
         "tenant_id": "tenant-alpha",
         "user_id": "usr-1",
     })
@@ -35,7 +35,7 @@ def tenant_a_token() -> str:
 def tenant_b_token() -> str:
     return create_access_token({
         "sub": "user_b",
-        "role": "tester",
+        "role": "QA Engineer",
         "tenant_id": "tenant-bravo",
         "user_id": "usr-2",
     })
