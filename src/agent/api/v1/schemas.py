@@ -31,6 +31,27 @@ class RunRequest(BaseModel):
     )
 
 
+class ServiceNowPersonaOption(BaseModel):
+    """Safe, non-secret metadata for a configured ServiceNow execution persona."""
+
+    name: str
+    role: str | None = None
+
+
+class ServiceNowPersonasResponse(BaseModel):
+    """Configured persona options that can be selected in the UI."""
+
+    personas: list[ServiceNowPersonaOption] = Field(default_factory=list)
+    active_persona: str | None = None
+    requires_persona: bool = False
+
+
+class TestCaseExecutionRequest(BaseModel):
+    """Optional persona selection when executing a stored test case."""
+
+    persona: str | None = Field(default=None)
+
+
 class StopRequest(BaseModel):
     """Request to stop a running agent session."""
 

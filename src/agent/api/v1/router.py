@@ -9,7 +9,7 @@ import os
 import re
 import tempfile
 from pathlib import Path
-from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
+from fastapi import APIRouter, Body, UploadFile, File, Form, Depends, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -51,6 +51,8 @@ from agent.api.v1.schemas import (
     RunDetailResponse,
     RunRequest,
     RunResponse,
+    ServiceNowPersonasResponse,
+    TestCaseExecutionRequest,
 )
 from agent.core.db import get_db_session
 from agent.domain.models import Finding, Run, Screenshot
@@ -220,6 +222,25 @@ async def get_safety_config(
         "kill_switch_active": bool(kill_reason),
         "kill_switch_reason": kill_reason,
     }
+
+
+@router.get("/personas", response_model=ServiceNowPersonasResponse)
+async def list_servicenow_personas(
+    token: Annotated[TokenData, Depends(require_qa_engineer)],
+) -> ServiceNowPersonasResponse:
+    """List configured execution persona names and roles without exposing credentials."""
+    settings = get_cached_settings()
+    configured = settings.servicenow.personas or {}
+    personas = [
+        {"name": name, "role": (details.get("role") or None)}
+        for name, details in sorted(configured.items())
+    ]
+    active = settings.servicenow.active_persona
+    return ServiceNowPersonasResponse(
+        personas=personas,
+        active_persona=active if active in configured else None,
+        requires_persona=settings.servicenow.require_persona_for_benchmark,
+    )
 
 
 @router.get("/ready")
@@ -416,6 +437,16 @@ async def create_run(
     db: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> RunResponse:
     """Start an autonomous agent run. Queues a Celery task."""
+    settings = get_cached_settings()
+    selected_persona = request.persona or settings.servicenow.active_persona
+    configured_personas = settings.servicenow.personas or {}
+    if selected_persona and selected_persona not in configured_personas:
+        raise HTTPException(status_code=422, detail="Selected ServiceNow persona is not configured on this server.")
+    if settings.servicenow.require_persona_for_benchmark and not selected_persona:
+        raise HTTPException(
+            status_code=422,
+            detail="A configured ServiceNow persona is required. Select one or configure SERVICENOW_ACTIVE_PERSONA.",
+        )
     run_id = str(uuid.uuid4())
 
     new_run = Run(
@@ -434,7 +465,7 @@ async def create_run(
             run_id=run_id,
             goal=request.goal,
             tenant_id=token.tenant_id or "unknown",
-            persona=getattr(request, "persona", None),  # INC-UAT-01
+            persona=selected_persona,  # INC-UAT-01
         )
     except Exception as exc:
         new_run.status = "failed"  # type: ignore[assignment]
@@ -1256,11 +1287,18 @@ async def execute_test_case(
     token: Annotated[TokenData, Depends(require_qa_engineer)],
     # audit issue I12 (P0): mutating endpoint requires qa engineer role
     db: Annotated[AsyncSession, Depends(get_db_session)],
+    request: TestCaseExecutionRequest = Body(default=TestCaseExecutionRequest()),
 ) -> RunResponse:
     """Execute a stored structured test case by ID with tenant isolation."""
     from agent.api.v1.dependencies import get_cached_settings, get_test_intelligence_store
 
     s = get_cached_settings()
+    selected_persona = request.persona or s.servicenow.active_persona
+    configured_personas = s.servicenow.personas or {}
+    if selected_persona and selected_persona not in configured_personas:
+        raise HTTPException(status_code=422, detail="Selected ServiceNow persona is not configured on this server.")
+    if s.servicenow.require_persona_for_benchmark and not selected_persona:
+        raise HTTPException(status_code=422, detail="A configured ServiceNow persona is required to execute a test case.")
     store = get_test_intelligence_store(s)
 
     tc = await store.get_test_case_async(test_case_id, tenant_id=token.tenant_id or "unknown")
@@ -1288,7 +1326,8 @@ async def execute_test_case(
             goal=goal,
             tenant_id=token.tenant_id,
             test_case_id=test_case_id,
-            tc_data=tc
+            persona=selected_persona,
+            tc_data=tc,
         )
     except Exception as exc:
         new_run.status = "failed"  # type: ignore[assignment]
