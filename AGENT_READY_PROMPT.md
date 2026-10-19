@@ -10,7 +10,7 @@ concrete execution evidence, and commit the results back to the repository.
 
 1. A ServiceNow subproduction instance (PDI or dev instance)
 2. A non-admin persona with `itil` role (username + password)
-3. An admin account for API access (to start runs + read results)
+3. A local QA Engineer / QA Manager account for QA API access (separate from ServiceNow personas; never use a ServiceNow admin account for UAT runs)
 4. Python 3.11+, Node.js 18+, PostgreSQL 15+ with pgvector, Redis 6+
 5. This repository cloned locally
 
@@ -37,8 +37,8 @@ cp .env.local.example .env.local
 Edit `.env.local` with REAL values:
 ```env
 SERVICENOW_INSTANCE_URL=https://devXXXXX.service-now.com
-SERVICENOW_USERNAME=<admin_username>
-SERVICENOW_PASSWORD=<admin_password>
+SERVICENOW_USERNAME=<non_admin_persona_username>
+SERVICENOW_PASSWORD=<non_admin_persona_password>
 SERVICENOW_IS_SUBPRODUCTION=true
 SERVICENOW_ALLOWED_INSTANCES=devXXXXX.service-now.com
 SERVICENOW_ALLOW_MUTATIONS=true

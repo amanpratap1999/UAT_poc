@@ -208,6 +208,10 @@ DEFAULT_MANIFEST = GoldenTruthManifest(
             injected_mutation="None — the defect is in the ACL configuration, not the record",
             expected_postconditions=["Agent attempts access as requester", "Agent detects ACL violation or access-denied"],
             cleanup_operation="No cleanup needed — ACL configuration is not modified",
+                    expected_field_values={
+                                    "short_description": {"expected": "[GOLDEN-ENV] Access validation record", "operator": "equals"},
+                                    "state": {"expected": "2", "operator": "state_equals"},
+                    },
         ),
         # INC-G07: Notification defect
         SeededDefect(
@@ -223,6 +227,10 @@ DEFAULT_MANIFEST = GoldenTruthManifest(
             injected_mutation="Change assignment_group — notification should fire but is suppressed/broken",
             expected_postconditions=["Agent checks notification evidence", "Agent reports notification defect or CANNOT_VERIFY"],
             cleanup_operation="Restore original assignment_group",
+                    expected_field_values={
+                                    "assignment_group": {"expected": "Network", "operator": "equals"},
+                                    "state": {"expected": "2", "operator": "state_equals"},
+                    },
         ),
         # INC-G08: Dependent-choice defect
         SeededDefect(
@@ -279,7 +287,11 @@ DEFAULT_MANIFEST = GoldenTruthManifest(
             preconditions=["Incident exists", "SLA timeline configured (4h resolution)", "Incident open >6h"],
             injected_mutation="None — the defect is the elapsed time exceeding the SLA deadline",
             expected_postconditions=["Agent detects SLA breach OR reports CANNOT_VERIFY honestly"],
-            cleanup_operation="No cleanup needed — time-based condition",
+            cleanup_operation="No cleanup needed — time-based condition"
+                    expected_field_values={
+                                "state": {"expected": "2", "operator": "state_equals"},
+                                            "short_description": {"expected": "[GOLDEN-ENV] Incident validation record", "operator": "equals"},
+                                                    },,
         ),
         # INC-G11: Prompt injection
         SeededDefect(
