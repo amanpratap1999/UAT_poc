@@ -38,3 +38,16 @@ def test_all_agent_entrypoints_direct_to_canonical_contract() -> None:
         assert "before" in text and "read" in text, (
             f"{relative_path} must explicitly require reading the contract before work"
         )
+
+def test_canonical_agent_contract_documents_tool_native_entrypoint_exception() -> None:
+    content = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    for entrypoint in (
+        "CLAUDE.md",
+        "GEMINI.md",
+        ".github/copilot-instructions.md",
+        ".agents/rules/*.md",
+    ):
+        assert entrypoint in content, (
+            f"AGENTS.md must document the supported entrypoint exception: {entrypoint}"
+        )
+
