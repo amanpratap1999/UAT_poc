@@ -279,12 +279,16 @@ class RecoveryEngine:
         # Handle browser alerts
         try:
             # Check for ServiceNow modals
+            # C14: Only click safe Cancel/Close controls — never generic `.modal-footer button`
+            # which may confirm a destructive action.
             modal_selectors = [
                 "[role='dialog'] button.close",
                 ".modal .close",
                 ".glide_popup .close",
                 "button[aria-label='Close']",
-                ".modal-footer button",
+                ".modal-footer button[data-dismiss='modal']",
+                ".modal-footer button:has-text('Cancel')",
+                ".modal-footer button:has-text('Close')",
             ]
 
             for selector in modal_selectors:

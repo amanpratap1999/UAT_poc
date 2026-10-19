@@ -27,6 +27,8 @@ SENSITIVE_VALUE_PATTERNS = [
     re.compile(r"AKIA[0-9A-Z]{16}"),  # AWS Access Key
     re.compile(r"-----BEGIN [A-Z ]+ PRIVATE KEY-----[\s\S]*?-----END [A-Z ]+ PRIVATE KEY-----"),  # Private Keys
     re.compile(r"://([^:]+):([^@]+)@"),  # URL credentials (user:pass@host)
+    re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"),  # C30: Email PII
+    re.compile(r"(?<!\d)(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?!\d)"),  # C30: Phone PII
 ]
 
 def is_sensitive_field(field_name: str) -> bool:

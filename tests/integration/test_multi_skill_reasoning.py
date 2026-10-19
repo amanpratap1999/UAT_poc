@@ -73,6 +73,7 @@ async def test_multi_skill_cognitive_loop():
     mock_obs.page_type = PageType.FORM
     mock_obs.url = "mock"
     mock_obs.title = "mock"
+    mock_obs.visible_content = ""
     mock_obs.record_number = "mock"
     mock_obs.current_state = "mock"
     mock_obs.validation_messages = []

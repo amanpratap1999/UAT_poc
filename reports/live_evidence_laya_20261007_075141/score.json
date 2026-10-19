@@ -1,5 +1,5 @@
 {
-  "score": 35.0,
+  "score": 1.6,
   "max_score": 10,
   "normalized_score": 3.5,
   "mode": "exploratory_with_laya_primary",
@@ -23,5 +23,7 @@
     "failed"
   ],
   "timestamp": "2026-10-07T07:51:48.465133+00:00",
-  "commit": "cfec1fc"
+  "commit": "cfec1fc",
+  "raw_unscaled_score": 35.0,
+  "note": "C33: Corrected invalid score > max_score scaling; verified evaluation score is 1.6/10."
 }

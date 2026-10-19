@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<unload unload_date="2026-10-14 13:00:00">
+  <sys_remote_update_set action="INSERT_OR_UPDATE">
+    <name>UAT_POC_Golden_Benchmark_Configuration_v1</name>
+    <description>Out-of-band configuration update set for Incident UAT benchmark (10 seeded config defects + 4 by-design decoys). Applied by an instance administrator prior to non-admin persona UAT execution.</description>
+    <state>loaded</state>
+    <!-- Seeded Configuration Defects -->
+    <u_seeded_rule id="INC-DEF-001" type="dl_u_priority" field="priority" description="Override Impact=1 + Urgency=1 priority lookup to 4 (Low)"/>
+    <u_seeded_rule id="INC-DEF-002" type="sysrule_assignment" field="assignment_group" description="Route Category=network incidents to Software group"/>
+    <u_seeded_rule id="INC-DEF-003" type="sys_ui_policy_action" field="close_code" description="Make close_code optional when state changes to Resolved (6)"/>
+    <u_seeded_rule id="INC-DEF-004" type="sys_script" field="state" description="Permit direct transition from New (1) to Closed (7)"/>
+    <u_seeded_rule id="INC-DEF-005" type="sys_security_acl" field="work_notes" description="Allow non-itil requester role to read incident.work_notes"/>
+    <u_seeded_rule id="INC-DEF-006" type="sysevent_email_action" field="assignment_group" description="Redirect assignment notification recipient away from assigned group"/>
+    <u_seeded_rule id="INC-DEF-007" type="sys_choice" field="subcategory" description="Disable dependent-value filtering of subcategory by category"/>
+    <u_seeded_rule id="INC-DEF-008" type="contract_sla" field="stage" description="Remove pause condition when Incident state is On Hold (3)"/>
+    <u_seeded_rule id="INC-DEF-013" type="sys_ui_policy_action" field="short_description" description="Make short_description optional on New incident creation"/>
+    <u_seeded_rule id="INC-DEF-014" type="sys_script" field="close_code" description="Do not clear close_code/close_notes when reopening Resolved -> In Progress"/>
+    <!-- By-Design Decoys (Must NOT be reported as defects) -->
+    <u_decoy_rule id="INC-DEF-000" type="control" field="state" description="Clean baseline control incident"/>
+    <u_decoy_rule id="INC-DECOY-001" type="dl_u_priority" field="priority" description="Impact=3 + Urgency=3 -> Priority=4 (standard matrix outcome)"/>
+    <u_decoy_rule id="INC-DECOY-002" type="sys_security_acl" field="work_notes" description="Requester cannot view work_notes while comments remain visible"/>
+    <u_decoy_rule id="INC-DEF-012" type="sys_ui_policy" field="assignment_group" description="Queue-based assignment policy across repeatable runs"/>
+  </sys_remote_update_set>
+</unload>

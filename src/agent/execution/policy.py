@@ -202,10 +202,10 @@ class ActionPolicy:
                 )
             self._destructive_executed += 1
 
-        # 5. Mutation budget
-        is_mutating = action_type_str in ("fill", "select", "check", "uncheck") or (
+        # 5. Mutation budget (C21: count key_press as a potential mutation)
+        is_mutating = action_type_str in ("fill", "select", "check", "uncheck", "key_press") or (
             action_type_str == "click"
-            and any(v in target_lower for v in ("sysverb_update", "sysverb_insert", "sysverb_delete", "submit"))
+            and any(v in target_lower for v in ("sysverb_update", "sysverb_insert", "sysverb_delete", "submit", "update", "save"))
         )
         if is_mutating:
             self._mutations_executed += 1
@@ -321,8 +321,23 @@ class ActionPolicy:
         parsed = urlparse(url)
         hostname = (parsed.hostname or "").lower()
 
+        # C21: Enforce path allowlist / block sys_* admin tables even on relative URLs
+        path_lower = (parsed.path or url or "").lower()
+        query_lower = (parsed.query or "").lower()
+        combined_path = f"{path_lower}?{query_lower}"
+        forbidden_paths = (
+            "sys_script",
+            "sys_security_acl",
+            "sys_user",
+            "sys_properties",
+            "impersonate",
+            "sysverb_delete",
+        )
+        if any(fp in combined_path for fp in forbidden_paths):
+            return False
+
         if not hostname:
-            return True  # Relative paths or internal routes are fine
+            return True
 
         for allowed in self._config.allowed_hosts:
             allowed_clean = allowed.lower().strip()

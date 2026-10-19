@@ -25,6 +25,17 @@ logger = get_logger(__name__)
 
 
 @dataclass
+class StructuredFinding:
+    """C9: Structured defect finding emitted by a benchmark scenario run."""
+    sys_id: str
+    field: str
+    expected: str
+    observed: str
+    rule_id: str
+    finding_class: str = "defect"  # "defect" | "requirement_gap" | "environment" | "by_design"
+
+
+@dataclass
 class ScenarioResult:
     """Result of executing a single golden scenario."""
     test_scenario: str  # e.g., "INC-G02"
@@ -82,6 +93,12 @@ class BenchmarkMetrics:
         return self.true_positives / denom if denom > 0 else 0.0
 
     @property
+    def false_positive_rate(self) -> float:
+        """C9: Decoy false-positive rate = decoy_FP / (decoy_FP + TN)."""
+        denom = self.decoy_false_positives + self.true_negatives
+        return self.decoy_false_positives / denom if denom > 0 else 0.0
+
+    @property
     def consistency_rate(self) -> float:
         """Fraction of scenarios that produced the same verdict across all runs."""
         return self.consistent_scenarios / self.total_scenarios if self.total_scenarios > 0 else 0.0
@@ -98,6 +115,7 @@ class BenchmarkMetrics:
             "unscored_runs": self.unscored_runs,
             "recall": round(self.recall, 3),
             "precision": round(self.precision, 3),
+            "false_positive_rate": round(self.false_positive_rate, 3),
             "consistency_rate": round(self.consistency_rate, 3),
             "consistent_scenarios": self.consistent_scenarios,
             "total_scenarios": self.total_scenarios,
@@ -201,10 +219,16 @@ class IncidentBenchmarkRunner:
                 if result.verdict in {"PASS", "FAIL", "BLOCKED", "CANNOT_VERIFY"}:
                     verdicts.append(result.verdict)
 
-                # Errors and honest non-observations are not defect misses or
-                # clean passes. Keep them visible, but outside precision/recall.
-                if result.verdict in {"ERROR", "INFRA_ERROR", "BLOCKED", "CANNOT_VERIFY"}:
+                # C9: CANNOT_VERIFY on a seeded real UI-observable defect counts as
+                # a false negative (FN) rather than escaping recall scoring.
+                if result.verdict in {"ERROR", "INFRA_ERROR", "BLOCKED"}:
                     metrics.unscored_runs += 1
+                    continue
+                if result.verdict == "CANNOT_VERIFY":
+                    if not defect.is_decoy and defect.defect_type not in {"sla_breach", "notification_failure"}:
+                        metrics.false_negatives += 1
+                    else:
+                        metrics.unscored_runs += 1
                     continue
 
                 # Score the result against the truth manifest

@@ -31,8 +31,9 @@ _CLOSE_TAG_ESCAPES = [
 ]
 
 _INJECTION_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"\bignore\s+(all\s+)?(previous|prior|above)\s+instructions?\b", re.IGNORECASE),
-    re.compile(r"\bdisregard\s+(all\s+)?(previous|prior|the)\s+instructions?\b", re.IGNORECASE),
+    re.compile(r"\bignore\s+(?:all\s+|your\s+|the\s+)?(?:previous\s+|prior\s+|above\s+)?instructions?\b", re.IGNORECASE),
+    re.compile(r"\bdisregard\s+(?:all\s+|your\s+|the\s+)?(?:previous\s+|prior\s+|above\s+)?instructions?\b", re.IGNORECASE),
+    re.compile(r"\bmark\s+this\s+(?:test|run|scenario)\s+as\s+passed\b", re.IGNORECASE),
     re.compile(r"\byou\s+are\s+now\s+(a|an|the)\b", re.IGNORECASE),
     re.compile(r"\bnew\s+instructions?\s*:", re.IGNORECASE),
     re.compile(r"\bsystem\s+prompt\b", re.IGNORECASE),

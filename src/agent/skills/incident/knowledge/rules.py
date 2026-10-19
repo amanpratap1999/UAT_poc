@@ -80,8 +80,18 @@ class IncidentBusinessRules:
 
     @classmethod
     def calculate_priority(cls, impact: Impact, urgency: Urgency) -> IncidentPriority:
-        """Calculate expected Priority from Impact x Urgency according to ServiceNow standard matrix."""
-        return cls._PRIORITY_MATRIX.get((impact, urgency), IncidentPriority.MODERATE)
+        """Calculate expected Priority from Impact x Urgency.
+
+        C22: Unknown or unparseable combinations return IncidentPriority.UNKNOWN
+        (which maps to UNVERIFIED) rather than silently fabricating MODERATE.
+        """
+        return cls._PRIORITY_MATRIX.get((impact, urgency), IncidentPriority.UNKNOWN)
+
+    @classmethod
+    def load_client_profile(cls, matrix_overrides: dict[tuple[Impact, Urgency], IncidentPriority] | None = None) -> None:
+        """C22: Apply per-client priority matrix overrides from a signed-off profile."""
+        if matrix_overrides:
+            cls._PRIORITY_MATRIX.update(matrix_overrides)
 
     # Mandatory fields per state transition target
     _TRANSITION_MANDATORY_FIELDS: ClassVar[dict[IncidentState, list[str]]] = {

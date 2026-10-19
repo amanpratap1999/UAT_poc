@@ -38,6 +38,8 @@ async def test_local_worker_smoke_pipeline(tmp_path: Path, monkeypatch: pytest.M
     monkeypatch.setenv("UAT_RUNTIME_MODE", "local")
     monkeypatch.setenv("REPORT_OUTPUT_DIR", str(reports_dir))
     monkeypatch.setenv("SCREENSHOT_DIR", str(screenshots_dir))
+    monkeypatch.setenv("SERVICENOW_ACTIVE_PERSONA", "itil_user")
+    monkeypatch.setenv("SERVICENOW_PERSONAS", '{"itil_user":{"username":"qa-itil-user","password":"qa-test-secret","role":"itil"}}')
 
     # Set up SQLite test database
     db_file = tmp_path / "test_smoke.db"
