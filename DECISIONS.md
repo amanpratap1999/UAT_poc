@@ -236,6 +236,7 @@ The canonical project contract already existed, but tools use different conventi
 3. Assuming every agent host automatically loads the same instruction filename.
 
 ### Files / areas
+`AGENTS.md`
 `CLAUDE.md`
 `GEMINI.md`
 `.github/copilot-instructions.md`
@@ -248,4 +249,3 @@ Reviewed the canonical contracts and provider entrypoint conventions. Added a re
 
 ### Follow-up / limitations
 Repository files cannot force every model or IDE configuration to obey instructions. The relevant host must support and load its entrypoint; existing sessions may need to be restarted. The regression test guards file presence and linkage, not model compliance.
-
