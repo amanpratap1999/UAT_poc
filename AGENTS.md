@@ -118,6 +118,8 @@ Persistent project documentation should normally be limited to:
 - `DECISIONS.md`
 - ServiceNow reference material under `servicenow_docs/`
 
+**Allowed tool-native entrypoint exception:** short `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md`, and `.agents/rules/*.md` files may exist solely to make supported coding tools load this contract. They must point back to `AGENTS.md`, `ARCHITECTURE.md`, `DECISIONS.md`, and `README.md`; do not copy the full policy into them or let them become independent sources of truth. Keep a regression test for these entrypoints. These files are not a license to recreate one-off task prompts or historical audit reports.
+
 Generated run reports belong under `reports/`, not in `docs/`.
 
 ## 10. Git discipline
