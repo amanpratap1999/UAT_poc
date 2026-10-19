@@ -11,7 +11,7 @@ from agent.world.model import PageType
 # support item assignment`. The app is now imported normally instead —
 # these tests construct orchestrators directly and never call the HTTP app.
 
-from agent.core.config import Settings  # noqa: E402
+from agent.core.config import ServiceNowConfig, Settings  # noqa: E402
 from agent.core.types import ActionType  # noqa: E402
 from agent.domain.actions import ActionResult, AgentAction  # noqa: E402
 from agent.domain.knowledge_model import (  # noqa: E402
@@ -27,7 +27,13 @@ from agent.testing.safety import ExploratorySafetyPolicy, SafetyViolationError  
 
 @pytest.fixture
 def test_settings():
-    settings = Settings()
+    settings = Settings(servicenow=ServiceNowConfig(
+            username="admin",
+            password="test",
+            personas={"itil_user": {"username": "qa-itil-user", "password": "qa-test-secret", "role": "itil"}},
+            active_persona="itil_user",
+            require_persona_for_benchmark=True,
+        ))
     settings.agent.max_steps = 3
     return settings
 
@@ -43,7 +49,13 @@ async def test_1_single_skill_application_path(mocker):
         ),
     )
     orchestrator = AgentOrchestrator(
-        settings=Settings(),
+        settings=Settings(servicenow=ServiceNowConfig(
+            username="admin",
+            password="test",
+            personas={"itil_user": {"username": "qa-itil-user", "password": "qa-test-secret", "role": "itil"}},
+            active_persona="itil_user",
+            require_persona_for_benchmark=True,
+        )),
         planner=AsyncMock(),
         browser_manager=AsyncMock(),
         observation_engine=AsyncMock(),
@@ -123,7 +135,13 @@ async def test_2_multi_skill_application_path(mocker):
         ),
     )
     orchestrator = AgentOrchestrator(
-        settings=Settings(),
+        settings=Settings(servicenow=ServiceNowConfig(
+            username="admin",
+            password="test",
+            personas={"itil_user": {"username": "qa-itil-user", "password": "qa-test-secret", "role": "itil"}},
+            active_persona="itil_user",
+            require_persona_for_benchmark=True,
+        )),
         planner=AsyncMock(),
         browser_manager=AsyncMock(),
         observation_engine=AsyncMock(),
