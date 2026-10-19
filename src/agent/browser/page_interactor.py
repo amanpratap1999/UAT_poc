@@ -272,6 +272,18 @@ class PageInteractor:
 
         try:
             await locator.fill(value, timeout=timeout)
+            # C12: If filling a ServiceNow reference field (sys_display.* or ac_input),
+            # wait briefly for the AJAX autocomplete drop-down and select the matching item.
+            sel_lower = selector.lower()
+            if any(ref_tok in sel_lower for ref_tok in ("sys_display.", "caller", "assignment_group", "assigned_to", "cmdb_ci")):
+                try:
+                    ac_item = self._page.locator(
+                        f".ac_dropdown li:has-text('{value}'), #AC.ac_table_completer tr:has-text('{value}')"
+                    )
+                    if await ac_item.count() > 0:
+                        await ac_item.first.click(timeout=1500)
+                except Exception:
+                    pass
             logger.debug("filled", selector=selector, value=value)
         except Exception as e:
             error_msg = str(e)

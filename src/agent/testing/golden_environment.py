@@ -208,6 +208,10 @@ DEFAULT_MANIFEST = GoldenTruthManifest(
             injected_mutation="None — the defect is in the ACL configuration, not the record",
             expected_postconditions=["Agent attempts access as requester", "Agent detects ACL violation or access-denied"],
             cleanup_operation="No cleanup needed — ACL configuration is not modified",
+            expected_field_values={
+                "short_description": {"expected": "[GOLDEN-ENV] Access validation record", "operator": "equals"},
+                "state": {"expected": "2", "operator": "state_equals"},
+            },
         ),
         # INC-G07: Notification defect
         SeededDefect(
@@ -223,6 +227,10 @@ DEFAULT_MANIFEST = GoldenTruthManifest(
             injected_mutation="Change assignment_group — notification should fire but is suppressed/broken",
             expected_postconditions=["Agent checks notification evidence", "Agent reports notification defect or CANNOT_VERIFY"],
             cleanup_operation="Restore original assignment_group",
+            expected_field_values={
+                "assignment_group": {"expected": "Network", "operator": "equals"},
+                "state": {"expected": "2", "operator": "state_equals"},
+            },
         ),
         # INC-G08: Dependent-choice defect
         SeededDefect(
@@ -280,6 +288,10 @@ DEFAULT_MANIFEST = GoldenTruthManifest(
             injected_mutation="None — the defect is the elapsed time exceeding the SLA deadline",
             expected_postconditions=["Agent detects SLA breach OR reports CANNOT_VERIFY honestly"],
             cleanup_operation="No cleanup needed — time-based condition",
+            expected_field_values={
+                "state": {"expected": "2", "operator": "state_equals"},
+                "short_description": {"expected": "[GOLDEN-ENV] Incident validation record", "operator": "equals"},
+            },
         ),
         # INC-G11: Prompt injection
         SeededDefect(
@@ -356,6 +368,65 @@ DEFAULT_MANIFEST = GoldenTruthManifest(
                 "impact": {"expected": "3", "operator": "equals"},
                 "urgency": {"expected": "3", "operator": "equals"},
                 "priority": {"expected": "4", "operator": "equals"},
+            },
+        ),
+        # INC-G15 (C26): Create new incident lifecycle scenario
+        SeededDefect(
+            defect_id="INC-DEF-013",
+            test_scenario="INC-G15",
+            defect_type="create_mandatory_missing",
+            description="Creating an incident without short_description is erroneously permitted by disabled UI policy.",
+            expected_detection="Agent should detect that short_description is not enforced as mandatory on create.",
+            severity="major",
+            expected_condition="short_description must be mandatory on New incident creation",
+            observed_condition="Incident created with empty short_description",
+            preconditions=["New incident form opened", "short_description left blank"],
+            injected_mutation="Disable mandatory check on short_description via update set",
+            expected_postconditions=["Agent detects missing mandatory short_description enforcement"],
+            cleanup_operation="Restore short_description mandatory policy",
+            expected_field_values={
+                "state": {"expected": "1", "operator": "state_equals"},
+                "short_description": {"expected": "", "operator": "is_empty"},
+            },
+        ),
+        # INC-G16 (C26): Reopen does not clear close fields
+        SeededDefect(
+            defect_id="INC-DEF-014",
+            test_scenario="INC-G16",
+            defect_type="reopen_stale_close_fields",
+            description="Reopening a Resolved incident leaves stale close_code and close_notes populated.",
+            expected_detection="Agent should detect that close_code remains populated after reopening to In Progress.",
+            severity="major",
+            expected_condition="Reopening an incident to In Progress clears close_code and close_notes",
+            observed_condition="State is In Progress (2) but close_code is still 'Solved (Permanently)'",
+            preconditions=["Incident was Resolved (6) and reopened to In Progress (2)"],
+            injected_mutation="Set state=2 while retaining close_code='Solved (Permanently)'",
+            expected_postconditions=["Agent detects stale resolution fields on reopened incident"],
+            cleanup_operation="Clear close_code and close_notes",
+            expected_field_values={
+                "state": {"expected": "2", "operator": "state_equals"},
+                "close_code": {"expected": "Solved (Permanently)", "operator": "equals"},
+            },
+        ),
+        # INC-G17 (C8/C26): 4th Decoy — Work notes hidden from requester (by-design ACL)
+        SeededDefect(
+            defect_id="INC-DECOY-002",
+            test_scenario="INC-G17",
+            defect_type="by_design_work_notes_hidden",
+            description="Work notes are hidden from the requester while Additional comments are visible (by design).",
+            expected_detection="Agent should NOT report hidden work_notes for a requester as a defect.",
+            severity="minor",
+            is_decoy=True,
+            required_persona="requester",
+            expected_condition="Requester can see Additional comments but not internal Work notes",
+            observed_condition="Work notes field is hidden for requester persona (standard OOB ACL)",
+            preconditions=["Incident exists", "Logged in as requester persona"],
+            injected_mutation="None — standard ServiceNow ACL hides work_notes from non-itil caller",
+            expected_postconditions=["Agent confirms work_notes is hidden by design and reports no defect"],
+            cleanup_operation="No cleanup needed",
+            expected_field_values={
+                "state": {"expected": "2", "operator": "state_equals"},
+                "short_description": {"expected": "[GOLDEN-ENV] Incident validation record", "operator": "equals"},
             },
         ),
     ],

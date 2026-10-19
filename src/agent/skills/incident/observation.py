@@ -57,32 +57,50 @@ class IncidentObserver:
             state_enum = IncidentState.UNKNOWN
             state_label = ""
 
-        # Extract fields map
+        # C11: Deterministic classic-form field normalization.
+        # Support both human labels ("short description") and DOM names
+        # ("incident.short_description", "sys_display.incident.caller_id", "short_description").
         fields = getattr(observation, "visible_fields", [])
-        fields_map = {f.name.lower(): f.value for f in fields}
+        fields_map: dict[str, str] = {}
+        for f in fields:
+            raw_key = (getattr(f, "name", "") or "").strip().lower()
+            val = (getattr(f, "value", "") or "").strip()
+            if not raw_key:
+                continue
+            fields_map[raw_key] = val
+            for prefix in ("sys_display.incident.", "incident.", "sys_display."):
+                if raw_key.startswith(prefix):
+                    stripped = raw_key[len(prefix):]
+                    fields_map.setdefault(stripped, val)
+                    fields_map.setdefault(stripped.replace("_", " "), val)
+            fields_map.setdefault(raw_key.replace("_", " "), val)
 
-        caller = fields_map.get("caller", "")
-        short_desc = fields_map.get("short description", "")
-        desc = fields_map.get("description", "")
-        category = fields_map.get("category", "")
-        subcategory = fields_map.get("subcategory", "")
+        def _first(*keys: str) -> str:
+            for k in keys:
+                if fields_map.get(k):
+                    return fields_map[k]
+            return ""
+
+        caller = _first("caller", "caller id", "caller_id")
+        short_desc = _first("short description", "short_description")
+        desc = _first("description")
+        category = _first("category")
+        subcategory = _first("subcategory")
 
         # Assignment
-        assign_group = fields_map.get("assignment group", "")
-        assigned_to = fields_map.get("assigned to", "")
+        assign_group = _first("assignment group", "assignment_group")
+        assigned_to = _first("assigned to", "assigned_to")
         assignment = Assignment(group=assign_group, assigned_to=assigned_to)
 
         # Resolution
-        res_code = fields_map.get("resolution code", "")
-        res_notes = fields_map.get("resolution notes", "")
+        res_code = _first("resolution code", "close code", "close_code")
+        res_notes = _first("resolution notes", "close notes", "close_notes")
         resolution = Resolution(code=res_code, notes=res_notes)
 
-        # Priority, Impact, Urgency — observed values only. Unobserved or
-        # unparseable values stay UNKNOWN instead of silently becoming LOW
-        # (QA-004: no fabricated oracle values).
-        impact_val = self._parse_level(fields_map.get("impact"), Impact)
-        urgency_val = self._parse_level(fields_map.get("urgency"), Urgency)
-        priority_raw = fields_map.get("priority", "")
+        # Priority, Impact, Urgency — observed values only.
+        impact_val = self._parse_level(_first("impact") or None, Impact)
+        urgency_val = self._parse_level(_first("urgency") or None, Urgency)
+        priority_raw = _first("priority")
         if priority_raw:
             priority_val = IncidentPriority.from_string(priority_raw)
         else:
@@ -105,9 +123,9 @@ class IncidentObserver:
             priority_label=f"{p_value} - {p_name.capitalize()}",
             impact=impact_val,
             urgency=urgency_val,
-            hold_reason=fields_map.get("on hold reason", ""),
-            close_code=fields_map.get("close code", ""),
-            close_notes=fields_map.get("close notes", ""),
+            hold_reason=_first("on hold reason", "hold_reason", "hold reason"),
+            close_code=_first("close code", "close_code", "resolution code"),
+            close_notes=_first("close notes", "close_notes", "resolution notes"),
             caller=caller,
             category=category,
             subcategory=subcategory,

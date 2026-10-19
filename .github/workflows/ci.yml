@@ -2,9 +2,15 @@ name: CI
 
 on:
   push:
-    branches: [main, servicenow_testing]
+    branches: [main]
   pull_request:
     branches: [main, servicenow_testing]
+
+# A branch with an open PR receives both push and pull_request events.
+# Share the concurrency key so identical heavyweight test jobs don't pile up.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -39,7 +45,7 @@ jobs:
     env:
       # Required env vars for Settings validation (audit issue I5)
       SERVICENOW_INSTANCE_URL: https://test.service-now.com
-      SERVICENOW_USERNAME: admin
+      SERVICENOW_USERNAME: itil_user
       SERVICENOW_PASSWORD: testpass
       ENVIRONMENT: development
       UAT_RUNTIME_MODE: local
@@ -65,12 +71,17 @@ jobs:
             build-essential
           # Playwright browser deps are installed via `playwright install-deps` below
 
-      - name: Install Python dependencies
+      - name: Install CPU-only CI dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -e ".[dev,laya]"
-          pip install pytest pytest-asyncio pytest-cov
+          # CI tests do not require CUDA. Install the official CPU Torch wheel
+          # first, then constrain the optional LAYA stack to the same build.
+          # The production requirements.txt remains independently hash-locked.
+          printf 'torch==2.14.0+cpu\n' > /tmp/ci-constraints.txt
+          python -m pip install \
+            --extra-index-url https://download.pytorch.org/whl/cpu \
+            "torch==2.14.0+cpu"
+          python -m pip install -e ".[dev,laya]" --constraint /tmp/ci-constraints.txt
 
       - name: Verify LAYA package
         run: |

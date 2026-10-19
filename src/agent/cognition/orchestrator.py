@@ -1133,6 +1133,12 @@ class CognitiveOrchestrator:
                 observation_after=raw_obs_after,
                 validation=validation,
             )
+            on_step_cb = getattr(self, "_on_step_complete", None)
+            if callable(on_step_cb):
+                try:
+                    on_step_cb(step, memory)
+                except Exception as cb_err:
+                    logger.warning("on_step_complete_hook_failed", error=str(cb_err))
             memory.add_timeline_entry(
                 action=f"{action.action_type}: {action.target}",
                 result="success" if result.success else "failed",
@@ -1338,13 +1344,20 @@ class CognitiveOrchestrator:
                         "field": field,
                         "expected": expected,
                         "operator": "contains" if field else "equals",
+                        "source": "plan",
                     })
             if ac_list:
                 tc = dict(getattr(memory, "test_case_data", None) or {})
                 tc["acceptance_criteria"] = ac_list
                 memory.test_case_data = tc
 
+        completed_step_indices = {
+            getattr(cs, "step_index", -1) for cs in getattr(memory, "completed_steps", [])
+        }
         for step in plan.steps:
+            if step.step_index in completed_step_indices:
+                logger.info("skipping_already_completed_step_on_resume", step_index=step.step_index)
+                continue
             if self._lock_manager:
                 rec_num = (memory.current_record or {}).get("number")
                 if rec_num:
@@ -1826,69 +1839,32 @@ class CognitiveOrchestrator:
             # 3. Decision
             self._transition(AgentState.DECISION, f"Deciding action for: {step.description}")
             
-            # P0.2 SCRIPTED TEST EXECUTION MODE bypass
-            action = None
-            if step.expected_values and "action_type" in step.expected_values:
-                # Build AgentAction from the explicitly mapped step. An
-                # unrecognized action_type string must degrade gracefully to
-                # the decision engine rather than crashing the run with a
-                # ValueError.
-                raw_action_type = str(step.expected_values["action_type"]).lower().strip()
-                try:
-                    typed_action = ActionType(raw_action_type)
-                except ValueError:
-                    typed_action = None
-                    logger.warning(
-                        "scripted_step_unknown_action_type",
-                        action_type=raw_action_type,
-                        step=step.step_index,
+            # All browser action selection is delegated to LAYA. Imported
+            # test-case action_type/target/value data remains in the PlanStep
+            # as trusted execution constraints and planned values, but it never
+            # bypasses the LAYA action-selector boundary.
+            try:
+                decision = await self._decision_engine.decide_next_action(  # type: ignore[union-attr]
+                    intent=memory.structured_intent,
+                    world_state=world_state,
+                    memory=memory,
+                    latest_reflection=None,
+                )
+            except Exception as decision_error:
+                from agent.decision.engine import DecisionUnavailableError
+                if isinstance(decision_error, DecisionUnavailableError):
+                    reason = f"Safe LAYA action selection unavailable: {decision_error}"
+                    step.mark_blocked(reason)
+                    plan.skip_remaining_steps(step.step_index + 1, reason)
+                    memory.add_timeline_entry(
+                        action=f"LAYA decision blocked: {step.description}",
+                        result=reason,
                     )
+                    self._transition(AgentState.BLOCKED, reason)
+                    return
+                raise
+            action = decision.action
 
-                if typed_action is not None:
-                    action = AgentAction(
-                        action_type=typed_action,
-                        target=step.expected_values.get("target", ""),
-                        value=step.expected_values.get("value", ""),
-                        reasoning=f"Explicitly scripted step: {step.description}",
-                        metadata={"is_scripted": True}
-                    )
-                    logger.info("decision_engine_bypassed", reason="Scripted test execution mode active")
-
-            if action is None:
-                # P8-LAYA: the DecisionEngine may now delegate browser-level
-                # micro-decisions to the LAYA action policy (when configured
-                # and healthy) before falling back to the Gemini path. The
-                # action policy receives the current plan step (from
-                # memory.plan.current_step.description), the active persona
-                # (from memory.persona), and the compact indexed action
-                # space built from the latest observation stashed on
-                # memory.observations[-1]. The orchestrator's safety gates
-                # (page_gate, mutation authorization, execution limits) and
-                # independent post-action verification remain unchanged — the
-                # LAYA-chosen AgentAction flows through the exact same
-                # execution + validation path as a Gemini-chosen action.
-                try:
-                    decision = await self._decision_engine.decide_next_action(  # type: ignore[union-attr]
-                        intent=memory.structured_intent,
-                        world_state=world_state,
-                        memory=memory,
-                        latest_reflection=None,
-                    )
-                except Exception as decision_error:
-                    from agent.decision.engine import DecisionUnavailableError
-                    if isinstance(decision_error, DecisionUnavailableError):
-                        reason = f"Safe decision unavailable: {decision_error}"
-                        step.mark_blocked(reason)
-                        plan.skip_remaining_steps(step.step_index + 1, reason)
-                        memory.add_timeline_entry(
-                            action=f"Decision blocked: {step.description}",
-                            result=reason,
-                        )
-                        self._transition(AgentState.BLOCKED, reason)
-                        return
-                    raise
-                action = decision.action
-            
             # Read-only safety guard: if the goal is read-only, block any
             # mutating action the decision engine might choose (click on
             # a list row to navigate is OK; fill/select on a form is not).
@@ -2123,47 +2099,43 @@ class CognitiveOrchestrator:
             # Distinguish save/update action submission from post-action persistence verification:
             # When clicking Update/Save on a form, ServiceNow redirects away (e.g. to now/sow/home or a list view).
             # The immediate form-action succeeded, and persisted state is verified in the subsequent re-open step.
+            # C3: Never delete failed checks or add a synthetic update_submission pass.
+            # Check error banners first; if redirected away and a reopen step exists,
+            # mark redirect-sensitive checks as deferred=True in evidence while keeping
+            # them in validation.checks until the re-open step observes the persisted value.
             if self._is_save_click(action, step) and result.success:
                 after_url = getattr(raw_obs_after, "url", "") or ""
+                after_msgs = [
+                    *(getattr(raw_obs_after, "validation_messages", []) or []),
+                    *(getattr(raw_obs_after, "notification_messages", []) or []),
+                ]
+                has_error_banner = any(
+                    any(
+                        err_kw in m.lower()
+                        for err_kw in (
+                            "outputmsg_error",
+                            "mandatory fields are not filled in",
+                            "invalid update",
+                            "action aborted",
+                            "error",
+                        )
+                    )
+                    for m in after_msgs
+                )
                 redirected_away = ("incident.do" not in after_url.lower()) or not getattr(raw_obs_after, "record_number", None)
                 subsequent_steps = plan.steps[step.step_index + 1:] if getattr(plan, "steps", None) else []
                 has_reopen_step = any(
                     any(kw in (s.description or "").lower() for kw in ("re-open", "reopen", "open target", "open existing", "validate persisted", "validate incident state"))
                     for s in subsequent_steps
                 )
-                if redirected_away and has_reopen_step:
-                    filtered_checks = []
+                if redirected_away and has_reopen_step and not has_error_banner:
                     for chk in validation.checks:
-                        chk_name = (getattr(chk, "check_name", "") or "").lower()
-                        chk_desc = (getattr(chk, "description", "") or "").lower()
-                        chk_err = (getattr(chk, "error_message", "") or "").lower()
-                        is_redirect_mismatch = (
-                            not chk.passed
-                            and (
-                                chk_name == "semantic_context"
-                                or "expected record" in chk_err
-                                or "state mismatch" in chk_err
-                                or "not in the page context" in chk_err
-                                or "business rule" in chk_desc
+                        if not chk.passed:
+                            chk.evidence = dict(getattr(chk, "evidence", None) or {})
+                            chk.evidence["deferred"] = True
+                            chk.evidence["deferred_reason"] = (
+                                "Form redirected on save; must be resolved by observed value on re-open step."
                             )
-                        )
-                        if not is_redirect_mismatch:
-                            filtered_checks.append(chk)
-
-                    filtered_checks.append(
-                        ValidationCheck(
-                            check_name="update_submission",
-                            description="Form update submitted successfully; verification deferred to re-open step",
-                            passed=True,
-                            expected="form submission success",
-                            actual="form submitted and page navigated",
-                        )
-                    )
-                    validation.checks = filtered_checks
-                    validation.overall_passed = all(c.passed for c in validation.checks)
-                    if validation.overall_passed:
-                        validation.failure_category = None
-                        validation.root_cause = None
 
             # Record step observed values
             step.observed_values = dict(validation.precondition_details or {})

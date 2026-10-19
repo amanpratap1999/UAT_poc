@@ -130,6 +130,25 @@ class ValidationEngine:
         if action_type == ActionType.SELECT:
             validation.add_check(self._check_field_update(action, after))
 
+        if action_type in (ActionType.VALIDATE, ActionType.OBSERVE):
+            has_non_empty_field = any(
+                bool((getattr(f, "value", "") or "").strip())
+                for f in (getattr(after, "visible_fields", None) or [])
+            ) or any(
+                bool(str(v or "").strip())
+                for v in (getattr(after, "observed_values", None) or {}).values()
+            )
+            validation.add_check(
+                ValidationCheck(
+                    check_name="observed_field_evidence",
+                    description="Validate/observe step must capture at least one non-empty field value",
+                    passed=has_non_empty_field,
+                    expected=">=1 non-empty observed field value",
+                    actual="non-empty field values observed" if has_non_empty_field else "no non-empty field values observed",
+                    error_message=None if has_non_empty_field else "UNVERIFIED: no non-empty field values observed on page",
+                )
+            )
+
         logger.info(
             "validation_complete",
             passed=validation.overall_passed,
@@ -406,11 +425,15 @@ class ValidationEngine:
             ):
                 fval = field.value.strip().lower()
                 exp_clean = expected_value.lower()
+                # C5: Empty == empty is never a valid pass.
                 value_matches = (
-                    exp_clean == fval
-                    or state_map.get(exp_clean) == fval
-                    or state_map.get(fval) == exp_clean
-                ) if (exp_clean or fval) else True
+                    bool(exp_clean and fval)
+                    and (
+                        exp_clean == fval
+                        or state_map.get(exp_clean) == fval
+                        or state_map.get(fval) == exp_clean
+                    )
+                )
 
                 return ValidationCheck(
                     check_name="field_update",
@@ -452,9 +475,21 @@ class ValidationEngine:
             ]
             
             # Exact mapping or specific status checks instead of broad substring
+            error_phrases = (
+                "error",
+                "failed",
+                "invalid",
+                "required",
+                "mandatory fields are not filled in",
+                "action aborted",
+                "business rule",
+                "not authorized",
+                "rejected",
+                "outputmsg_error",
+            )
             failure_messages = [
                 m for m in messages
-                if "error" in m.lower().split() or "failed" in m.lower().split() or "invalid" in m.lower().split() or "required" in m.lower().split()
+                if any(p in m.lower() for p in error_phrases)
             ]
             return ValidationCheck(
                 check_name="update_response",

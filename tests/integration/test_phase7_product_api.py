@@ -98,7 +98,7 @@ async def test_create_and_list_runs(async_client: AsyncClient, mocker):
     headers = {"Authorization": f"Bearer {token}"}
 
     # Create run
-    run_res = await async_client.post("/api/v1/runs", json={"goal": "Test Goal"}, headers=headers)
+    run_res = await async_client.post("/api/v1/runs", json={"goal": "Test Goal", "persona": "itil_user"}, headers=headers)
     assert run_res.status_code == 200
     run_id = run_res.json()["session_id"]
 
@@ -123,7 +123,7 @@ async def test_tenant_isolation(async_client: AsyncClient, mocker):
     headers = {"Authorization": f"Bearer {token}"}
 
     # Create run for admin (tenant-0)
-    await async_client.post("/api/v1/runs", json={"goal": "Tenant 0 Goal"}, headers=headers)
+    await async_client.post("/api/v1/runs", json={"goal": "Tenant 0 Goal", "persona": "itil_user"}, headers=headers)
 
     # Mock decode to simulate Tenant B
     mocker.patch(

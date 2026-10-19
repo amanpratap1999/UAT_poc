@@ -135,6 +135,76 @@ async def test_save_report_json(
 
 
 @pytest.mark.asyncio
+async def test_plan_failure_cannot_produce_pass(
+    engine: ReportingEngine,
+) -> None:
+    """A terminally failed plan step blocks sign-off even when prior validations passed."""
+    memory = SessionMemory(goal="Complete incident lifecycle")
+    memory.plan = ExecutionPlan(goal=memory.goal)
+    memory.plan.add_step("Open incident", "Incident form displayed")
+    memory.plan.add_step("Update state", "State becomes In Progress")
+    memory.plan.steps[0].mark_success()
+    memory.plan.steps[1].mark_failed("Agent stuck in action loop")
+
+    action = AgentAction(action_type=ActionType.CLICK, target="record")
+    result = ActionResult(success=True, action=action)
+    validation = ValidationResult(action_description="click: record")
+    validation.add_check(
+        ValidationCheck(
+            check_name="action_execution",
+            passed=True,
+            expected="success",
+            actual="success",
+        )
+    )
+    memory.add_completed_step(action=action, result=result, validation=validation)
+
+    report = await engine.generate_report(memory)
+
+    assert report.status == "blocked"
+    assert report.exit_criteria["verdict"] != "PASS"
+
+
+@pytest.mark.asyncio
+async def test_blocked_acceptance_criterion_is_not_coverage(
+    engine: ReportingEngine,
+) -> None:
+    """A criterion without observed evidence must not count as covered."""
+    memory = SessionMemory(goal="Validate incident state")
+    memory.test_case_data = {
+        "acceptance_criteria": [
+            {
+                "criterion_id": "AC-STATE",
+                "field": "state",
+                "expected": "In Progress",
+                "operator": "state_matches",
+            }
+        ]
+    }
+
+    action = AgentAction(action_type=ActionType.CLICK, target="record")
+    result = ActionResult(success=True, action=action)
+    validation = ValidationResult(action_description="click: record")
+    validation.add_check(
+        ValidationCheck(
+            check_name="action_execution",
+            passed=True,
+            expected="success",
+            actual="success",
+        )
+    )
+    memory.add_completed_step(action=action, result=result, validation=validation)
+
+    report = await engine.generate_report(memory)
+
+    assert report.acceptance_criteria_results[0]["status"] == "blocked"
+    assert report.exit_criteria["requirements_total"] == 1
+    assert report.exit_criteria["requirements_covered"] == 0
+    assert report.exit_criteria["verdict"] == "BLOCKED"
+    assert report.status == "blocked"
+
+
+@pytest.mark.asyncio
 async def test_defect_identification(
     engine: ReportingEngine,
 ) -> None:

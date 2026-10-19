@@ -1,8 +1,8 @@
-"""Action models — the structured commands the planner emits.
+"""Structured browser actions exchanged between decision and execution layers.
 
-The planner never touches Playwright. It emits AgentAction instances,
-which the ExecutionController translates into browser operations.
-Each action carries a 'reasoning' field so the LLM's intent is auditable.
+The planner reasons about goals and plans; LAYA selects the immediate browser
+action. The ExecutionController translates the selected AgentAction into
+Playwright operations.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from agent.core.types import ActionType
 
 
 class AgentAction(BaseModel):
-    """Base action model emitted by the planner.
+    """Structured action selected by the runtime decision layer.
 
     Every action the agent takes is represented as a structured command.
     The execution controller dispatches based on `action_type`.
@@ -35,7 +35,7 @@ class AgentAction(BaseModel):
     )
     reasoning: str = Field(
         default="",
-        description="LLM's reasoning for choosing this action",
+        description="Decision rationale/provenance for this action",
     )
     metadata: dict[str, Any] = Field(
         default_factory=dict,

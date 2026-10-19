@@ -1,9 +1,9 @@
 """Planner — the brain of the autonomous agent.
 
 The planner uses an LLM (Gemini or any OpenAI-compatible provider) to reason
-about goals, create execution plans, decide next actions, assess
-validations, suggest recovery strategies, and determine when the goal is
-complete. It never touches Playwright — it only emits structured actions
+about goals, create execution plans, assess validation, suggest recovery
+strategies, and determine when the goal is complete. Browser-level action
+selection belongs to the LAYA Action Policy. It never touches Playwright — it only emits structured actions
 that the ExecutionController translates into browser operations.
 
 P1-LAYA: The Planner remains solely responsible for HIGH-LEVEL test
@@ -54,7 +54,7 @@ class Planner:
 
     Responsibilities:
     - Decompose business goals into execution plans
-    - Decide the next action based on observations and memory
+    - Reason about recovery, validation, and overall execution state
     - Assess whether actions achieved their intent
     - Suggest recovery strategies for failures
     - Determine when the goal is complete
@@ -170,61 +170,16 @@ class Planner:
         observation: PageObservation,
         memory: SessionMemory,
     ) -> AgentAction:
-        """Decide the next action based on current observation and memory.
+        """Compatibility guard: browser action selection is LAYA-owned.
 
-        This is the core reasoning step in the agent loop. The planner
-        considers the current page state, the plan, and recent history
-        to choose the optimal next action.
-
-        Args:
-            observation: Current page observation.
-            memory: Session memory with full context.
-
-        Returns:
-            The next AgentAction to execute.
+        This method intentionally does not call the planner LLM. Runtime code
+        must use DecisionEngine, which delegates immediate browser action
+        selection to LAYA.
         """
-        logger.info("deciding_next_action", step=memory.current_step_index)
-
-        current_step_text = ""
-        if memory.plan and memory.plan.current_step:
-            step = memory.plan.current_step
-            current_step_text = (
-                f"Step {step.step_index}: {step.description}\nExpected: {step.expected_outcome}"
-            )
-        else:
-            current_step_text = "No specific plan step — use your judgment based on the goal."
-
-        # Wire PromptBoundary for next action
-        from agent.core.prompt_boundary import LLMInputBoundary
-        boundary = LLMInputBoundary(
-            system_instructions=SYSTEM_PROMPT,
-            verified_intent=NEXT_ACTION_PROMPT.replace("{untrusted_policy}", "").replace("{session_context}", "").replace("{current_step}", ""),
+        raise PlannerError(
+            "LLM browser action selection is retired. "
+            "Use DecisionEngine with the LAYA Action Policy."
         )
-        boundary.add_untrusted_data("session_context_dom", memory.get_context_for_llm())
-        boundary.add_untrusted_data("current_step", current_step_text)
-        prompt = boundary.build_prompt()
-
-        response = await self._llm.complete_json(
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ]
-        )
-
-        try:
-            action = self._parse_action(response)
-            logger.info(
-                "action_decided",
-                action_type=action.action_type,
-                target=action.target,
-                reasoning=action.reasoning[:100],
-            )
-            return action
-        except Exception as e:
-            raise PlannerError(
-                f"Failed to parse action from LLM response: {e}",
-                details={"response": response},
-            ) from e
 
     async def assess_validation(
         self,

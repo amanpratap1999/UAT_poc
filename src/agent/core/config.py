@@ -164,8 +164,8 @@ class ServiceNowConfig(BaseSubConfig):
     # proceeding. If 'role' is absent, role verification is skipped (backward
     # compat with existing personas that only have username/password).
     require_persona_for_benchmark: bool = Field(
-        default=False,
-        description="INC-UAT-01 (Blocker): if True, the benchmark must run under a declared persona — admin/default credentials are rejected."
+        default=True,
+        description="INC-UAT-01 / C6: require a declared non-admin persona by default — admin/default credentials are rejected."
     )
     allow_mutations: bool = Field(
         default=False,
@@ -190,8 +190,8 @@ class ServiceNowConfig(BaseSubConfig):
     # normal UI experience. When False (default for backward compat), the
     # oracle queries all fields as before.
     oracle_persona_constrained: bool = Field(
-        default=False,
-        description="INC-UAT-03: constrain API oracle queries to persona-visible fields only."
+        default=True,
+        description="INC-UAT-03 / C20: constrain API oracle queries to persona-visible fields only by default."
     )
 
     def get_active_credentials(self) -> tuple[str, str]:
@@ -203,6 +203,11 @@ class ServiceNowConfig(BaseSubConfig):
         not found in the personas dict, raise ValueError. No silent fallback.
         """
         if not self.active_persona:
+            if self.require_persona_for_benchmark or self.username.strip().lower() == "admin":
+                raise ValueError(
+                    "C6: No active_persona configured and fallback to default/admin credentials is forbidden. "
+                    "Configure SERVICENOW_PERSONAS and set SERVICENOW_ACTIVE_PERSONA."
+                )
             return self.username, self.password
         if self.active_persona not in self.personas:
             raise ValueError(
@@ -574,8 +579,8 @@ class LayaActionPolicyConfig(BaseSubConfig):
     adapter (``LayaAdapter``). The action policy does NOT require Jev
     endpoint credentials — it runs locally through the open-source LAYA SDK.
 
-    Defaults are conservative: the policy is OFF by default so existing
-    flows are unaffected until an operator explicitly enables it.
+    The action selector is ON by default and must run in primary mode. Any
+    unavailable LAYA decision fails closed; there is no LLM action fallback.
     """
     model_config = SettingsConfigDict(
         env_file_encoding="utf-8",
@@ -583,15 +588,14 @@ class LayaActionPolicyConfig(BaseSubConfig):
         extra="ignore",
     )
     enabled: bool = Field(
-        default=False,
-        description="Enable the LAYA action-policy adapter for browser-level decisions",
+        default=True,
+        description="Require the LAYA action-policy adapter for browser-level decisions",
     )
     mode: Literal["shadow", "primary"] = Field(
-        default="shadow",
+        default="primary",
         description=(
-            "Action-policy mode: 'shadow' runs LAYA but records decisions "
-            "for comparison without using them; 'primary' uses LAYA "
-            "decisions when confidence >= threshold"
+            "Action-policy mode. Only 'primary' is executable; non-primary "
+            "modes fail closed."
         ),
     )
     checkpoint: str = Field(
@@ -607,11 +611,11 @@ class LayaActionPolicyConfig(BaseSubConfig):
     )
     confidence_threshold: float = Field(
         default=0.65,
-        description="Minimum confidence for LAYA decisions in 'primary' mode; below this the Gemini path runs",
+        description="Minimum confidence for an executable LAYA action; below this the run fails closed",
     )
     inference_timeout_seconds: float = Field(
         default=5.0,
-        description="Max seconds for a single LAYA inference before falling back to Gemini",
+        description="Max seconds for a single LAYA inference before action selection fails closed",
     )
     max_candidates: int = Field(
         default=250,

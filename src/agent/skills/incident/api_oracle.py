@@ -222,7 +222,14 @@ class IncidentApiOracle:
         )
 
     async def fetch_audit_trail(self, sys_id: str, since: str = "") -> list[dict[str, Any]]:
-        """Fetch audit trail history for an incident document from sys_audit."""
+        """Fetch audit trail history for an incident document from sys_audit.
+
+        C20: When oracle_persona_constrained is True, skip sys_audit reads because
+        standard UAT personas (itil/requester) cannot read sys_audit in the UI.
+        """
+        if getattr(self._config, "oracle_persona_constrained", True):
+            logger.info("api_oracle_audit_skipped_persona_constrained", sys_id=sys_id)
+            return []
         query = f"documentkey={sys_id}"
         if since:
             query += f"^sys_created_on>{since}"

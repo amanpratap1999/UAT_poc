@@ -536,13 +536,18 @@ async def _run_agent_async(run_id: str, goal: str, tenant_id: str, test_case_id:
                         )
 
             setattr(orchestrator, "_on_step_complete", _on_step)
+            if hasattr(orchestrator, "_cognitive_orchestrator") and orchestrator._cognitive_orchestrator:
+                setattr(orchestrator._cognitive_orchestrator, "_on_step_complete", _on_step)
+
+            # C28: Set session_id = run_id BEFORE restoring the snapshot so the
+            # lookup key matches the persisted run_id key.
+            orchestrator.memory.session_id = run_id
+            orchestrator.memory.tenant_id = tenant_id or "unknown"
 
             # P1-09 (D9): if a prior session snapshot exists in the
             # SessionStore (e.g., the worker was restarted mid-run),
             # restore it so the agent resumes from the interrupted step
-            # instead of restarting from scratch. Without this, a worker
-            # crash mid-run would silently re-execute all completed steps
-            # and could cause duplicate record mutations.
+            # instead of restarting from scratch.
             try:
                 restored = await _restore_session_snapshot(orchestrator)
                 if restored:
