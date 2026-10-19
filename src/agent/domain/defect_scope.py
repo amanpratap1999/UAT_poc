@@ -150,5 +150,14 @@ def classify_step_failure(result: Any, validation: Any) -> str | None:
         if is_agent_scope_check(getattr(check, "check_name", None)):
             return "agent"
 
-    # 3. Remaining failed checks are application-behavior evidence.
+    # 3. Four-way triage (C23): distinguish requirement_gap and by_design before application defect
+    for check in failed:
+        err_msg = str(getattr(check, "error_message", "") or "").lower()
+        desc_msg = str(getattr(check, "description", "") or "").lower()
+        if "requirement_gap" in err_msg or "ambiguous" in err_msg or "unverified" in err_msg:
+            return "requirement_gap"
+        if "by_design" in err_msg or "by-design" in desc_msg:
+            return "by_design"
+
+    # 4. Remaining failed checks are application-behavior evidence.
     return "application"

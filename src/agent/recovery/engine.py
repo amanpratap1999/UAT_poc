@@ -8,9 +8,9 @@ the session memory.
 
 from __future__ import annotations
 import asyncio
+
 import contextlib
 from dataclasses import dataclass
-from typing import Any
 
 from playwright.async_api import Page
 
@@ -36,9 +36,6 @@ class RecoveryResult:
     strategy: str
     details: str = ""
     attempts: int = 0
-    # Concrete locator recovery found. The execution controller uses this
-    # value on retry instead of replaying the original broken selector.
-    resolved_target: str | None = None
 
 
 class RecoveryEngine:
@@ -235,156 +232,46 @@ class RecoveryEngine:
                 details=f"Unknown strategy: {strategy}",
             )
 
-    @staticmethod
-    def _get_active_context(page: Page) -> Any:
-        """Return ServiceNow's content frame when present, otherwise the page."""
-        try:
-            frames = getattr(page, "frames", [])
-            if callable(frames):
-                frames = frames()
-            for frame in frames:
-                name = str(getattr(frame, "name", "") or "")
-                frame_url = str(getattr(frame, "url", "") or "")
-                if name == "gsft_main" or "gsft_main" in name or "gsft_main" in frame_url:
-                    return frame
-            main_frame = getattr(page, "main_frame", None)
-            for frame in frames:
-                frame_url = str(getattr(frame, "url", "") or "")
-                if frame != main_frame and ".do" in frame_url.lower():
-                    return frame
-        except Exception:
-            # Some test doubles and pages without frames do not expose a normal
-            # iterable frames collection. Falling back to the page is safe.
-            pass
-        return page
-
-    @staticmethod
-    def _locator_for_target(context: Any, target: str) -> Any:
-        """Resolve the repository's locator-prefix syntax against a page or frame."""
-        selector = (target or "").strip()
-        if " >> nth=" in selector:
-            base, nth = selector.rsplit(" >> nth=", 1)
-            try:
-                return RecoveryEngine._locator_for_target(context, base).nth(int(nth))
-            except (ValueError, IndexError):
-                return context.locator(selector)
-
-        if selector.startswith("role:"):
-            parts = selector[5:].split(":", 1)
-            role = parts[0].strip()
-            name = parts[1].strip() if len(parts) > 1 else ""
-            return context.get_by_role(role, name=name) if name else context.get_by_role(role)
-        if selector.startswith("label:"):
-            return context.get_by_label(selector[6:].strip(), exact=False)
-        if selector.startswith("text:"):
-            return context.get_by_text(selector[5:].strip(), exact=False)
-        if selector.startswith("placeholder:"):
-            return context.get_by_placeholder(selector[12:].strip(), exact=False)
-        if selector.startswith("title:"):
-            return context.get_by_title(selector[6:].strip(), exact=False)
-        if selector.startswith("css:"):
-            return context.locator(f"css={selector[4:].strip()}")
-        if selector.startswith("xpath:"):
-            return context.locator(f"xpath={selector[6:].strip()}")
-        return context.locator(selector)
-
-    @staticmethod
-    def _candidate_targets(target: str, action_type: Any = None) -> list[str]:
-        """Build bounded alternatives appropriate for the action being retried.
-
-        SELECT recovery must not treat a generic visible caption as the
-        target control when the actual dropdown has a valid DOM selector.
-        """
-        selector = (target or "").strip()
-        if not selector:
-            return []
-        action_kind = str(getattr(action_type, "value", action_type) or "").lower()
-        if " >> nth=" in selector:
-            base, nth = selector.rsplit(" >> nth=", 1)
-            try:
-                int(nth)
-            except ValueError:
-                return [selector]
-            return list(dict.fromkeys(
-                f"{candidate} >> nth={nth}"
-                for candidate in RecoveryEngine._candidate_targets(base, action_type)
-            ))
-        if selector.startswith(("css:", "xpath:")):
-            return [selector]
-
-        if selector.startswith(("text:", "label:", "placeholder:", "title:")):
-            hint = selector.split(":", 1)[1].strip()
-        elif selector.startswith("role:"):
-            parts = selector[5:].split(":", 1)
-            hint = parts[1].strip() if len(parts) > 1 else ""
-        else:
-            hint = selector
-        if not hint:
-            return [selector]
-
-        normalized = " ".join(
-            hint.lower().replace("_", " ").replace("-", " ").replace(".", " ").split()
-        )
-        field_fallbacks = {
-            "state": r"select[id$='.state'], select[name$='.state'], select#incident\.state",
-            "incident state": r"select[id$='.state'], select[name$='.state'], select#incident\.state",
-            "category": "select[id$='.category'], select[name$='.category']",
-            "incident category": "select[id$='.category'], select[name$='.category']",
-            "urgency": "select[id$='.urgency'], select[name$='.urgency']",
-            "incident urgency": "select[id$='.urgency'], select[name$='.urgency']",
-            "impact": "select[id$='.impact'], select[name$='.impact']",
-            "incident impact": "select[id$='.impact'], select[name$='.impact']",
-            "hold reason": "select[id$='.hold_reason'], select[name$='.hold_reason']",
-            "on hold reason": "select[id$='.hold_reason'], select[name$='.hold_reason']",
-        }
-        fallback_selector = field_fallbacks.get(normalized)
-
-        if action_kind == "select":
-            candidates = [selector, f"label:{hint}", f"role:combobox:{hint}"]
-            if fallback_selector:
-                candidates.append(f"css:{fallback_selector}")
-            return list(dict.fromkeys(candidates))
-
-        candidates = [selector]
-        if action_kind == "click":
-            candidates.extend([f"role:button:{hint}", f"role:link:{hint}"])
-        candidates.extend([
-            f"text:{hint}",
-            f"label:{hint}",
-            f"role:button:{hint}",
-            f"role:link:{hint}",
-            f"role:textbox:{hint}",
-            f"placeholder:{hint}",
-            f"title:{hint}",
-        ])
-        if fallback_selector:
-            candidates.append(f"css:{fallback_selector}")
-        return list(dict.fromkeys(candidates))
-
     async def _wait_and_retry(self, action: AgentAction, page: Page) -> RecoveryResult:
-        """Wait for the page to stabilize, then locate the target in its active context."""
+        """Wait for the page to stabilize, then check if the element exists.
+
+        This handles loading delays, AJAX updates, and DOM re-renders.
+        """
+        # Wait for network idle
         with contextlib.suppress(Exception):
             await page.wait_for_load_state("networkidle", timeout=10000)
+
+        # Additional wait for ServiceNow AJAX
         await page.wait_for_timeout(2000)
 
-        context = self._get_active_context(page)
-        for candidate in self._candidate_targets(action.target, action.action_type):
+        # Check if the target element now exists
+        if action.target:
             try:
-                locator = self._locator_for_target(context, candidate)
-                if await locator.count() > 0 and await locator.first.is_visible():
+                locator = page.locator(action.target)
+                count = await locator.count()
+                if count > 0:
                     return RecoveryResult(
                         success=True,
                         strategy=RecoveryStrategy.WAIT_AND_RETRY.value,
-                        details=f"Element found after waiting via {candidate}",
-                        resolved_target=candidate,
+                        details="Element found after waiting",
                     )
             except Exception:
-                continue
+                # Try by text
+                try:
+                    locator = page.get_by_text(action.target, exact=False)
+                    if await locator.count() > 0:
+                        return RecoveryResult(
+                            success=True,
+                            strategy=RecoveryStrategy.WAIT_AND_RETRY.value,
+                            details="Element found by text after waiting",
+                        )
+                except Exception:
+                    pass
 
         return RecoveryResult(
             success=False,
             strategy=RecoveryStrategy.WAIT_AND_RETRY.value,
-            details="Target still not found and visible after waiting",
+            details="Element still not found after waiting",
         )
 
     async def _dismiss_dialog(self, page: Page) -> RecoveryResult:
@@ -392,12 +279,16 @@ class RecoveryEngine:
         # Handle browser alerts
         try:
             # Check for ServiceNow modals
+            # C14: Only click safe Cancel/Close controls — never generic `.modal-footer button`
+            # which may confirm a destructive action.
             modal_selectors = [
                 "[role='dialog'] button.close",
                 ".modal .close",
                 ".glide_popup .close",
                 "button[aria-label='Close']",
-                ".modal-footer button",
+                ".modal-footer button[data-dismiss='modal']",
+                ".modal-footer button:has-text('Cancel')",
+                ".modal-footer button:has-text('Close')",
             ]
 
             for selector in modal_selectors:
@@ -429,60 +320,74 @@ class RecoveryEngine:
                 details="No target to scroll to",
             )
 
-        context = self._get_active_context(page)
-        for candidate in self._candidate_targets(action.target, action.action_type):
-            try:
-                locator = self._locator_for_target(context, candidate)
-                if await locator.count() > 0 and await locator.first.is_visible():
-                    await locator.first.scroll_into_view_if_needed(timeout=5000)
-                    return RecoveryResult(
-                        success=True,
-                        strategy=RecoveryStrategy.SCROLL_INTO_VIEW.value,
-                        details=f"Scrolled element into view via {candidate}",
-                        resolved_target=candidate,
-                    )
-            except Exception as e:
-                logger.debug(
-                    "scroll_into_view_candidate_failed",
-                    candidate=candidate,
-                    error=str(e),
+        try:
+            # Try to find the element and scroll it into view
+            locator = page.get_by_text(action.target, exact=False)
+            if await locator.count() > 0:
+                await locator.first.scroll_into_view_if_needed(timeout=5000)
+                return RecoveryResult(
+                    success=True,
+                    strategy=RecoveryStrategy.SCROLL_INTO_VIEW.value,
+                    details="Scrolled element into view",
                 )
+
+            # Try CSS selector
+            locator = page.locator(action.target)
+            if await locator.count() > 0:
+                await locator.first.scroll_into_view_if_needed(timeout=5000)
+                return RecoveryResult(
+                    success=True,
+                    strategy=RecoveryStrategy.SCROLL_INTO_VIEW.value,
+                    details="Scrolled element into view via CSS",
+                )
+
+        except Exception as e:
+            logger.debug("scroll_into_view_error", error=str(e))
 
         return RecoveryResult(
             success=False,
             strategy=RecoveryStrategy.SCROLL_INTO_VIEW.value,
-            details="Could not find target in the active context to scroll into view",
+            details="Could not find element to scroll to",
         )
 
     async def _relocate_element(self, action: AgentAction, page: Page) -> RecoveryResult:
-        """Locate the failed target via alternatives in the active ServiceNow frame.
+        """Try alternative selectors to find the target element.
 
-        The selected target is returned in RecoveryResult.resolved_target so
-        the execution controller can retry with the locator that actually
-        matched, rather than replaying the original failed target unchanged.
+        ServiceNow elements can be located by:
+        - Text content
+        - ARIA label
+        - Role + name
+        - Placeholder
+        - data-ref attribute
         """
-        context = self._get_active_context(page)
-        for candidate in self._candidate_targets(action.target, action.action_type):
+        target = action.target
+
+        alternative_strategies = [
+            ("text", lambda: page.get_by_text(target, exact=False)),
+            ("label", lambda: page.get_by_label(target)),
+            ("role:button", lambda: page.get_by_role("button", name=target)),
+            ("role:link", lambda: page.get_by_role("link", name=target)),
+            ("role:textbox", lambda: page.get_by_role("textbox", name=target)),
+            ("placeholder", lambda: page.get_by_placeholder(target)),
+            ("title", lambda: page.get_by_title(target)),
+        ]
+
+        for strategy_name, locator_fn in alternative_strategies:
             try:
-                locator = self._locator_for_target(context, candidate)
+                locator = locator_fn()  # type: ignore[no-untyped-call]
                 if await locator.count() > 0 and await locator.first.is_visible():
                     return RecoveryResult(
                         success=True,
                         strategy=RecoveryStrategy.RELOCATE_ELEMENT.value,
-                        details=f"Relocated target via {candidate}",
-                        resolved_target=candidate,
+                        details=f"Element found via {strategy_name}: {target}",
                     )
-            except Exception as e:
-                logger.debug(
-                    "relocate_candidate_failed",
-                    candidate=candidate,
-                    error=str(e),
-                )
+            except Exception:
+                continue
 
         return RecoveryResult(
             success=False,
             strategy=RecoveryStrategy.RELOCATE_ELEMENT.value,
-            details=f"Could not relocate element in active context: {action.target}",
+            details=f"Could not relocate element: {target}",
         )
 
     async def _refresh_page(self, page: Page) -> RecoveryResult:

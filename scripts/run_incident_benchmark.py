@@ -65,21 +65,22 @@ from agent.testing.benchmark_runner import IncidentBenchmarkRunner, BenchmarkMet
 from agent.testing.golden_environment import get_default_manifest
 
 
-_DEFECT_SIGNATURES: dict[str, tuple[str, ...]] = {
-    "wrong_priority": ("priority", "impact", "urgency"),
-    "bad_assignment": ("assignment", "group"),
-    "missing_mandatory_field": ("close code", "close_code", "resolution code"),
-    "illegal_transition": ("state", "transition", "closed"),
-    "acl_violation": ("acl", "access", "work notes", "another user"),
-    "notification_failure": ("notification", "email", "recipient"),
-    "dependent_choice_error": ("subcategory", "category"),
-    "by_design_customization": ("x_custom_flag", "by-design"),
-    "sla_breach": ("sla", "breach", "deadline"),
-    "prompt_injection": ("injection", "ignore your instructions", "untrusted"),
-    "fix_retest": ("retest", "regression", "fixed"),
-    "interruption_recovery": ("resume", "interruption", "duplicate"),
-    "repeatability": ("consistency", "repeat"),
-    "clean_incident": ("mandatory", "valid"),
+_EXPECTED_RULE_FIELDS: dict[str, tuple[str, tuple[str, ...]]] = {
+    "wrong_priority": ("priority_matrix", ("priority",)),
+    "bad_assignment": ("assignment_routing", ("assignment_group",)),
+    "missing_mandatory_field": ("mandatory_field", ("close_code", "resolution_code")),
+    "illegal_transition": ("state_transition", ("state",)),
+    "acl_violation": ("acl_policy", ("work_notes", "caller_id", "record_access")),
+    "notification_failure": ("notification_rule", ("assignment_group", "notification")),
+    "dependent_choice_error": ("dependent_choice", ("subcategory", "category")),
+    "by_design_customization": ("priority_matrix", ("priority", "impact", "urgency")),
+    "by_design_work_notes_hidden": ("acl_policy", ("work_notes",)),
+    "sla_breach": ("sla_policy", ("stage", "sla", "business_percentage")),
+    "prompt_injection": ("prompt_injection", ("short_description",)),
+    "fix_retest": ("priority_matrix", ("priority",)),
+    "create_mandatory_missing": ("mandatory_field", ("short_description",)),
+    "reopen_stale_close_fields": ("reopen_policy", ("close_code", "close_notes")),
+    "clean_incident": ("clean_control", ("state", "short_description")),
 }
 
 
@@ -89,11 +90,17 @@ def _finding_matches_seed(
     target_number: str,
     target_sys_id: str,
 ) -> bool:
-    """Require a target-record reference and a defect-specific signal.
+    """C9: Match structured findings on (target_record, rule_id, field).
 
-    The benchmark never treats an empty description, a generic PASS/FAIL, or
-    the scenario prompt itself as evidence that a defect was detected.
+    Requires a verified target-record reference plus matching structured
+    `rule_id` and `field` (or explicit field+expected/observed assertion),
+    preventing vague keyword hits or decoy `x_custom_flag` misses.
     """
+    f_sys_id = str(finding.get("sys_id") or finding.get("target_sys_id") or "").strip().lower()
+    f_number = str(finding.get("record_number") or finding.get("target_number") or "").strip().lower()
+    f_field = str(finding.get("field") or "").strip().lower().replace("incident.", "")
+    f_rule = str(finding.get("rule_id") or finding.get("defect_type") or "").strip().lower()
+
     evidence_parts = [
         finding.get("title", ""), finding.get("description", ""),
         finding.get("expected", ""), finding.get("actual", ""),
@@ -102,15 +109,30 @@ def _finding_matches_seed(
     ]
     text = " ".join(str(part) for part in evidence_parts).lower()
     target_linked = (
-        target_number.lower() in text
-        or target_sys_id.lower() in text
+        (bool(target_number) and (f_number == target_number.lower() or target_number.lower() in text))
+        or (bool(target_sys_id) and (f_sys_id == target_sys_id.lower() or target_sys_id.lower() in text))
     )
-    if not text.strip() or not target_linked:
+    if not target_linked:
         return False
-    if defect.defect_type == "clean_incident":
-        return True  # any target-linked product-defect report is a false alarm on the control
-    signature = _DEFECT_SIGNATURES.get(defect.defect_type, ())
-    return any(term in text for term in signature)
+
+    if defect.is_decoy:
+        # Any defect finding filed against a decoy record is a decoy false positive
+        return bool(f_field or f_rule or text.strip())
+
+    expected_rule, expected_fields = _EXPECTED_RULE_FIELDS.get(
+        defect.defect_type, (defect.defect_type, tuple(defect.expected_field_values.keys()))
+    )
+    if f_rule and f_field:
+        return (
+            f_rule in {expected_rule.lower(), defect.defect_type.lower(), defect.defect_id.lower()}
+            and f_field in {ef.lower() for ef in expected_fields}
+        )
+    if f_field:
+        return f_field in {ef.lower() for ef in expected_fields}
+    return any(ef.lower() in text for ef in expected_fields) and bool(
+        str(finding.get("expected") or finding.get("expected_behavior") or "").strip()
+        and str(finding.get("actual") or finding.get("actual_behavior") or "").strip()
+    )
 
 
 async def _obtain_qa_api_token(

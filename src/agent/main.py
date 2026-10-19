@@ -79,7 +79,6 @@ from agent.planner.planner import Planner
 from agent.recovery.engine import RecoveryEngine
 from agent.reflection.engine import ReflectionEngine
 from agent.reporting.engine import ReportingEngine
-from agent.reporting.terminal_state import report_terminal_state
 from agent.testing.generator import ScenarioGenerator
 from agent.testing.store import TestIntelligenceStore
 from agent.tools.registry import ToolRegistry
@@ -854,17 +853,32 @@ class AgentOrchestrator:
                     error_message=f"Cleanup execution failed: {e}",
                 )
 
-            # Generate report and reconcile the runtime terminal state with
-            # the deterministic exit-criteria verdict. Inconclusive runs must
-            # never leave the runtime marked as successfully completed.
+            # Generate report
             try:
                 self._report = await self._generate_report()
                 if self._report:
-                    terminal_state, terminal_reason = report_terminal_state(
-                        self._report,
-                        failure_count=len(self._memory.failures),
+                    exit_verdict = (
+                        (self._report.exit_criteria or {}).get("verdict", "")
+                        if isinstance(getattr(self._report, "exit_criteria", None), dict)
+                        else ""
                     )
-                    self._transition_safe(terminal_state, terminal_reason)
+                    if self._report.status == "cleanup_failed":
+                        self._transition_safe(AgentState.CLEANUP_FAILED, "Report status is cleanup_failed")
+                    elif self._report.status == "precondition_failed":
+                        self._transition_safe(AgentState.PRECONDITION_FAILED, "Report status is precondition_failed")
+                    elif exit_verdict in ("BLOCKED", "INCONCLUSIVE") or self._report.status == "blocked":
+                        self._transition_safe(AgentState.BLOCKED, f"Report status={self._report.status}, verdict={exit_verdict or 'BLOCKED'}")
+                    elif exit_verdict in ("FAIL", "INFRA_ERROR") or self._report.status in ("failed", "error"):
+                        self._transition_safe(AgentState.FAILED, f"Report status={self._report.status}, verdict={exit_verdict or 'FAIL'}")
+                    elif self._report.status == "partial":
+                        if exit_verdict == "CONDITIONAL_PASS" and len(self._memory.failures) == 0:
+                            self._transition_safe(AgentState.COMPLETED, "Report status is partial (CONDITIONAL_PASS)")
+                        else:
+                            self._transition_safe(AgentState.FAILED, f"Report status is partial with verdict={exit_verdict or 'UNVERIFIED'}")
+                    elif self._report.status == "passed" and exit_verdict in ("PASS", "CONDITIONAL_PASS", "") and len(self._memory.failures) == 0:
+                        self._transition_safe(AgentState.COMPLETED, "Report status is passed")
+                    else:
+                        self._transition_safe(AgentState.FAILED, f"Unverified run outcome: status={self._report.status}, verdict={exit_verdict}")
             except Exception as e:
                 logger.error("report_generation_failed", error=str(e))
                 

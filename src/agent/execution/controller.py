@@ -344,32 +344,15 @@ class ExecutionController:
                     )
                     if recovery_result.success:
                         logger.info("recovery_succeeded", strategy=recovery_result.strategy)
-                        retry_action = action
-                        resolved_target = getattr(recovery_result, "resolved_target", None)
-                        if resolved_target and resolved_target != action.target:
-                            # Fill/select handlers prefer metadata["resolved_locator"]
-                            # over action.target; update both target channels on retry.
-                            retry_metadata = dict(action.metadata or {})
-                            retry_metadata["resolved_locator"] = resolved_target
-                            retry_action = action.model_copy(
-                                update={"target": resolved_target, "metadata": retry_metadata}
-                            )
                         try:
-                            # Retry with the locator actually discovered by recovery.
-                            # Wait/scroll/dialog strategies may leave it unset; in that
-                            # case, preserve the original target and its semantics.
-                            await handler(retry_action)
+                            # Re-execute the original action now that the element is ready
+                            await handler(action)
                             return ActionResult(
                                 success=True,
                                 action=action,
                                 duration_ms=(time.perf_counter() - start_time) * 1000,
                                 screenshot_path=await self._safe_screenshot("recovered"),
-                                details={
-                                    "recovered": True,
-                                    "strategy": recovery_result.strategy,
-                                    "original_target": action.target,
-                                    "resolved_target": retry_action.target,
-                                },
+                                details={"recovered": True, "strategy": recovery_result.strategy},
                             )
                         except Exception as retry_e:
                             logger.warning("retry_after_recovery_failed", error=str(retry_e))

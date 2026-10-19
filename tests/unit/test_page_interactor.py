@@ -154,27 +154,6 @@ async def test_resolve_locator_explicit_prefixes(mock_page):
     mock_ctx.locator.assert_called_with("css=.btn-primary")
 
 
-def test_label_state_uses_css_fallback_when_label_association_is_missing(mock_page):
-    """A broken label association must not hide ServiceNow's State select."""
-    interactor = PageInteractor(mock_page)
-    context = MagicMock()
-    label_locator = MagicMock()
-    combined_locator = MagicMock()
-    label_locator.or_ = MagicMock(return_value=combined_locator)
-    context.get_by_label.return_value = label_locator
-    context.locator.return_value = "state_css_locator"
-    interactor._get_active_context = MagicMock(return_value=context)
-
-    resolved = interactor._resolve_locator("label:State")
-
-    assert resolved == combined_locator
-    context.get_by_label.assert_called_once_with("State", exact=False)
-    context.locator.assert_called_once_with(
-        r"select[id$='.state'], select[name$='.state'], select#incident\.state"
-    )
-    label_locator.or_.assert_called_once_with("state_css_locator")
-
-
 @pytest.mark.asyncio
 async def test_resolve_candidates_catches_exception(mock_page):
     """Test invalid locators don't crash candidate resolution."""

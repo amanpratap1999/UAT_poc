@@ -22,9 +22,7 @@ interface PerceptionOverlayProps {
  */
 export function PerceptionOverlay({ frame, isLive }: PerceptionOverlayProps) {
   const imgRef = useRef<HTMLImageElement>(null);
-  const imageContainerRef = useRef<HTMLDivElement>(null);
   const [imgDimensions, setImgDimensions] = useState({ width: 0, height: 0 });
-  const [sourceDimensions, setSourceDimensions] = useState({ width: 0, height: 0 });
   const [selectedBox, setSelectedBox] = useState<BoundingBoxType | null>(null);
   const [overlayVisible, setOverlayVisible] = useState(true);
 
@@ -37,21 +35,18 @@ export function PerceptionOverlay({ frame, isLive }: PerceptionOverlayProps) {
     : frame?.screenshot_url;
 
   useEffect(() => {
-    const container = imageContainerRef.current;
-    if (!container || !hasScreenshot) return;
+    if (!imgRef.current || !screenshotSrc) return;
+    const img = imgRef.current;
     const update = () =>
-      setImgDimensions({ width: container.clientWidth, height: container.clientHeight });
+      setImgDimensions({ width: img.clientWidth, height: img.clientHeight });
     update();
     const observer = new ResizeObserver(update);
-    observer.observe(container);
+    observer.observe(img);
     return () => observer.disconnect();
-  }, [screenshotSrc, frame?.screenshot_path, hasScreenshot]);
+  }, [screenshotSrc]);
 
-  // Clear selection and intrinsic-size metadata only when the actual frame changes.
-  useEffect(() => {
-    setSelectedBox(null);
-    setSourceDimensions({ width: 0, height: 0 });
-  }, [frame?.step_index, frame?.screenshot_path, frame?.screenshot_url, frame?.screenshot_b64]);
+  // Clear selection when frame changes
+  useEffect(() => setSelectedBox(null), [frame]);
 
   if (!hasFrame || !hasScreenshot) {
     return (
@@ -62,8 +57,9 @@ export function PerceptionOverlay({ frame, isLive }: PerceptionOverlayProps) {
         <div className="max-w-xs">
           <p className="font-mono text-sm text-ink-400">Perception data unavailable</p>
           <p className="mt-2 text-xs text-ink-600">
-            No screenshot evidence is available for this step yet. Captured screenshots and
-            grounding boxes appear here when the worker has persisted evidence for this run.
+            The backend does not yet persist perception frames.{" "}
+            <code className="font-mono">PerceptionFrame</code> data will appear here
+            once the backend grounding step stores screenshots and bounding box coordinates.
           </p>
         </div>
       </div>
@@ -101,16 +97,13 @@ export function PerceptionOverlay({ frame, isLive }: PerceptionOverlayProps) {
 
       {/* Screenshot + SVG overlay */}
       <div className="relative flex flex-1 items-center justify-center overflow-hidden bg-graphite-950 p-2">
-        <div ref={imageContainerRef} className="relative inline-flex max-h-full max-w-full items-center justify-center">
+        <div className="relative inline-flex max-h-full max-w-full items-center justify-center">
           {frame.screenshot_path ? (
             <AuthedImage
               path={frame.screenshot_path}
               alt={`ServiceNow screenshot — step ${frame.step_index}`}
               className="max-h-[calc(100vh-14rem)] max-w-full h-auto w-auto object-contain rounded shadow-lg"
-              onLoad={(dims) => {
-                setImgDimensions({ width: dims.width, height: dims.height });
-                setSourceDimensions({ width: dims.naturalWidth, height: dims.naturalHeight });
-              }}
+              onLoad={(dims) => setImgDimensions(dims)}
             />
           ) : (
             <img
@@ -121,15 +114,14 @@ export function PerceptionOverlay({ frame, isLive }: PerceptionOverlayProps) {
               onLoad={(e) => {
                 const img = e.currentTarget;
                 setImgDimensions({ width: img.clientWidth, height: img.clientHeight });
-                setSourceDimensions({ width: img.naturalWidth, height: img.naturalHeight });
               }}
             />
           )}
 
-          {overlayVisible && hasBoxes && imgDimensions.width > 0 && imgDimensions.height > 0 && (
+          {overlayVisible && hasBoxes && imgDimensions.width > 0 && (
             <svg
               className="pointer-events-all absolute inset-0 h-full w-full"
-              viewBox={`0 0 ${sourceDimensions.width || imgDimensions.width} ${sourceDimensions.height || imgDimensions.height}`}
+              viewBox={`0 0 ${imgDimensions.width} ${imgDimensions.height}`}
               preserveAspectRatio="none"
               aria-label="Perception overlay — candidate bounding boxes"
               role="img"
@@ -138,8 +130,8 @@ export function PerceptionOverlay({ frame, isLive }: PerceptionOverlayProps) {
                 <BoundingBox
                   key={box.index}
                   box={box}
-                  imageWidth={sourceDimensions.width || imgDimensions.width}
-                  imageHeight={sourceDimensions.height || imgDimensions.height}
+                  imageWidth={imgDimensions.width}
+                  imageHeight={imgDimensions.height}
                   animatePulse={box.is_selected}
                   onSelect={setSelectedBox}
                 />

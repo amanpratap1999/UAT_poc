@@ -273,11 +273,14 @@ class ReportingEngine:
         #     status = "blocked", reported as such, not as coverage.
         #   • AC matched → status = pass / fail with expected+observed.
         tc_data = memory.test_case_data or {}
-        authoritative_ac_list = tc_data.get("acceptance_criteria", []) or []
-        if not isinstance(authoritative_ac_list, list):
-            authoritative_ac_list = []
-        # Coerce list-of-dict to a stable shape with id, expected, field,
-        # operator. Tolerate AC entries that are bare strings too.
+        raw_ac_list = tc_data.get("acceptance_criteria", []) or []
+        if not isinstance(raw_ac_list, list):
+            raw_ac_list = []
+        # C1: Exclude plan-invented ACs (tagged source="plan") from authoritative ACs
+        authoritative_ac_list = [
+            ac for ac in raw_ac_list
+            if not (isinstance(ac, dict) and ac.get("source") == "plan")
+        ]
         normalized_ac: list[dict[str, Any]] = []
         for idx, ac in enumerate(authoritative_ac_list):
             if isinstance(ac, dict):
@@ -318,12 +321,24 @@ class ReportingEngine:
             # coverage-gap → BLOCKED), rather than fabricating a denominator
             # from plan-step count.
             authoritative_total = len(normalized_ac)
+            covered_with_evidence = sum(
+                1
+                for r in (report.acceptance_criteria_results or [])
+                if r.get("status") == "pass" and bool(str(r.get("observed", "")).strip())
+            )
+            infra_error_count = sum(
+                1
+                for issue in (report.agent_issues or [])
+                if getattr(issue, "category", "") in ("runtime", "execution")
+            )
             exit_result = exit_engine.evaluate(
                 requirements_total=authoritative_total,
-                requirements_covered=len(report.requirement_ids_covered),
+                requirements_covered=covered_with_evidence,
                 open_major_defects=major_defects,
                 open_minor_defects=minor_defects,
                 unverified_items=unverified,
+                infra_errors=infra_error_count,
+                total_runs=1 if (report.total_validations == 0 and infra_error_count > 0) else max(1, report.total_validations),
             )
             # Enforce mandatory exit criteria invariants:
             # 1. report.status != "passed" -> exit_criteria.verdict != "PASS"
@@ -360,7 +375,8 @@ class ReportingEngine:
             # commonly consume. Never leave it as PASSED when the stricter
             # Incident sign-off engine found insufficient coverage or a
             # blocker; doing so creates a false-positive UAT sign-off.
-            if report.status in {"passed", "partial"} and authoritative_total > 0:
+            # C1: Drop authoritative_total > 0 guard so INCONCLUSIVE always downgrades status
+            if report.status in {"passed", "partial"}:
                 exit_status = {
                     "FAIL": "failed",
                     "BLOCKED": "blocked",
@@ -692,30 +708,40 @@ class ReportingEngine:
             if step.step_index in cleared_steps:
                 continue
 
-            defect_counter += 1
             failed_checks = step.validation.failed_checks
-            check_names_list = [c.check_name for c in failed_checks]
-            check_details = "; ".join(
-                f"{c.check_name}: expected={c.expected}, actual={c.actual}"
-                for c in failed_checks
-            )
-
+            repro_steps = [
+                f"Step {s.step_index}: {s.action.action_type} on '{s.action.target}'"
+                + (f" with value '{s.action.value}'" if getattr(s.action, "value", None) else "")
+                for s in memory.completed_steps
+                if s.step_index <= step.step_index and getattr(s, "action", None)
+            ]
             evidence: list[str] = []
-            if step.result.screenshot_path:
+            if step.result and step.result.screenshot_path:
                 evidence.append(step.result.screenshot_path)
+            if step.observation_after and getattr(step.observation_after, "screenshot_path", None):
+                if step.observation_after.screenshot_path not in evidence:
+                    evidence.append(step.observation_after.screenshot_path)
 
-            defects.append(
-                DefectReport(
-                    defect_id=f"DEF-{defect_counter:03d}",
-                    severity=self._assess_severity(failed_checks),
-                    title=f"Validation failure: {', '.join(check_names_list)}",
-                    description=check_details,
-                    expected_behavior="; ".join(c.expected for c in failed_checks),
-                    actual_behavior="; ".join(c.actual for c in failed_checks),
-                    evidence=evidence,
-                    related_step_index=step.step_index,
+            seen_signatures: set[tuple[str, str, str]] = set()
+            for chk in failed_checks:
+                sig = (chk.check_name, str(chk.expected), str(chk.actual))
+                if sig in seen_signatures:
+                    continue
+                seen_signatures.add(sig)
+                defect_counter += 1
+                defects.append(
+                    DefectReport(
+                        defect_id=f"DEF-{defect_counter:03d}",
+                        severity=self._assess_severity([chk]),
+                        title=f"Validation failure: {chk.check_name}",
+                        description=f"{chk.check_name}: expected={chk.expected}, actual={chk.actual}",
+                        steps_to_reproduce=list(repro_steps),
+                        expected_behavior=str(chk.expected),
+                        actual_behavior=str(chk.actual),
+                        evidence=list(evidence),
+                        related_step_index=step.step_index,
+                    )
                 )
-            )
             counted_steps.add(step.step_index)
 
         # Investigated mismatches at steps not covered above (e.g. the verdict
@@ -959,9 +985,9 @@ class ReportingEngine:
         return "execution"
 
     def _assess_severity(self, failed_checks: list) -> Severity:  # type: ignore[type-arg]
-        """Assess defect severity based on the types of failed checks."""
-        critical_checks = {"action_execution", "state_change", "page_navigation"}
-        high_checks = {"field_update", "no_js_errors"}
+        """Assess defect severity based on the types of failed checks (C25)."""
+        critical_checks = {"action_execution", "state_change", "page_navigation", "semantic_context", "acl_violation"}
+        high_checks = {"field_update", "no_js_errors", "no_new_js_errors", "no_new_errors", "no_network_errors", "update_response"}
 
         check_names = {c.check_name for c in failed_checks}
 
@@ -1045,6 +1071,9 @@ class ReportingEngine:
             "",
             f"- **Run ID:** {env.get('run_id', '')}",
             f"- **Persona:** {env.get('persona', '')}",
+            f"- **Verified User:** {env.get('verified_user', env.get('persona_username', 'unverified'))}",
+            f"- **Verified Roles:** {env.get('verified_roles', env.get('persona_role', 'unverified'))}",
+            f"- **Oracle Mode:** {'persona_constrained' if env.get('oracle_persona_constrained', True) else 'unconstrained'}",
             f"- **Tenant ID:** {env.get('tenant_id', '')}",
             f"- **Generated At:** {env.get('generated_at', '')}",
             f"- **Final Status:** {env.get('final_status', report.status)}",
@@ -1107,6 +1136,8 @@ class ReportingEngine:
                         "",
                         f"- **Expected:** {defect.expected_behavior}",
                         f"- **Actual:** {defect.actual_behavior}",
+                        f"- **Steps to Reproduce:** {'; '.join(defect.steps_to_reproduce) if getattr(defect, 'steps_to_reproduce', None) else 'N/A'}",
+                        f"- **Evidence:** {', '.join(defect.evidence) if getattr(defect, 'evidence', None) else 'None'}",
                         "",
                     ]
                 )

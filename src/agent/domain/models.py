@@ -38,7 +38,6 @@ class Run(Base):
     tenant_id = Column(String, ForeignKey("tenants.id"), nullable=False, index=True)
     requester_id = Column(String, ForeignKey("users.id"), nullable=True)
     goal = Column(String, nullable=False)
-    persona = Column(String, nullable=True, index=True)
     status = Column(
         String, nullable=False, index=True
     )  # queued, running, completed, failed, blocked, cancelled

@@ -272,6 +272,18 @@ class PageInteractor:
 
         try:
             await locator.fill(value, timeout=timeout)
+            # C12: If filling a ServiceNow reference field (sys_display.* or ac_input),
+            # wait briefly for the AJAX autocomplete drop-down and select the matching item.
+            sel_lower = selector.lower()
+            if any(ref_tok in sel_lower for ref_tok in ("sys_display.", "caller", "assignment_group", "assigned_to", "cmdb_ci")):
+                try:
+                    ac_item = self._page.locator(
+                        f".ac_dropdown li:has-text('{value}'), #AC.ac_table_completer tr:has-text('{value}')"
+                    )
+                    if await ac_item.count() > 0:
+                        await ac_item.first.click(timeout=1500)
+                except Exception:
+                    pass
             logger.debug("filled", selector=selector, value=value)
         except Exception as e:
             error_msg = str(e)
@@ -543,28 +555,6 @@ class PageInteractor:
 
         if selector.startswith("label:"):
             label = selector[6:].strip()
-            normalized_label = " ".join(
-                label.lower().replace("_", " ").replace("-", " ").split()
-            )
-            # ServiceNow forms can render a visible field caption without a
-            # usable <label for="..."> association. Keep the semantic locator
-            # first, but include stable field selectors as alternatives.
-            field_fallbacks = {
-                "state": r"select[id$='.state'], select[name$='.state'], select#incident\.state",
-                "incident state": r"select[id$='.state'], select[name$='.state'], select#incident\.state",
-                "category": "select[id$='.category'], select[name$='.category']",
-                "incident category": "select[id$='.category'], select[name$='.category']",
-                "urgency": "select[id$='.urgency'], select[name$='.urgency']",
-                "incident urgency": "select[id$='.urgency'], select[name$='.urgency']",
-                "impact": "select[id$='.impact'], select[name$='.impact']",
-                "incident impact": "select[id$='.impact'], select[name$='.impact']",
-                "hold reason": "select[id$='.hold_reason'], select[name$='.hold_reason']",
-                "on hold reason": "select[id$='.hold_reason'], select[name$='.hold_reason']",
-            }
-            semantic_locator = ctx.get_by_label(label, exact=False)
-            fallback_selector = field_fallbacks.get(normalized_label)
-            if fallback_selector:
-                return semantic_locator.or_(ctx.locator(fallback_selector))  # type: ignore[no-any-return]
             return ctx.get_by_label(label)  # type: ignore[no-any-return]
 
         if selector.startswith("text:"):

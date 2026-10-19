@@ -10,7 +10,7 @@
 ![Redis](https://img.shields.io/badge/Redis-Job_Queue-DC382D?logo=redis&logoColor=white)
 
 > **Recruiter & Engineering Lead TL;DR:**
-> - **What it is:** Sub-production autonomous QA agent POC runtime designed for end-to-end ServiceNow Incident Management testing.
+> - **What it is:** Sub-production autonomous QA agent POC runtime designed for ServiceNow Incident Management UAT experimentation and evaluation.
 > - **Core Engineering:** Users provide high-level natural language QA goals; the system decomposes goals into structured execution plans, drives Playwright browsers with visual observation engines, automatically validates field changes & DOM state, and executes automated recovery routines on transient errors.
 > - **Architectural Discipline:** Strictly decoupled LLM planner from browser execution—the planner emits structured typed action primitives; execution controllers translate them into Playwright browser events.
 > - **Live Execution Capture:** [View Automated Test Capture](#-live-servicenow-inspection-run) • **Architecture:** [View Component Architecture](#architecture) • **Quickstart:** [Local Execution Guide](#-local-execution)

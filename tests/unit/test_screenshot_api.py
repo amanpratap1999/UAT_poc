@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from agent.api.v1.auth import create_access_token
 from agent.core.db import Base, get_db_session
-from agent.domain.models import Run, Screenshot
+from agent.domain.models import Run
 from agent.main import app
 from agent.worker.tasks import _build_perception_evidence
 
@@ -78,12 +78,6 @@ async def test_get_screenshot_authenticated_success(test_env, auth_headers):
     sample_png = screenshot_dir / "action_click_100.png"
     fake_png_data = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDRtest_image_bytes"
     sample_png.write_bytes(fake_png_data)
-
-    # The endpoint intentionally requires a tenant ownership record for files
-    # without a run-id prefix; register this fixture to tenant-0.
-    async with test_env["async_session"]() as session:
-        session.add(Screenshot(tenant_id="tenant-0", filename=sample_png.name))
-        await session.commit()
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/api/v1/screenshots/action_click_100.png", headers=auth_headers)

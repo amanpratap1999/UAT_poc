@@ -311,3 +311,23 @@ def build_baseline_comparison_section(
             ),
         },
     }
+
+
+def compare_against_human_baseline(
+    agent_metrics: Any,
+    human_recall: float = 0.85,
+    human_fp_rate: float = 0.05,
+) -> dict[str, Any]:
+    """C34: Aggregate benchmark parity comparison between agent BenchmarkMetrics and human UAT baseline."""
+    agent_recall = float(getattr(agent_metrics, "recall", 0.0))
+    agent_fp = float(getattr(agent_metrics, "false_positive_rate", 0.0))
+    parity_achieved = agent_recall >= human_recall and agent_fp <= human_fp_rate
+    return {
+        "agent_recall": round(agent_recall, 3),
+        "human_recall": round(human_recall, 3),
+        "recall_delta": round(agent_recall - human_recall, 3),
+        "agent_fp_rate": round(agent_fp, 3),
+        "human_fp_rate": round(human_fp_rate, 3),
+        "fp_rate_delta": round(agent_fp - human_fp_rate, 3),
+        "parity_achieved": parity_achieved,
+    }

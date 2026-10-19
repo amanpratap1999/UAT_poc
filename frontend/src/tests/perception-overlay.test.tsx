@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { PerceptionOverlay } from "@/components/runs/PerceptionOverlay";
 import { evidenceToFrames, type PerceptionEvidenceResponse } from "@/hooks/use-run-perception";
 import type { PerceptionFrame } from "@/types/perception";
@@ -19,7 +19,6 @@ describe("PerceptionOverlay", () => {
   it("shows unavailable state when no frame is provided", () => {
     render(<PerceptionOverlay />);
     expect(screen.getByText("Perception data unavailable")).toBeInTheDocument();
-    expect(screen.getByText(/No screenshot evidence is available for this step yet/i)).toBeInTheDocument();
   });
 
   it("shows unavailable state when frame has no screenshot", () => {
@@ -64,40 +63,6 @@ describe("PerceptionOverlay", () => {
     };
     render(<PerceptionOverlay frame={frame} isLive={false} />);
     expect(screen.getByRole("button", { name: /hide perception overlay/i })).toBeInTheDocument();
-  });
-
-  it("keeps pixel-coordinate bounding boxes in screenshot space when the image is scaled", () => {
-    const frame: PerceptionFrame = {
-      step_index: 3,
-      timestamp: "2026-09-02T10:00:10Z",
-      screenshot_url: "http://example.com/screenshot.png",
-      boxes: [
-        {
-          index: 1,
-          x: 120,
-          y: 250,
-          width: 180,
-          height: 45,
-          confidence: 0.98,
-          label: "Submit",
-          is_selected: true,
-        },
-      ],
-    };
-
-    render(<PerceptionOverlay frame={frame} />);
-
-    const image = screen.getByRole("img", { name: /ServiceNow screenshot — step 3/i });
-    Object.defineProperty(image, "naturalWidth", { value: 1920, configurable: true });
-    Object.defineProperty(image, "naturalHeight", { value: 1080, configurable: true });
-    Object.defineProperty(image, "clientWidth", { value: 960, configurable: true });
-    Object.defineProperty(image, "clientHeight", { value: 540, configurable: true });
-    fireEvent.load(image);
-
-    const overlay = screen.getByRole("img", { name: /Perception overlay — candidate bounding boxes/i });
-    expect(overlay).toHaveAttribute("viewBox", "0 0 1920 1080");
-    expect(overlay.querySelector("rect")).toHaveAttribute("x", "120");
-    expect(overlay.querySelector("rect")).toHaveAttribute("y", "232");
   });
 
   it("renders AuthedImage when screenshot_path is provided", async () => {

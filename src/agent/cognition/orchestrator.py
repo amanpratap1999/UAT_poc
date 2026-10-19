@@ -1133,6 +1133,12 @@ class CognitiveOrchestrator:
                 observation_after=raw_obs_after,
                 validation=validation,
             )
+            on_step_cb = getattr(self, "_on_step_complete", None)
+            if callable(on_step_cb):
+                try:
+                    on_step_cb(step, memory)
+                except Exception as cb_err:
+                    logger.warning("on_step_complete_hook_failed", error=str(cb_err))
             memory.add_timeline_entry(
                 action=f"{action.action_type}: {action.target}",
                 result="success" if result.success else "failed",
@@ -1338,13 +1344,20 @@ class CognitiveOrchestrator:
                         "field": field,
                         "expected": expected,
                         "operator": "contains" if field else "equals",
+                        "source": "plan",
                     })
             if ac_list:
                 tc = dict(getattr(memory, "test_case_data", None) or {})
                 tc["acceptance_criteria"] = ac_list
                 memory.test_case_data = tc
 
+        completed_step_indices = {
+            getattr(cs, "step_index", -1) for cs in getattr(memory, "completed_steps", [])
+        }
         for step in plan.steps:
+            if step.step_index in completed_step_indices:
+                logger.info("skipping_already_completed_step_on_resume", step_index=step.step_index)
+                continue
             if self._lock_manager:
                 rec_num = (memory.current_record or {}).get("number")
                 if rec_num:
@@ -2123,47 +2136,43 @@ class CognitiveOrchestrator:
             # Distinguish save/update action submission from post-action persistence verification:
             # When clicking Update/Save on a form, ServiceNow redirects away (e.g. to now/sow/home or a list view).
             # The immediate form-action succeeded, and persisted state is verified in the subsequent re-open step.
+            # C3: Never delete failed checks or add a synthetic update_submission pass.
+            # Check error banners first; if redirected away and a reopen step exists,
+            # mark redirect-sensitive checks as deferred=True in evidence while keeping
+            # them in validation.checks until the re-open step observes the persisted value.
             if self._is_save_click(action, step) and result.success:
                 after_url = getattr(raw_obs_after, "url", "") or ""
+                after_msgs = [
+                    *(getattr(raw_obs_after, "validation_messages", []) or []),
+                    *(getattr(raw_obs_after, "notification_messages", []) or []),
+                ]
+                has_error_banner = any(
+                    any(
+                        err_kw in m.lower()
+                        for err_kw in (
+                            "outputmsg_error",
+                            "mandatory fields are not filled in",
+                            "invalid update",
+                            "action aborted",
+                            "error",
+                        )
+                    )
+                    for m in after_msgs
+                )
                 redirected_away = ("incident.do" not in after_url.lower()) or not getattr(raw_obs_after, "record_number", None)
                 subsequent_steps = plan.steps[step.step_index + 1:] if getattr(plan, "steps", None) else []
                 has_reopen_step = any(
                     any(kw in (s.description or "").lower() for kw in ("re-open", "reopen", "open target", "open existing", "validate persisted", "validate incident state"))
                     for s in subsequent_steps
                 )
-                if redirected_away and has_reopen_step:
-                    filtered_checks = []
+                if redirected_away and has_reopen_step and not has_error_banner:
                     for chk in validation.checks:
-                        chk_name = (getattr(chk, "check_name", "") or "").lower()
-                        chk_desc = (getattr(chk, "description", "") or "").lower()
-                        chk_err = (getattr(chk, "error_message", "") or "").lower()
-                        is_redirect_mismatch = (
-                            not chk.passed
-                            and (
-                                chk_name == "semantic_context"
-                                or "expected record" in chk_err
-                                or "state mismatch" in chk_err
-                                or "not in the page context" in chk_err
-                                or "business rule" in chk_desc
+                        if not chk.passed:
+                            chk.evidence = dict(getattr(chk, "evidence", None) or {})
+                            chk.evidence["deferred"] = True
+                            chk.evidence["deferred_reason"] = (
+                                "Form redirected on save; must be resolved by observed value on re-open step."
                             )
-                        )
-                        if not is_redirect_mismatch:
-                            filtered_checks.append(chk)
-
-                    filtered_checks.append(
-                        ValidationCheck(
-                            check_name="update_submission",
-                            description="Form update submitted successfully; verification deferred to re-open step",
-                            passed=True,
-                            expected="form submission success",
-                            actual="form submitted and page navigated",
-                        )
-                    )
-                    validation.checks = filtered_checks
-                    validation.overall_passed = all(c.passed for c in validation.checks)
-                    if validation.overall_passed:
-                        validation.failure_category = None
-                        validation.root_cause = None
 
             # Record step observed values
             step.observed_values = dict(validation.precondition_details or {})

@@ -1,6 +1,4 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { useServiceNowPersonas } from "@/hooks/use-servicenow-personas";
+import { useState } from "react";
 import { Download, FileSpreadsheet, GitCompare, Play, Upload, WandSparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,42 +29,15 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export default function TestCases() {
   const [requirement, setRequirement] = useState("");
-  const [personas, setPersonas] = useState("");
-  const [selectedPersona, setSelectedPersona] = useState("");
-  const [personaDefaultsApplied, setPersonaDefaultsApplied] = useState(false);
-  const [lastExecutedRun, setLastExecutedRun] = useState<{ id: string; status: string } | null>(null);
+  const [personas, setPersonas] = useState("itil,approver");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [executeOnImport, setExecuteOnImport] = useState(false);
   const [cases, setCases] = useState<TestCase[]>([]);
   const [runIds, setRunIds] = useState<string[]>([]);
   const [comparison, setComparison] = useState<any>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const personaQuery = useServiceNowPersonas();
-  const personaInfo = personaQuery.data;
   const personaList = personas.split(",").map((item) => item.trim()).filter(Boolean);
-  const personaReady = Boolean(
-    personaInfo &&
-    !personaQuery.isLoading &&
-    !personaQuery.isError &&
-    (!personaInfo.requires_persona ||
-      (Boolean(selectedPersona) && personaInfo.personas.some((item) => item.name === selectedPersona))),
-  );
-
-  useEffect(() => {
-    if (!personaInfo || personaDefaultsApplied) return;
-    const preferred = personaInfo.active_persona && personaInfo.personas.some((p) => p.name === personaInfo.active_persona)
-      ? personaInfo.active_persona
-      : personaInfo.personas[0]?.name ?? "";
-    setSelectedPersona(preferred);
-    setPersonas(personaInfo.personas.length
-      ? (personaInfo.active_persona && personaInfo.personas.some((p) => p.name === personaInfo.active_persona)
-          ? personaInfo.active_persona
-          : personaInfo.personas.map((p) => p.name).join(", "))
-      : "");
-    setPersonaDefaultsApplied(true);
-  }, [personaInfo, personaDefaultsApplied]);
 
   async function generate() {
     if (!requirement.trim()) return;
@@ -85,38 +56,15 @@ export default function TestCases() {
 
   async function importWorkbook() {
     if (!selectedFile) return;
-    if (executeOnImport) {
-      if (!personaInfo || personaQuery.isLoading || personaQuery.isError || !personaList.length) {
-        setMessage("Select at least one configured ServiceNow persona before executing imported tests.");
-        return;
-      }
-      const configured = new Set(personaInfo.personas.map((persona) => persona.name));
-      if (personaList.some((persona) => !configured.has(persona))) {
-        setMessage("Imported-test execution accepts configured personas only. Correct the persona list and retry.");
-        return;
-      }
-    }
     setBusy(true);
     setMessage("");
     try {
-      const batches = (await api.importTestCases(selectedFile, {
-        personas: personaList,
-        execute: executeOnImport,
-      })) as ImportBatch[];
+      const batches = (await api.importTestCases(selectedFile, { personas: personaList })) as ImportBatch[];
       const imported = batches.flatMap((batch) => batch.test_cases ?? []);
-      const importedRuns = batches.flatMap((batch) =>
-        (batch.runs ?? []).flatMap((run) => run.run_id ? [run.run_id] : []),
-      );
-      const firstRun = batches.flatMap((batch) => batch.runs ?? []).find((run) => Boolean(run.run_id));
+      const importedRuns = batches.flatMap((batch) => (batch.runs ?? []).flatMap((run) => run.run_id ? [run.run_id] : []));
       setCases(imported);
-      setRunIds((current) => [...new Set([...current, ...importedRuns])]);
-      setLastExecutedRun(firstRun?.run_id
-        ? { id: firstRun.run_id, status: firstRun.status || "queued" }
-        : null);
-      setMessage(
-        imported.length + " test case(s) imported" +
-        (executeOnImport ? "; " + importedRuns.length + " run(s) created." : "."),
-      );
+      setRunIds(importedRuns);
+      setMessage(`${imported.length} test case(s) imported.`);
     } catch (error) {
       setMessage(error instanceof ApiError ? error.message : "Import failed.");
     } finally {
@@ -125,10 +73,6 @@ export default function TestCases() {
   }
 
   async function sweep(testCaseId: string) {
-    if (!personaList.length) {
-      setMessage("Enter at least one configured persona before running a persona sweep.");
-      return;
-    }
     setBusy(true);
     try {
       const responses = await api.sweepTestCase(testCaseId, personaList);
@@ -142,39 +86,11 @@ export default function TestCases() {
   }
 
   async function compare(testCaseId: string) {
-    if (!personaList.length) {
-      setMessage("Enter at least one configured persona before comparing personas.");
-      return;
-    }
     setBusy(true);
     try {
       setComparison(await api.comparePersonas(testCaseId, personaList));
     } catch (error) {
       setMessage(error instanceof ApiError ? error.message : "Comparison failed.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function execute(testCaseId: string) {
-    if (!personaReady || (personaInfo?.requires_persona && !selectedPersona)) {
-      setMessage(
-        personaQuery.isError
-          ? "Could not load configured ServiceNow personas. Refresh and try again."
-          : "A configured non-admin ServiceNow persona is required before executing a test case.",
-      );
-      return;
-    }
-    setBusy(true);
-    setMessage("");
-    setLastExecutedRun(null);
-    try {
-      const response = await api.executeTestCase(testCaseId, selectedPersona || undefined);
-      setRunIds((current) => current.includes(response.session_id) ? current : [...current, response.session_id]);
-      setLastExecutedRun({ id: response.session_id, status: response.status });
-      setMessage(response.message || `Test case queued with status: ${response.status}`);
-    } catch (error) {
-      setMessage(error instanceof ApiError ? error.message : "Test case execution failed.");
     } finally {
       setBusy(false);
     }
@@ -213,86 +129,13 @@ export default function TestCases() {
           <CardHeader><CardTitle><span className="flex items-center gap-2"><FileSpreadsheet size={16} /> Import workbook</span></CardTitle></CardHeader>
           <CardContent className="flex flex-col gap-4">
             <Input label="Personas" value={personas} onChange={(event) => setPersonas(event.target.value)} hint="Comma-separated personas used for sweeps and comparisons." />
-            <label className="flex items-start gap-2 text-sm text-body">
-              <input
-                aria-label="Execute imported test cases after import"
-                type="checkbox"
-                checked={executeOnImport}
-                onChange={(event) => setExecuteOnImport(event.target.checked)}
-                disabled={busy}
-                className="mt-1"
-              />
-              <span>
-                <span className="block font-medium">Execute imported cases after import</span>
-                <span className="block text-xs text-muted">
-                  Queues each imported case for every listed configured persona. Leave unchecked to import only.
-                </span>
-              </span>
-            </label>
-            <input type="file" accept=".xlsx" aria-label="Test case workbook" onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)} className="block w-full rounded-md border border-line bg-card p-2 text-sm text-body" />
-            <Button
-              variant="secondary"
-              onClick={() => void importWorkbook()}
-              disabled={!selectedFile || busy || (executeOnImport && (
-                !personaInfo || !personaList.length ||
-                personaList.some((name) => !personaInfo.personas.some((persona) => persona.name === name))
-              ))}
-              isLoading={busy}
-              className="gap-2"
-            >
-              <Upload size={15} /> Import XLSX
-            </Button>
+            <input type="file" accept=".xlsx" onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)} className="block w-full rounded-md border border-line bg-card p-2 text-sm text-body" />
+            <Button variant="secondary" onClick={() => void importWorkbook()} disabled={!selectedFile} isLoading={busy} className="gap-2"><Upload size={15} /> Import XLSX</Button>
           </CardContent>
         </Card>
       </div>
 
-      {lastExecutedRun && (
-        <p className="rounded-md border border-line bg-card px-4 py-3 text-sm text-body">
-          Run {lastExecutedRun.id} is {lastExecutedRun.status}.{" "}
-          <Link className="font-medium text-accent underline" to={`/runs/${lastExecutedRun.id}`}>
-            Open live run
-          </Link>
-        </p>
-      )}
       {message && <p role="status" className="rounded-md border border-line bg-card px-4 py-3 text-sm text-body">{message}</p>}
-
-      <Card>
-        <CardContent className="flex flex-col gap-2 py-4">
-          <label htmlFor="execute-persona" className="text-xs font-semibold text-body">
-            Execute a test case as
-          </label>
-          {personaQuery.isLoading ? (
-            <p role="status" className="text-xs text-muted">Loading configured ServiceNow personas…</p>
-          ) : personaQuery.isError ? (
-            <p role="alert" className="text-xs text-status-failed">
-              Could not load configured ServiceNow personas. Refresh the page before executing tests.
-            </p>
-          ) : (
-            <>
-              <select
-                id="execute-persona"
-                value={selectedPersona}
-                onChange={(event) => setSelectedPersona(event.target.value)}
-                disabled={busy}
-                className="w-full rounded-md border border-line bg-card px-3 py-2 text-sm text-body"
-              >
-                {!personaInfo?.requires_persona && <option value="">Use configured default</option>}
-                {personaInfo?.personas.map((persona) => (
-                  <option key={persona.name} value={persona.name}>
-                    {persona.name}{persona.role ? ` — ${persona.role}` : ""}
-                  </option>
-                ))}
-              </select>
-              {personaInfo?.requires_persona && personaInfo.personas.length === 0 && (
-                <p className="text-xs text-status-failed">
-                  No personas are configured on the backend. Configure SERVICENOW_PERSONAS before starting UAT.
-                </p>
-              )}
-            </>
-          )}
-          <Input label="Personas for sweep/comparison" value={personas} onChange={(event) => setPersonas(event.target.value)} hint="Comma-separated configured persona names." />
-        </CardContent>
-      </Card>
 
       <div className="flex items-center justify-between gap-3">
         <h2 className="section-title">Available test cases</h2>
@@ -312,9 +155,8 @@ export default function TestCases() {
                     <p className="mt-1 text-sm text-body">{testCase.description || "No description provided."}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Button size="sm" variant="primary" onClick={() => void execute(testCase.id)} disabled={busy || !personaReady} className="gap-1"><Play size={13} /> Execute</Button>
-                    <Button size="sm" variant="secondary" onClick={() => void sweep(testCase.id)} disabled={busy || !personaList.length} className="gap-1"><Play size={13} /> Sweep personas</Button>
-                    <Button size="sm" variant="outline" onClick={() => void compare(testCase.id)} disabled={busy || !personaList.length} className="gap-1"><GitCompare size={13} /> Compare</Button>
+                    <Button size="sm" variant="secondary" onClick={() => void sweep(testCase.id)} disabled={busy} className="gap-1"><Play size={13} /> Sweep personas</Button>
+                    <Button size="sm" variant="outline" onClick={() => void compare(testCase.id)} disabled={busy} className="gap-1"><GitCompare size={13} /> Compare</Button>
                   </div>
                 </div>
                 <p className="font-mono text-xs text-muted">{testCase.steps?.length ?? 0} steps · {testCase.expected_outcomes?.length ?? 0} assertions · {testCase.id}</p>

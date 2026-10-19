@@ -13,7 +13,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from agent.api.v1.auth import create_access_token
-from agent.core.config import DomainConfig, ServiceNowConfig, Settings
+from agent.core.config import DomainConfig
 from agent.domain.models import Run
 from agent.main import app
 from agent.testing.store import TestIntelligenceStore as IntelligenceStore
@@ -25,7 +25,7 @@ IntelligenceStore.__test__ = False
 def tenant_a_token() -> str:
     return create_access_token({
         "sub": "user_a",
-        "role": "QA Manager",
+        "role": "tester",
         "tenant_id": "tenant-alpha",
         "user_id": "usr-1",
     })
@@ -35,7 +35,7 @@ def tenant_a_token() -> str:
 def tenant_b_token() -> str:
     return create_access_token({
         "sub": "user_b",
-        "role": "QA Manager",
+        "role": "tester",
         "tenant_id": "tenant-bravo",
         "user_id": "usr-2",
     })
@@ -164,29 +164,8 @@ async def test_test_case_store_and_execute_tenant_isolation(
     # Tenant bravo CANNOT get it (returns None)
     assert store.get_test_case("TC-ALPHA-99", tenant_id="tenant-bravo") is None
 
-    # Configure a real-looking non-admin QA persona so execution reaches
-    # tenant-scoped test-case lookup; the request must still return 404 for
-    # another tenant's stored case rather than failing the persona preflight.
-    from agent.api.v1 import dependencies
-
-    test_settings = Settings(
-        servicenow=ServiceNowConfig(
-            username="admin",
-            password="not-used-default-secret",
-            personas={
-                "itil_user": {
-                    "username": "qa-itil-user",
-                    "password": "qa-persona-secret",
-                    "role": "itil",
-                }
-            },
-            active_persona="itil_user",
-            require_persona_for_benchmark=True,
-        )
-    )
-    app.dependency_overrides[get_test_intelligence_store] = lambda *_args, **_kwargs: store
-    original_get_settings = dependencies.get_cached_settings
-    dependencies.get_cached_settings = lambda: test_settings
+    # Test execution via API
+    app.dependency_overrides[get_test_intelligence_store] = lambda: store
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             headers_b = {"Authorization": f"Bearer {tenant_b_token}"}
@@ -197,5 +176,4 @@ async def test_test_case_store_and_execute_tenant_isolation(
             assert resp.status_code == 404
             assert "unauthorized" in resp.json()["detail"].lower() or "not found" in resp.json()["detail"].lower()
     finally:
-        dependencies.get_cached_settings = original_get_settings
         app.dependency_overrides.pop(get_test_intelligence_store, None)

@@ -6,26 +6,12 @@ nvidia-cuda-nvrtc==13.4.92 \
     --hash=sha256:5ce8c97b00b232c4f50c8c4b5a3b68cafee08bdb82ea86f2052ff01d03194f4a
     # via nvidia-cublas
 
-nvidia-cublas==13.1.1.3 \
-    --hash=sha256:b6cdce694e47ff6aadf0a69df1cab6628d696f5ff56e8d16af50309d855fa20f \
-    --hash=sha256:37936a16db8fe4ac1f065c2139360608a543a09275cb1a1af612e08cfa065436 \
-    --hash=sha256:b7a210458267ac818974c53038fbec2e969d5c99f305ab15c72522fa9f001dd5
-    # via cuda-toolkit, nvidia-cudnn-cu13
+nvidia-cublas==13.8.1.7 \
+    --hash=sha256:c11a27fd4379510e5b1f84b367a2514d1e52fe5cc13442117a0e0a1addee3cf2
+    # via nvidia-cudnn-cu13
 
 nvidia-cudnn-cu13==9.24.0.43 \
     --hash=sha256:71f181cd810e90f9b6023b01186fe82d13d65f0ec098581ee201d39fad769e4b
-    # via torch
-
-# Added for torch 2.14.0's Linux x86_64 runtime dependency; hash observed from
-# the official package artifact downloaded in GitHub Actions CI.
-nvidia-nccl-cu13==2.30.7 \
-    --hash=sha256:cefa7fdb9710efd0f39c5f1be1d61ff6fc9a996c451265bd7fbdcf9455ed4b50
-    # via torch
-
-# Added for torch 2.14.0's Linux runtime dependency; hash observed from
-# the official package artifact downloaded in GitHub Actions CI.
-nvidia-nvshmem-cu13==3.4.5 \
-    --hash=sha256:290f0a2ee94c9f3687a02502f3b9299a9f9fe826e6d0287ee18482e78d495b80
     # via torch
 
 cuda-bindings==13.4.2 \
@@ -2603,11 +2589,6 @@ websockets==16.1.1 \
     --hash=sha256:fce6c48559c86d1ac3632ccb1bebc7d5442fbe79bd9bb0e40379ee54be2a4051 \
     --hash=sha256:fd46fff7eb62c24804d234f0051c7a8ea81285ad63e0337d3dcf33ca82aee58a
     # via uvicorn
-
-# Pinned to satisfy torch 2.14.0's Linux dependency; hash verified against PyPI's published wheel metadata.
-triton==3.8.0 ; sys_platform == "linux" \
-    --hash=sha256:68988ac85d5e7086baeda0ddc175af9667db7529b3c5e11a5c0601b8bef2200a
-    # via torch
 
 # WARNING: The following packages were not pinned, but pip requires them to be
 # pinned when the requirements file includes hashes and the requirement is not

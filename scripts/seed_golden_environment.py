@@ -343,7 +343,7 @@ def _build_incident_payload(defect) -> dict:
         base["priority"] = "4"  # WRONG — should be 1 (High)
     elif defect.defect_type == "bad_assignment":
         base["category"] = "network"
-        base["assignment_group"] = "Software"  # wrong group
+        base["assignment_group"] = "Software"  # wrong group for network category
         base["assigned_to"] = "ITIL User"
     elif defect.defect_type == "missing_mandatory_field":
         base["state"] = "6"  # Resolved
@@ -369,7 +369,14 @@ def _build_incident_payload(defect) -> dict:
         base["state"] = "2"
         base["impact"] = "1"
         base["urgency"] = "1"
-        base["priority"] = "4"  # wrong — will be fixed in retest
+        base["priority"] = "1"  # C7: matches expected_field_values priority='1' (fixed state)
+    elif defect.defect_type == "create_mandatory_missing":
+        base["state"] = "1"
+        base["short_description"] = ""
+    elif defect.defect_type == "reopen_stale_close_fields":
+        base["state"] = "2"
+        base["close_code"] = "Solved (Permanently)"
+        base["close_notes"] = "Stale close notes left after reopen"
     elif defect.defect_type in ("interruption_recovery", "repeatability", "clean_incident"):
         pass  # no defect payload needed
 

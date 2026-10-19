@@ -19,7 +19,6 @@ export interface Run {
   tenant_id: string;
   requester_id: string | null;
   goal: string;
-  persona?: string | null;
   status: RunStatus;
   start_time: string; // ISO 8601
   end_time: string | null;
@@ -37,7 +36,6 @@ export type RunDetail = Run;
 /** Request body for POST /api/v1/runs */
 export interface RunRequest {
   goal: string;
-  persona?: string;
 }
 
 /** Response from POST /api/v1/runs */

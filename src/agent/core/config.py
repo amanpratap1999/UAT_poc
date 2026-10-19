@@ -95,7 +95,6 @@ class LLMConfig(BaseSubConfig):
         env_file_encoding="utf-8",
         env_prefix="LLM_",
         extra="ignore",
-        populate_by_name=True,
     )
 
     provider: Literal["openai", "groq", "anthropic", "nvidia", "google"] = "openai"
@@ -166,7 +165,7 @@ class ServiceNowConfig(BaseSubConfig):
     # compat with existing personas that only have username/password).
     require_persona_for_benchmark: bool = Field(
         default=True,
-        description="INC-UAT-01 (Blocker): if True, the benchmark must run under a declared persona — admin/default credentials are rejected."
+        description="INC-UAT-01 / C6: require a declared non-admin persona by default — admin/default credentials are rejected."
     )
     allow_mutations: bool = Field(
         default=False,
@@ -188,11 +187,11 @@ class ServiceNowConfig(BaseSubConfig):
     # INC-UAT-03 (Major, D3/D5): if True, the API oracle is constrained to
     # only query fields visible to the active persona's role. This prevents
     # the oracle from inspecting server-side fields/audit data outside the
-    # normal UI experience. When False, the oracle queries the full field set
-    # for an explicitly configured compatibility use case.
+    # normal UI experience. When False (default for backward compat), the
+    # oracle queries all fields as before.
     oracle_persona_constrained: bool = Field(
         default=True,
-        description="INC-UAT-03: constrain API oracle queries to persona-visible fields only."
+        description="INC-UAT-03 / C20: constrain API oracle queries to persona-visible fields only by default."
     )
 
     def get_active_credentials(self) -> tuple[str, str]:
@@ -206,7 +205,8 @@ class ServiceNowConfig(BaseSubConfig):
         if not self.active_persona:
             if self.require_persona_for_benchmark or self.username.strip().lower() == "admin":
                 raise ValueError(
-                    "C6: No active_persona configured and fallback to default/admin credentials is forbidden."
+                    "C6: No active_persona configured and fallback to default/admin credentials is forbidden. "
+                    "Configure SERVICENOW_PERSONAS and set SERVICENOW_ACTIVE_PERSONA."
                 )
             return self.username, self.password
         if self.active_persona not in self.personas:

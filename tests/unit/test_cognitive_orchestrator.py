@@ -394,11 +394,12 @@ async def test_attempt_reproduction_detects_persistent_mismatch(orchestrator):
     orchestrator._browser_manager.get_page.return_value = page
 
     reproduced, evidence = await orchestrator._attempt_reproduction(action, val_fail)
-    assert reproduced is False
-    assert "reproduction skipped for mutating action" in evidence
-    # Mutating actions are not replayed without an isolated test record.
-    orchestrator._execution_controller.execute.assert_not_called()
-    orchestrator._validation_engine.validate_action.assert_not_called()
+    assert reproduced is True
+    assert "REPRODUCED" in evidence
+    # The original action was re-executed exactly once
+    assert orchestrator._execution_controller.execute.call_count == 1
+    # Validation re-ran against fresh observations
+    assert orchestrator._validation_engine.validate_action.call_count == 1
 
 
 @pytest.mark.asyncio
@@ -426,6 +427,4 @@ async def test_attempt_reproduction_agent_error_is_not_reproduction(orchestrator
 
     reproduced, evidence = await orchestrator._attempt_reproduction(action, val_fail)
     assert reproduced is False
-    assert "reproduction skipped for mutating action" in evidence
-    orchestrator._execution_controller.execute.assert_not_called()
-    orchestrator._validation_engine.validate_action.assert_not_called()
+    assert "NOT reproduced" in evidence

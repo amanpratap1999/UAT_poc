@@ -366,8 +366,12 @@ class DecisionEngine:
                 target = str(response.get("target", "") or "").strip()
                 value = str(response.get("value", "") or "")
 
+                # C4: Never synthesize unrequested writes (select State=2, click Update, or hard-coded INC9900004).
                 if not raw_action_type:
-                    raise DecisionUnavailableError("LLM returned no action_type; refusing to synthesize fallback actions.")
+                    raise DecisionUnavailableError(
+                        "LLM returned no action_type; refusing to synthesize fallback actions."
+                    )
+
                 try:
                     action_type = ActionType(raw_action_type)
                 except ValueError as exc:
@@ -377,13 +381,14 @@ class DecisionEngine:
 
                 if not target and action_type in {ActionType.VALIDATE, ActionType.OBSERVE, ActionType.WAIT}:
                     target = plan_desc or "page"
+
                 rationale = str(
-                    response.get("reasoning", "Selected by decision engine")
-                    or "Selected by decision engine"
+                    response.get("reasoning", "Selected by decision engine") or
+                    "Selected by decision engine"
                 )
                 expected = str(
-                    response.get("expected_outcome", "Action executes successfully")
-                    or "Action executes successfully"
+                    response.get("expected_outcome", "Action executes successfully") or
+                    "Action executes successfully"
                 )
                 if action_type in {
                     ActionType.CLICK,

@@ -325,7 +325,15 @@ class TestCaseImporter:
             "dependencies": dependencies,
             "preconditions": list(preconditions),
             "acceptance_criteria": [
-                a.description for a in assertions if a.description
+                {
+                    "criterion_id": f"{tc_id}-AC-{idx + 1:02d}",
+                    "field": a.field,
+                    "operator": a.operator,
+                    "expected": a.expected_value,
+                    "description": a.description,
+                }
+                for idx, a in enumerate(assertions)
+                if a.description or a.field or a.expected_value
             ],
             "test_data": dict(test_data),
             "source_file": self.file_path,

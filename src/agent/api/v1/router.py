@@ -9,7 +9,7 @@ import os
 import re
 import tempfile
 from pathlib import Path
-from fastapi import APIRouter, Body, UploadFile, File, Form, Depends, HTTPException
+from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -51,8 +51,6 @@ from agent.api.v1.schemas import (
     RunDetailResponse,
     RunRequest,
     RunResponse,
-    ServiceNowPersonasResponse,
-    TestCaseExecutionRequest,
 )
 from agent.core.db import get_db_session
 from agent.domain.models import Finding, Run, Screenshot
@@ -222,25 +220,6 @@ async def get_safety_config(
         "kill_switch_active": bool(kill_reason),
         "kill_switch_reason": kill_reason,
     }
-
-
-@router.get("/personas", response_model=ServiceNowPersonasResponse)
-async def list_servicenow_personas(
-    token: Annotated[TokenData, Depends(require_qa_engineer)],
-) -> ServiceNowPersonasResponse:
-    """List configured execution persona names and roles without exposing credentials."""
-    settings = get_cached_settings()
-    configured = settings.servicenow.personas or {}
-    personas = [
-        {"name": name, "role": (details.get("role") or None)}
-        for name, details in sorted(configured.items())
-    ]
-    active = settings.servicenow.active_persona
-    return ServiceNowPersonasResponse(
-        personas=personas,
-        active_persona=active if active in configured else None,
-        requires_persona=settings.servicenow.require_persona_for_benchmark,
-    )
 
 
 @router.get("/ready")
@@ -429,44 +408,6 @@ async def get_diagnostic_paths(
     }
 
 
-def _validate_persona_selection(settings: Any, persona_name: str | None) -> None:
-    """Reject unsafe/incomplete persona selections before any run is queued."""
-    sn = settings.servicenow
-    configured = sn.personas or {}
-    if not persona_name:
-        if sn.require_persona_for_benchmark or str(sn.username or "").strip().lower() == "admin":
-            raise HTTPException(
-                status_code=422,
-                detail="A configured non-admin ServiceNow persona is required before a run can be queued.",
-            )
-        return
-
-    persona = configured.get(persona_name)
-    if persona is None:
-        raise HTTPException(status_code=422, detail="Selected ServiceNow persona is not configured on this server.")
-    username = str(persona.get("username") or "").strip()
-    password = str(persona.get("password") or "")
-    if not username or not password:
-        raise HTTPException(
-            status_code=422,
-            detail="Selected ServiceNow persona must have its own configured username and password.",
-        )
-    default_username = str(sn.username or "").strip()
-    if username.lower() == "admin" or (
-        default_username and username.casefold() == default_username.casefold()
-    ):
-        raise HTTPException(
-            status_code=422,
-            detail="Administrator/default credentials cannot be used as a benchmark persona.",
-        )
-    expected_role = str(persona.get("role") or "").strip()
-    if sn.require_persona_for_benchmark and not expected_role:
-        raise HTTPException(
-            status_code=422,
-            detail="Selected ServiceNow persona must declare its expected role.",
-        )
-
-
 @router.post("/runs", response_model=RunResponse)
 async def create_run(
     request: RunRequest,
@@ -475,9 +416,6 @@ async def create_run(
     db: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> RunResponse:
     """Start an autonomous agent run. Queues a Celery task."""
-    settings = get_cached_settings()
-    selected_persona = request.persona or settings.servicenow.active_persona
-    _validate_persona_selection(settings, selected_persona)
     run_id = str(uuid.uuid4())
 
     new_run = Run(
@@ -485,7 +423,6 @@ async def create_run(
         tenant_id=token.tenant_id or "unknown",
         requester_id=token.user_id,
         goal=request.goal,
-        persona=selected_persona,
         status="queued",
     )
     db.add(new_run)
@@ -497,7 +434,7 @@ async def create_run(
             run_id=run_id,
             goal=request.goal,
             tenant_id=token.tenant_id or "unknown",
-            persona=selected_persona,  # INC-UAT-01
+            persona=getattr(request, "persona", None),  # INC-UAT-01
         )
     except Exception as exc:
         new_run.status = "failed"  # type: ignore[assignment]
@@ -1319,14 +1256,11 @@ async def execute_test_case(
     token: Annotated[TokenData, Depends(require_qa_engineer)],
     # audit issue I12 (P0): mutating endpoint requires qa engineer role
     db: Annotated[AsyncSession, Depends(get_db_session)],
-    request: TestCaseExecutionRequest = Body(default=TestCaseExecutionRequest()),
 ) -> RunResponse:
     """Execute a stored structured test case by ID with tenant isolation."""
     from agent.api.v1.dependencies import get_cached_settings, get_test_intelligence_store
 
     s = get_cached_settings()
-    selected_persona = request.persona or s.servicenow.active_persona
-    _validate_persona_selection(s, selected_persona)
     store = get_test_intelligence_store(s)
 
     tc = await store.get_test_case_async(test_case_id, tenant_id=token.tenant_id or "unknown")
@@ -1344,13 +1278,9 @@ async def execute_test_case(
         tenant_id=token.tenant_id or "unknown",
         requester_id=token.user_id,
         goal=goal,
-        persona=selected_persona,
         status="queued",
     )
     db.add(new_run)
-    # Commit the queued run before dispatching work so a fast worker cannot
-    # start and update the run before its row is visible in the database.
-    await db.commit()
     # Enqueue Celery task with error handling and test_case_id
     try:
         execute_run.delay(
@@ -1358,8 +1288,7 @@ async def execute_test_case(
             goal=goal,
             tenant_id=token.tenant_id,
             test_case_id=test_case_id,
-            persona=selected_persona,
-            tc_data=tc,
+            tc_data=tc
         )
     except Exception as exc:
         new_run.status = "failed"  # type: ignore[assignment]
@@ -1383,7 +1312,6 @@ _MAX_IMPORT_BYTES = 10 * 1024 * 1024  # 10 MB workbook cap
 @router.post("/test-cases/import", response_model=list[ImportTestCasesResponse])
 async def import_test_cases(
     token: Annotated[TokenData, Depends(require_qa_engineer)],
-    db: Annotated[AsyncSession, Depends(get_db_session)],
     # audit issue I12 (P0): mutating endpoint requires qa engineer role
     file: UploadFile = File(...),
     execute: bool = Form(False),
@@ -1423,13 +1351,7 @@ async def import_test_cases(
 
     persona_list: list[str] = []
     if personas:
-        persona_list = list(dict.fromkeys(p.strip() for p in personas.split(",") if p.strip()))
-
-    execution_personas: list[str | None] = []
-    if execute:
-        execution_personas = persona_list or [settings.servicenow.active_persona]
-        for candidate in execution_personas:
-            _validate_persona_selection(settings, candidate or settings.servicenow.active_persona)
+        persona_list = [p.strip() for p in personas.split(",") if p.strip()]
 
     fd, temp_path = tempfile.mkstemp(suffix=".xlsx")
     try:
@@ -1464,46 +1386,33 @@ async def import_test_cases(
 
             runs: list[ImportedTestRunResponse] = []
             if execute:
-                for persona in execution_personas:
-                    effective_persona = persona or settings.servicenow.active_persona
+                for persona in (persona_list or [None]):  # type: ignore[list-item]
                     goal = tc.title or tc.source_user_story
                     run_id = str(uuid.uuid4())
-                    new_run = Run(
-                        id=run_id,
-                        tenant_id=token.tenant_id or "unknown",
-                        requester_id=token.user_id,
-                        goal=goal,
-                        persona=effective_persona,
-                        status="queued",
-                    )
-                    db.add(new_run)
-                    await db.commit()
                     try:
                         execute_run.delay(
                             run_id=run_id,
                             goal=goal,
-                            tenant_id=token.tenant_id or "unknown",
+                            tenant_id=token.tenant_id,
                             test_case_id=tc.id,
-                            persona=effective_persona,
+                            persona=persona,
                             tc_data=tc_dict,
                         )
                         runs.append(
                             ImportedTestRunResponse(
                                 test_case_id=tc.id,
                                 run_id=run_id,
-                                persona=effective_persona,
+                                persona=persona,
                                 status="queued",
-                                message=f"Run queued for persona {effective_persona or 'default'}",
+                                message=f"Run queued for persona {persona or 'default'}",
                             )
                         )
                     except Exception as exc:
-                        new_run.status = "failed"  # type: ignore[assignment]
-                        await db.commit()
                         runs.append(
                             ImportedTestRunResponse(
                                 test_case_id=tc.id,
                                 run_id=run_id,
-                                persona=effective_persona,
+                                persona=persona,
                                 status="failed",
                                 message=f"Failed to enqueue execution: {exc}",
                             )
@@ -1562,10 +1471,6 @@ async def execute_test_case_sweep(
     from agent.api.v1.dependencies import get_cached_settings, get_test_intelligence_store
     
     s = get_cached_settings()
-    if not request.personas:
-        raise HTTPException(status_code=400, detail="No personas provided for sweep.")
-    for persona in request.personas:
-        _validate_persona_selection(s, persona)
     store = get_test_intelligence_store(s)
 
     tc = await store.get_test_case_async(test_case_id, tenant_id=token.tenant_id or "unknown")
@@ -1586,19 +1491,17 @@ async def execute_test_case_sweep(
             tenant_id=token.tenant_id or "unknown",
             requester_id=token.user_id,
             goal=f"{goal} (Persona: {persona})",
-            persona=persona,
             status="queued",
         )
         db.add(new_run)
-        await db.commit()
         try:
             execute_run.delay(
                 run_id=run_id,
                 goal=goal,
-                tenant_id=token.tenant_id or "unknown",
+                tenant_id=token.tenant_id,
                 test_case_id=test_case_id,
                 persona=persona,
-                tc_data=tc,
+                tc_data=tc
             )
             responses.append(RunResponse(
                 session_id=run_id,
@@ -1607,13 +1510,13 @@ async def execute_test_case_sweep(
             ))
         except Exception as exc:
             new_run.status = "failed"  # type: ignore[assignment]
-            await db.commit()
             responses.append(RunResponse(
                 session_id=run_id,
                 status="failed",
                 message=f"Failed to enqueue execution task: {exc}",
             ))
             
+    await db.commit()
     return responses
 
 

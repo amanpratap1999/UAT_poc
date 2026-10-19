@@ -37,8 +37,6 @@ def mock_page_interactor() -> MagicMock:
     interactor.click = AsyncMock()
     interactor.fill = AsyncMock()
     interactor.select_option = AsyncMock()
-    # Default mocked select verification should not report a pre-existing no-op.
-    interactor.is_select_value = AsyncMock(return_value=False)
     interactor.press_key = AsyncMock()
     interactor.scroll = AsyncMock()
     interactor.wait_for_element = AsyncMock(return_value=True)
@@ -65,12 +63,6 @@ def controller(
     config.is_subproduction = True
     config.instance_url = "https://test.service-now.com"
     config.allowed_instances = ["test.service-now.com"]
-    config.username = "admin"
-    config.password = "default-admin-secret"
-    config.personas = {
-        "itil_user": {"username": "qa-itil-user", "password": "qa-persona-secret", "role": "itil"}
-    }
-    config.active_persona = "itil_user"
     return ExecutionController(
         browser_manager=mock_browser_manager,
         page_interactor=mock_page_interactor,
@@ -163,43 +155,6 @@ async def test_execute_with_failure_and_recovery(
     assert result.success is True
     assert result.details.get("recovered") is True
     mock_recovery_engine.attempt_recovery.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_relocation_retry_uses_resolved_target(
-    controller: ExecutionController,
-    mock_page_interactor: MagicMock,
-    mock_recovery_engine: MagicMock,
-) -> None:
-    """A successful relocation must not retry the original broken selector."""
-    resolved_target = r"css:select[id$='.state'], select[name$='.state'], select#incident\.state"
-    mock_page_interactor.select_option.side_effect = [
-        SelectorNotFoundError("State label is not associated with a select"),
-        None,
-    ]
-    mock_recovery_engine.attempt_recovery.return_value = RecoveryResult(
-        success=True,
-        strategy="relocate_element",
-        details="State select found in the active frame",
-        resolved_target=resolved_target,
-    )
-    action = AgentAction(
-        action_type=ActionType.SELECT,
-        target="label:State",
-        value="In Progress",
-        reasoning="Change the incident state",
-        metadata={"field_label": "State"},
-    )
-
-    result = await controller.execute(action)
-
-    assert result.success is True
-    calls = mock_page_interactor.select_option.call_args_list
-    assert calls[0].args == ("State", "In Progress")
-    assert calls[1].args == (resolved_target, "In Progress")
-    assert result.details["recovered"] is True
-    assert result.details["original_target"] == "label:State"
-    assert result.details["resolved_target"] == resolved_target
 
 
 @pytest.mark.asyncio

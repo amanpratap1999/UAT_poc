@@ -32,7 +32,6 @@ export function RunTable({ runs }: RunTableProps) {
           <TableRow>
             <TableHead>Run ID</TableHead>
             <TableHead>Goal</TableHead>
-            <TableHead>Persona</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Started</TableHead>
             <TableHead>Duration</TableHead>
@@ -59,9 +58,6 @@ export function RunTable({ runs }: RunTableProps) {
                 >
                   {truncate(run.goal, 60)}
                 </Link>
-              </TableCell>
-              <TableCell>
-                <span className="font-mono text-xs text-body">{run.persona || "—"}</span>
               </TableCell>
               <TableCell>
                 <RunStatusBadge status={run.status} withDot />

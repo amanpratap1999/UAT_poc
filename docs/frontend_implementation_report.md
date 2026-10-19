@@ -182,18 +182,3 @@ frontend/src/
 1. Add a `perception_frames` table in PostgreSQL and save step frames in Celery tasks to enable live and replayable Perception Overlays.
 2. Expose `GET /api/v1/knowledge-model/rules` and `PATCH /api/v1/findings/{id}` in FastAPI.
 3. Integrate an optional WebSocket or Server-Sent Events (SSE) route at `/api/v1/runs/{id}/events` to replace polling seamlessly in `RunEventSource`.
-
-
----
-
-## Current integration status — 2026-10-18
-
-This dated addendum supersedes stale endpoint-gap statements in the historical phase notes above. It reflects a source inspection of the connected `fix/uat-evaluation-remediation` branch; it is not a claim of successful production or live ServiceNow validation.
-
-- **Perception evidence:** the Celery worker writes per-run perception evidence to the reports directory, `GET /api/v1/runs/{run_id}/perception` exposes it, and the frontend hook maps it to `PerceptionFrame` records. The overlay's no-data message now describes missing evidence for the selected run/step rather than incorrectly claiming that backend persistence does not exist.
-- **Findings review:** `GET /api/v1/findings` and `PATCH /api/v1/findings/{finding_id}` exist; the frontend Findings area wires override actions through its update hook. Verify live authorization and tenant isolation separately.
-- **Knowledge model:** `GET /api/v1/knowledge-model/rules`, `/tables`, and `/drift` exist and the frontend Knowledge Model page calls them. Actual content still depends on what the discovery/model layer has populated.
-- **Live run transport:** the backend exposes a short-lived stream-ticket endpoint and run-scoped SSE events; `LiveRunCanvas` uses that flow with reconnect handling. A running frontend test/build and an authorized ServiceNow run are still required for release sign-off.
-- **Test-case execution:** the Test Cases page exposes single-case execution with a configured persona and links to the returned live run. Workbook import now also has an explicit, default-off option to execute imported cases for configured personas; queued run IDs are available for export and the first run is linked to the live run view. The backend validates personas before queuing and persists run rows first.
-- **Persona safety and traceability:** the API returns configured persona names and roles only (never credential fields); run and stored-case execution validate selections and pass the persona to Celery. The chosen persona is stored on the run row, returned by run-history responses, and shown in the Runs table. The existing database initializer includes an idempotent migration for existing PostgreSQL tables. Without a valid persona when required, the API rejects the start request before queueing work.
-- **Verification status:** GitHub Actions is the automated gate for this branch. A queued/in-progress or failed job is not a pass. No live ServiceNow mutation was performed as part of this source audit.
