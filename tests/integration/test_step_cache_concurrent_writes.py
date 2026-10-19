@@ -49,8 +49,8 @@ async def test_step_cache_same_tenant_different_goals(tmp_path: Path) -> None:
 
     # Concurrent saves with different goals but same tenant
     await asyncio.gather(
-        cache.save_action("goal A", "validate", "step 1", "outcome 1", action_a, "tenant-1"),
-        cache.save_action("goal B", "validate", "step 1", "outcome 1", action_b, "tenant-1"),
+        asyncio.to_thread(cache.save_action, "goal A", "validate", "step 1", "outcome 1", action_a, "tenant-1"),
+        asyncio.to_thread(cache.save_action, "goal B", "validate", "step 1", "outcome 1", action_b, "tenant-1"),
     )
 
     # Both should be retrievable
