@@ -222,3 +222,30 @@ Added a regression test with 20 generic controls plus an Incident record link. T
 
 ### Follow-up / limitations
 The focused tests and a live ServiceNow rerun must be executed from the developer environment. The live run must demonstrate that LAYA selects the Incident record rather than repeatedly scrolling, and that the subsequent state mutation/persistence succeeds.
+
+## D-010 — 2026-10-19 — Add tool-native instruction entrypoints
+### Change
+Added short Claude Code, Gemini/Antigravity, and GitHub Copilot instruction entrypoints that direct each tool back to the canonical `AGENTS.md`, `ARCHITECTURE.md`, `DECISIONS.md`, and `README.md`. Added a unit test to guard the existence and cross-references of these entrypoints.
+
+### Why
+The canonical project contract already existed, but tools use different conventions for loading repository instructions. A single `AGENTS.md` cannot be assumed to load automatically in every tool or configuration. Tool-native entrypoints reduce the chance that a fresh agent starts from incomplete context without creating another independent architecture document.
+
+### Alternatives rejected
+1. Recreating a large duplicate `AI_AGENT_INSTRUCTIONS.md` or task-specific prompt.
+2. Copying the full architecture contract into each tool file, creating drift risk.
+3. Assuming every agent host automatically loads the same instruction filename.
+
+### Files / areas
+`AGENTS.md`
+`CLAUDE.md`
+`GEMINI.md`
+`.github/copilot-instructions.md`
+`.agents/rules/uat-poc.md`
+`tests/unit/test_agent_instruction_contract.py`
+`DECISIONS.md`
+
+### Verification
+Reviewed the canonical contracts and provider entrypoint conventions. Added a regression test for required files and references; the test has not yet been run in the Codespace or CI as part of this change.
+
+### Follow-up / limitations
+Repository files cannot force every model or IDE configuration to obey instructions. The relevant host must support and load its entrypoint; existing sessions may need to be restarted. The regression test guards file presence and linkage, not model compliance.
